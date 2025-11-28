@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { enforceTenant } from "../middleware/roleCheck";
-import { ExpenseCategory, PaymentMethod } from "@prisma/client";
+import { PaymentMethod } from "@prisma/client";
 
 export const expensesRouter = router({
     create: protectedProcedure
