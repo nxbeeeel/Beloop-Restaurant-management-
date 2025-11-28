@@ -74,7 +74,7 @@ export function TenantStatusControl({
         <>
             <div className="flex items-center gap-2">
                 <Badge className={getStatusColor(status)}>{status}</Badge>
-                <Select value={status} onValueChange={handleStatusChange} disabled={updateStatus.isLoading}>
+                <Select value={status} onValueChange={handleStatusChange} disabled={updateStatus.isPending}>
                     <SelectTrigger className="w-[140px]">
                         <SelectValue placeholder="Status" />
                     </SelectTrigger>
