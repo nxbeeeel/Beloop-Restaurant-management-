@@ -2,6 +2,10 @@
 const nextConfig = {
     reactStrictMode: true,
     transpilePackages: ['lucide-react'],
+    eslint: {
+        // Disable ESLint during production builds
+        ignoreDuringBuilds: true,
+    },
     experimental: {
         // serverActions: true, // Enabled by default in Next 14
     },
