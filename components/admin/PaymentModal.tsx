@@ -127,8 +127,8 @@ export function PaymentModal({ tenantId, onSuccess }: PaymentModalProps) {
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button type="submit" disabled={recordPayment.isLoading}>
-                            {recordPayment.isLoading ? 'Recording...' : 'Record Payment'}
+                        <Button type="submit" disabled={recordPayment.isPending}>
+                            {recordPayment.isPending ? 'Recording...' : 'Record Payment'}
                         </Button>
                     </DialogFooter>
                 </form>
