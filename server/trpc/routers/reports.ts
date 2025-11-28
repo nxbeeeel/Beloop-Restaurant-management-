@@ -109,71 +109,58 @@ export const reportsRouter = router({
         }),
 
     getOutletComparison: protectedProcedure
-        .input(z.object({
-            year: z.number(),
-            month: z.number().min(1).max(12),
-        }))
-        .query(async ({ ctx, input }) => {
-            const { year, month } = input;
-            const targetMonth = `${year}-${month.toString().padStart(2, '0')}`;
-
-            const summaries = await ctx.prisma.monthlySummary.findMany({
-                where: {
-                    outlet: { tenantId: ctx.tenantId },
-                    month: targetMonth
-                },
                 include: {
-                    outlet: { select: { name: true } }
-                }
-            });
+        outlet: { select: { name: true } }
+    }
+});
 
-            return summaries.map(s => ({
-                outletName: s.outlet.name,
-                sales: Number(s.totalSales),
-                expenses: Number(s.totalExpenses),
-                profit: Number(s.netProfit || 0),
-            })).sort((a, b) => b.sales - a.sales);
+return summaries.map(s => ({
+    outletName: s.outlet.name,
+    sales: Number(s.totalSales),
+    expenses: Number(s.totalExpenses),
+    profit: Number(s.netProfit || 0),
+})).sort((a, b) => b.sales - a.sales);
         }),
 
-    getExpensesByCategory: protectedProcedure
-        .input(z.object({
-            outletId: z.string().optional(),
-            year: z.number(),
-            month: z.number().min(1).max(12),
-        }))
-        .query(async ({ ctx, input }) => {
-            const { outletId, year, month } = input;
+getExpensesByCategory: protectedProcedure
+    .input(z.object({
+        outletId: z.string().optional(),
+        year: z.number(),
+        month: z.number().min(1).max(12),
+    }))
+    .query(async ({ ctx, input }) => {
+        const { outletId, year, month } = input;
 
-            const where: any = {
-                tenantId: ctx.tenantId,
-                date: {
-                    gte: new Date(year, month - 1, 1),
-                    lt: new Date(year, month, 1),
-                }
-            };
-
-            if (outletId && outletId !== 'ALL') {
-                where.outletId = outletId;
+        const where: any = {
+            tenantId: ctx.tenantId,
+            date: {
+                gte: new Date(year, month - 1, 1),
+                lt: new Date(year, month, 1),
             }
+        };
 
-            const expenses = await ctx.prisma.expense.findMany({
-                where,
-                select: {
-                    category: true,
-                    amount: true,
-                }
-            });
+        if (outletId && outletId !== 'ALL') {
+            where.outletId = outletId;
+        }
 
-            const categoryTotals = expenses.reduce((acc: Record<string, number>, expense) => {
-                const category = expense.category || 'Uncategorized';
-                acc[category] = (acc[category] || 0) + Number(expense.amount);
-                return acc;
-            }, {});
+        const expenses = await ctx.prisma.expense.findMany({
+            where,
+            select: {
+                category: true,
+                amount: true,
+            }
+        });
 
-            return Object.entries(categoryTotals)
-                .map(([category, total]) => ({ category, total }))
-                .sort((a, b) => (b.total as number) - (a.total as number));
-        }),
+        const categoryTotals = expenses.reduce((acc: Record<string, number>, expense) => {
+            const category = expense.category || 'Uncategorized';
+            acc[category] = (acc[category] || 0) + Number(expense.amount);
+            return acc;
+        }, {});
+
+        return Object.entries(categoryTotals)
+            .map(([category, total]) => ({ category, total }))
+            .sort((a, b) => (b.total as number) - (a.total as number));
+    }),
 
     getSalesTrend: protectedProcedure
         .input(z.object({
