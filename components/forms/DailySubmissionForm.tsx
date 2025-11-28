@@ -73,18 +73,6 @@ export function DailySubmissionForm({ outletId }: { outletId: string }) {
         'Utilities', 'Marketing', 'Maintenance', 'Other'
     ];
 
-    // Check for duplicates
-    const selectedDate = form.watch("date");
-    const checkDuplicate = trpc.sales.checkDuplicate.useQuery(
-        {
-            outletId,
-            date: selectedDate ? new Date(selectedDate) : new Date(),
-        },
-        {
-            enabled: !!outletId && !!selectedDate && step === 4 && !allowOverwrite,
-        }
-    );
-
     const form = useForm<SubmissionFormValues>({
         resolver: zodResolver(submissionSchema),
         defaultValues: {
@@ -109,6 +97,18 @@ export function DailySubmissionForm({ outletId }: { outletId: string }) {
         control: form.control,
         name: "expenses",
     });
+
+    // Check for duplicates
+    const selectedDate = form.watch("date");
+    const checkDuplicate = trpc.sales.checkDuplicate.useQuery(
+        {
+            outletId,
+            date: selectedDate ? new Date(selectedDate) : new Date(),
+        },
+        {
+            enabled: !!outletId && !!selectedDate && step === 4 && !allowOverwrite,
+        }
+    );
 
     // Initialize stock check fields when products are loaded
     const { fields: stockFields, replace: replaceStock } = useFieldArray({
