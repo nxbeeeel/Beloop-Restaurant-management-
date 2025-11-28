@@ -127,8 +127,8 @@ export default function PaymentsPage() {
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setIsAddPaymentOpen(false)}>Cancel</Button>
-                            <Button onClick={handleRecordPayment} disabled={recordPaymentMutation.isLoading}>
-                                {recordPaymentMutation.isLoading ? "Recording..." : "Record Payment"}
+                            <Button onClick={handleRecordPayment} disabled={recordPaymentMutation.isPending}>
+                                {recordPaymentMutation.isPending ? "Recording..." : "Record Payment"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

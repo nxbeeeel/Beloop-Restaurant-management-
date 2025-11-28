@@ -207,8 +207,8 @@ export default function SuppliersPage() {
                             </div>
                             <DialogFooter className="pt-4">
                                 <Button type="button" variant="outline" onClick={() => { setIsCreateOpen(false); setEditingSupplier(null); }}>Cancel</Button>
-                                <Button type="submit" disabled={createMutation.isLoading || updateMutation.isLoading}>
-                                    {createMutation.isLoading || updateMutation.isLoading ? "Saving..." : "Save Supplier"}
+                                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                                    {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save Supplier"}
                                 </Button>
                             </DialogFooter>
                         </form>
