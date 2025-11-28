@@ -38,7 +38,7 @@ export function UserActionMenu({ userId, isActive, onUpdate }: UserActionMenuPro
         },
     });
 
-    const isLoading = suspend.isLoading || activate.isLoading;
+    const isLoading = suspend.isPending || activate.isPending;
 
     const handleAction = () => {
         if (isActive) {

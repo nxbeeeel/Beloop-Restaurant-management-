@@ -102,7 +102,7 @@ export function TenantStatusControl({
                         <Button
                             variant={pendingStatus === 'SUSPENDED' ? 'destructive' : 'default'}
                             onClick={confirmChange}
-                            disabled={updateStatus.isLoading}
+                            disabled={updateStatus.isPending}
                         >
                             Confirm
                         </Button>
