@@ -49,7 +49,7 @@ export function PaymentModal({ tenantId, onSuccess }: PaymentModalProps) {
         e.preventDefault();
         recordPayment.mutate({
             tenantId,
-            amount: parseFloat(amount),
+            amount: Number(amount),
             method: method as any,
             reference,
             notes,

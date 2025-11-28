@@ -62,7 +62,7 @@ export default function ExpenseEntryForm({ outletId }: { outletId: string }) {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        const amountNum = parseFloat(amount);
+        const amountNum = Number(amount);
         if (!amountNum || amountNum <= 0) {
             toast.error("Please enter a valid amount");
             return;
@@ -84,7 +84,7 @@ export default function ExpenseEntryForm({ outletId }: { outletId: string }) {
         });
     };
 
-    const totalAmount = parseFloat(amount) || 0;
+    const totalAmount = Number(amount) || 0;
 
     // Use dynamic categories or fallback to defaults if loading/empty
     const fruitCategories = tenantSettings?.fruitCategories as string[] || ["FRUITS", "VEGETABLES", "DAIRY"];

@@ -48,7 +48,7 @@ export default function PaymentsPage() {
 
         recordPaymentMutation.mutate({
             tenantId: selectedTenantId,
-            amount: parseFloat(amount),
+            amount: Number(amount),
             method,
             date: new Date(),
             notes,

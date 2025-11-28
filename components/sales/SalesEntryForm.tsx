@@ -72,10 +72,10 @@ export default function SalesEntryForm({ outletId }: { outletId: string }) {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const cash = parseFloat(cashSale) || 0;
-        const bank = parseFloat(bankSale) || 0;
-        const zomato = parseFloat(zomatoSale) || 0;
-        const swiggy = parseFloat(swiggySale) || 0;
+        const cash = Number(cashSale) || 0;
+        const bank = Number(bankSale) || 0;
+        const zomato = Number(zomatoSale) || 0;
+        const swiggy = Number(swiggySale) || 0;
 
         if (cash + bank + zomato + swiggy === 0) {
             toast.error("Please enter at least one sale amount");
@@ -93,17 +93,17 @@ export default function SalesEntryForm({ outletId }: { outletId: string }) {
                 zomato: zomato,
                 swiggyPayout: 0,
                 zomatoPayout: 0,
-                cashInHand: parseFloat(cashInHand) || 0,
-                cashInBank: parseFloat(cashInBank) || 0,
+                cashInHand: Number(cashInHand) || 0,
+                cashInBank: Number(cashInBank) || 0,
                 cashWithdrawal: 0,
             });
 
             // Submit quick expenses if any
             const quickExpenses = [
-                { category: "FUEL", amount: parseFloat(oil) || 0 },
-                { category: "SUPPLIES", amount: parseFloat(waterCan) || 0 },
-                { category: "SUPPLIES", amount: parseFloat(waterBottle) || 0 },
-                { category: "MISCELLANEOUS", amount: parseFloat(miscExpense) || 0 },
+                { category: "FUEL", amount: Number(oil) || 0 },
+                { category: "SUPPLIES", amount: Number(waterCan) || 0 },
+                { category: "SUPPLIES", amount: Number(waterBottle) || 0 },
+                { category: "MISCELLANEOUS", amount: Number(miscExpense) || 0 },
             ];
 
             for (const expense of quickExpenses) {
@@ -111,11 +111,11 @@ export default function SalesEntryForm({ outletId }: { outletId: string }) {
                     await createExpense.mutateAsync({
                         outletId,
                         date: new Date(date),
-                        category: expense.category as any,
+                        category: expense.category as "FUEL" | "SUPPLIES" | "MISCELLANEOUS",
                         amount: expense.amount,
-                        paymentMethod: "CASH" as any,
+                        paymentMethod: "CASH",
                         description: expense.category === "FUEL" ? "Oil" :
-                            expense.category === "SUPPLIES" && expense.amount === (parseFloat(waterCan) || 0) ? "Water Can" :
+                            expense.category === "SUPPLIES" && expense.amount === (Number(waterCan) || 0) ? "Water Can" :
                                 expense.category === "SUPPLIES" ? "Water Bottle" : "Misc",
                     });
                 }
@@ -128,10 +128,10 @@ export default function SalesEntryForm({ outletId }: { outletId: string }) {
         }
     };
 
-    const cashBankTotal = (parseFloat(cashSale) || 0) + (parseFloat(bankSale) || 0);
-    const totalSalesWithPlatforms = cashBankTotal + (parseFloat(zomatoSale) || 0) + (parseFloat(swiggySale) || 0);
-    const quickExpensesTotal = (parseFloat(oil) || 0) + (parseFloat(waterCan) || 0) +
-        (parseFloat(waterBottle) || 0) + (parseFloat(miscExpense) || 0);
+    const cashBankTotal = (Number(cashSale) || 0) + (Number(bankSale) || 0);
+    const totalSalesWithPlatforms = cashBankTotal + (Number(zomatoSale) || 0) + (Number(swiggySale) || 0);
+    const quickExpensesTotal = (Number(oil) || 0) + (Number(waterCan) || 0) +
+        (Number(waterBottle) || 0) + (Number(miscExpense) || 0);
 
     const formatCurrency = (amount: number) => {
         return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

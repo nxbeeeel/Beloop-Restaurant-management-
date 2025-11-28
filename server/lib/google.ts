@@ -132,7 +132,7 @@ export async function ensureOutletSheet(
 /**
  * Appends a row to the sheet
  */
-export async function appendToSheet(spreadsheetId: string, rowData: any[]) {
+export async function appendToSheet(spreadsheetId: string, rowData: (string | number | boolean | null)[]) {
     const sheets = await getSheetsClient();
     if (!sheets) return;
 

@@ -100,10 +100,10 @@ export default function DailySalesPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const cash = parseFloat(cashSale) || 0;
-        const bank = parseFloat(bankSale) || 0;
-        const zomato = parseFloat(zomatoSale) || 0;
-        const swiggy = parseFloat(swiggySale) || 0;
+        const cash = Number(cashSale) || 0;
+        const bank = Number(bankSale) || 0;
+        const zomato = Number(zomatoSale) || 0;
+        const swiggy = Number(swiggySale) || 0;
 
         if (cash + bank + zomato + swiggy === 0) {
             toast.error("Please enter at least one sale amount");
@@ -121,18 +121,18 @@ export default function DailySalesPage() {
                 zomato: zomato,
                 swiggyPayout: 0,
                 zomatoPayout: 0,
-                cashInHand: parseFloat(cashInHand) || 0,
-                cashInBank: parseFloat(cashInBank) || 0,
-                cashWithdrawal: parseFloat(cashWithdrawal) || 0,
+                cashInHand: Number(cashInHand) || 0,
+                cashInBank: Number(cashInBank) || 0,
+                cashWithdrawal: Number(cashWithdrawal) || 0,
                 closingNote
             });
 
             // Submit quick expenses if any
             const quickExpenses = [
-                { category: "FUEL", amount: parseFloat(oil) || 0, desc: "Oil" },
-                { category: "SUPPLIES", amount: parseFloat(waterCan) || 0, desc: "Water Can" },
-                { category: "SUPPLIES", amount: parseFloat(waterBottle) || 0, desc: "Water Bottle" },
-                { category: "MISCELLANEOUS", amount: parseFloat(miscExpense) || 0, desc: "Misc" },
+                { category: "FUEL", amount: Number(oil) || 0, desc: "Oil" },
+                { category: "SUPPLIES", amount: Number(waterCan) || 0, desc: "Water Can" },
+                { category: "SUPPLIES", amount: Number(waterBottle) || 0, desc: "Water Bottle" },
+                { category: "MISCELLANEOUS", amount: Number(miscExpense) || 0, desc: "Misc" },
             ];
 
             for (const expense of quickExpenses) {
@@ -157,20 +157,20 @@ export default function DailySalesPage() {
     };
 
     // Calculations
-    const cashBankTotal = (parseFloat(cashSale) || 0) + (parseFloat(bankSale) || 0);
-    const totalSalesWithPlatforms = cashBankTotal + (parseFloat(zomatoSale) || 0) + (parseFloat(swiggySale) || 0);
-    const quickExpensesTotal = (parseFloat(oil) || 0) + (parseFloat(waterCan) || 0) +
-        (parseFloat(waterBottle) || 0) + (parseFloat(miscExpense) || 0);
+    const cashBankTotal = (Number(cashSale) || 0) + (Number(bankSale) || 0);
+    const totalSalesWithPlatforms = cashBankTotal + (Number(zomatoSale) || 0) + (Number(swiggySale) || 0);
+    const quickExpensesTotal = (Number(oil) || 0) + (Number(waterCan) || 0) +
+        (Number(waterBottle) || 0) + (Number(miscExpense) || 0);
 
     // Cash balance calculations
     const yesterdayClosing = yesterdaySale ? Number(yesterdaySale.cashInHand) : 0;
-    const todayCashSale = parseFloat(cashSale) || 0;
+    const todayCashSale = Number(cashSale) || 0;
     const todayCashExpenses = todayExpenses?.reduce((sum, exp) =>
         exp.paymentMethod === "CASH" ? sum + Number(exp.amount) : sum, 0) || 0;
     const totalCashExpense = todayCashExpenses + quickExpensesTotal;
-    const withdrawal = parseFloat(cashWithdrawal) || 0;
+    const withdrawal = Number(cashWithdrawal) || 0;
     const expectedCashInHand = yesterdayClosing + todayCashSale - totalCashExpense - withdrawal;
-    const enteredCashInHand = parseFloat(cashInHand) || 0;
+    const enteredCashInHand = Number(cashInHand) || 0;
     const cashDifference = expectedCashInHand - enteredCashInHand;
 
     const formatCurrency = (amount: number) => {
