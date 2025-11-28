@@ -1,0 +1,583 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Platform {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+}
+
+model PlatformAdmin {
+  id    String       @id @default(cuid())
+  email String       @unique
+  role  PlatformRole
+}
+
+model Tenant {
+  id                  String             @id @default(cuid())
+  slug                String             @unique
+  name                String
+  logoUrl             String?
+  primaryColor        String             @default("#e11d48")
+  isStockModule       Boolean            @default(false)
+  features            Json?
+  stripeCustomerId    String?            @unique
+  stripePriceId       String?
+  subscriptionStatus  SubscriptionStatus @default(TRIAL)
+  trialEndsAt         DateTime?
+  sheetsSpreadsheetId String?
+  sheetsRefreshToken  String?
+  lastSheetExportAt   DateTime?
+  encryptionKey       String?
+  expenseCategories   Json?
+  fruitCategories     Json?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  auditLogs           AuditLog[]
+  invitations         Invitation[]
+  outlets             Outlet[]
+  suppliers           Supplier[]
+  users               User[]
+  payments            Payment[]
+
+  // Subscription & Billing
+  status          TenantStatus @default(ACTIVE)
+  pricePerOutlet  Float        @default(500)
+  currency        String       @default("INR")
+  billingCycle    String       @default("MONTHLY")
+  nextBillingDate DateTime?
+  isPaymentDue    Boolean      @default(false)
+  Ticket          Ticket[]
+
+  @@index([slug, subscriptionStatus])
+}
+
+model Outlet {
+  id               String            @id @default(cuid())
+  tenantId         String
+  name             String
+  code             String
+  address          String?
+  phone            String?
+  email            String?
+  googleSheetsUrl  String?
+  status           OutletStatus      @default(ACTIVE)
+  sheetExportUrl   String?
+  spreadsheetId    String?
+  dailyClosures    DailyClosure[]
+  expenses         Expense[]
+  invitations      Invitation[]
+  monthlySummaries MonthlySummary[]
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products         Product[]
+  productSaleLinks ProductSaleLink[]
+  purchaseOrders   PurchaseOrder[]
+  sales            Sale[]
+  stockChecks      StockCheck[]
+  stockMoves       StockMove[]
+  users            User[]
+  wastages         Wastage[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+}
+
+model User {
+  id                 String             @id @default(cuid())
+  tenantId           String?
+  outletId           String?
+  email              String             @unique
+  clerkId            String             @unique
+  name               String
+  role               UserRole           @default(STAFF)
+  permissions        Json?
+  passwordChangedAt  DateTime?
+  mustChangePassword Boolean            @default(false)
+  isActive           Boolean            @default(true)
+  lastLoginAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  auditLogs          AuditLog[]
+  expenses           Expense[]
+  sales              Sale[]
+  stockChecks        StockCheck[]
+  tempPassword       TemporaryPassword?
+  outlet             Outlet?            @relation(fields: [outletId], references: [id])
+  tenant             Tenant?            @relation(fields: [tenantId], references: [id])
+  Ticket             Ticket[]
+  TicketComment      TicketComment[]
+
+  @@index([tenantId, role])
+  @@index([outletId])
+  @@index([clerkId])
+  @@index([email])
+}
+
+model Sale {
+  id                String    @id @default(cuid())
+  outletId          String
+  staffId           String
+  date              DateTime  @db.Date
+  cashSale          Decimal   @default(0) @db.Decimal(12, 2)
+  bankSale          Decimal   @default(0) @db.Decimal(12, 2)
+  swiggy            Decimal   @default(0) @db.Decimal(12, 2)
+  zomato            Decimal   @default(0) @db.Decimal(12, 2)
+  swiggyPayout      Decimal   @default(0) @db.Decimal(12, 2)
+  zomatoPayout      Decimal   @default(0) @db.Decimal(12, 2)
+  cashInHand        Decimal   @default(0) @db.Decimal(12, 2)
+  cashInBank        Decimal   @default(0) @db.Decimal(12, 2)
+  cashWithdrawal    Decimal   @default(0) @db.Decimal(12, 2)
+  totalSale         Decimal   @default(0) @db.Decimal(12, 2)
+  expenseCash       Decimal   @default(0) @db.Decimal(12, 2)
+  expenseBank       Decimal   @default(0) @db.Decimal(12, 2)
+  totalExpense      Decimal   @default(0) @db.Decimal(12, 2)
+  profit            Decimal   @default(0) @db.Decimal(12, 2)
+  difference        Decimal   @default(0) @db.Decimal(12, 2)
+  version           Int       @default(1)
+  deletedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  otherOnline       Decimal   @default(0) @db.Decimal(12, 2)
+  otherOnlinePayout Decimal   @default(0) @db.Decimal(12, 2)
+  outlet            Outlet    @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  staff             User      @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, date])
+  @@index([outletId, date])
+  @@index([staffId, date])
+  @@index([date])
+}
+
+model Expense {
+  id            String          @id @default(cuid())
+  outletId      String
+  staffId       String
+  date          DateTime        @db.Date
+  category      String
+  amount        Decimal         @db.Decimal(12, 2)
+  paymentMethod PaymentMethod   @default(CASH)
+  description   String?
+  receiptUrl    String?
+  ocrJson       Json?
+  needsReview   Boolean         @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  outlet        Outlet          @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  staff         User            @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder?
+
+  @@index([outletId, date])
+  @@index([staffId, date])
+  @@index([category, date])
+  @@index([date])
+}
+
+model MonthlySummary {
+  id               String   @id @default(cuid())
+  outletId         String
+  month            String
+  totalSales       Decimal  @default(0) @db.Decimal(12, 2)
+  totalExpenses    Decimal  @default(0) @db.Decimal(12, 2)
+  expenseRatio     Decimal  @default(0) @db.Decimal(5, 2)
+  profitMargin     Decimal  @default(0) @db.Decimal(5, 2)
+  cashSales        Decimal  @default(0) @db.Decimal(12, 2)
+  bankSales        Decimal  @default(0) @db.Decimal(12, 2)
+  daysWithSales    Int      @default(0)
+  lastRefreshed    DateTime @default(now())
+  avgTicketSize    Decimal  @default(0) @db.Decimal(10, 2)
+  expenseBreakdown Json?
+  grossProfit      Decimal  @default(0) @db.Decimal(12, 2)
+  netProfit        Decimal  @default(0) @db.Decimal(12, 2)
+  totalWastage     Decimal  @default(0) @db.Decimal(12, 2)
+  wastageRatio     Decimal  @default(0) @db.Decimal(5, 2)
+  outlet           Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, month])
+  @@index([outletId, month])
+}
+
+model Product {
+  id              String            @id @default(cuid())
+  outletId        String
+  supplierId      String?
+  sku             String
+  name            String
+  unit            String
+  minStock        Float             @default(0)
+  currentStock    Float             @default(0)
+  version         Int               @default(1)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  poItems         POItem[]
+  outlet          Outlet            @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier        Supplier?         @relation(fields: [supplierId], references: [id])
+  saleLinks       ProductSaleLink[]
+  stockCheckItems StockCheckItem[]
+  stockMoves      StockMove[]
+  wastages        Wastage[]
+
+  @@unique([outletId, sku])
+  @@index([outletId])
+  @@index([supplierId])
+  @@index([outletId, version])
+}
+
+model StockMove {
+  id        String   @id @default(cuid())
+  outletId  String
+  productId String
+  qty       Float
+  type      MoveType
+  date      DateTime @db.Date
+  notes     String?
+  createdAt DateTime @default(now())
+  outlet    Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([outletId, date])
+  @@index([productId, type, date])
+}
+
+model PurchaseOrder {
+  id              String    @id @default(cuid())
+  outletId        String
+  supplierId      String?
+  status          POStatus  @default(DRAFT)
+  totalAmount     Decimal   @default(0) @db.Decimal(12, 2)
+  whatsappMessage String?
+  sentAt          DateTime?
+  billImageUrl    String?
+  billDate        DateTime?
+  expenseId       String?   @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  items           POItem[]
+  expense         Expense?  @relation(fields: [expenseId], references: [id])
+  outlet          Outlet    @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@index([outletId, status])
+  @@index([supplierId])
+}
+
+model POItem {
+  id            String        @id @default(cuid())
+  poId          String
+  productId     String?
+  productName   String
+  qty           Float
+  unitCost      Decimal       @db.Decimal(12, 2)
+  total         Decimal       @default(0) @db.Decimal(12, 2)
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  product       Product?      @relation(fields: [productId], references: [id])
+
+  @@index([poId])
+}
+
+model ProductSaleLink {
+  id         String  @id @default(cuid())
+  outletId   String
+  productId  String
+  saleType   String
+  qtyPerSale Float   @default(1)
+  outlet     Outlet  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, productId, saleType])
+  @@index([outletId])
+}
+
+model Invitation {
+  id            String       @id @default(cuid())
+  token         String       @unique @default(cuid())
+  createdById   String
+  createdByRole UserRole
+  inviteRole    UserRole
+  email         String?
+  tenantId      String?
+  outletId      String?
+  status        InviteStatus @default(PENDING)
+  expiresAt     DateTime
+  acceptedAt    DateTime?
+  acceptedBy    String?
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+  outlet        Outlet?      @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  tenant        Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([status, expiresAt])
+  @@index([tenantId])
+  @@index([outletId])
+}
+
+model TemporaryPassword {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  passwordHash String
+  expiresAt    DateTime
+  mustChange   Boolean  @default(true)
+  createdBy    String
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  outletId  String?
+  userId    String?
+  userName  String?
+  action    String
+  tableName String
+  recordId  String
+  oldValue  Json?
+  newValue  Json?
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, timestamp])
+  @@index([outletId, timestamp])
+  @@index([userId, timestamp])
+}
+
+model SaleArchive {
+  id        String   @id @default(cuid())
+  outletId  String
+  month     String
+  data      Json
+  createdAt DateTime @default(now())
+
+  @@index([outletId, month])
+}
+
+model Supplier {
+  id             String          @id @default(cuid())
+  tenantId       String
+  name           String
+  whatsappNumber String?
+  email          String?
+  paymentTerms   String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  products       Product[]
+  purchaseOrders PurchaseOrder[]
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model StockCheck {
+  id          String           @id @default(cuid())
+  outletId    String
+  performedBy String
+  date        DateTime         @default(now())
+  status      StockCheckStatus @default(COMPLETED)
+  notes       String?
+  createdAt   DateTime         @default(now())
+  outlet      Outlet           @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [performedBy], references: [id])
+  items       StockCheckItem[]
+
+  @@index([outletId, date])
+}
+
+model StockCheckItem {
+  id           String     @id @default(cuid())
+  stockCheckId String
+  productId    String
+  countedQty   Float
+  previousQty  Float
+  difference   Float
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stockCheck   StockCheck @relation(fields: [stockCheckId], references: [id], onDelete: Cascade)
+
+  @@index([stockCheckId])
+}
+
+model DailyClosure {
+  id                String   @id @default(cuid())
+  outletId          String
+  date              DateTime
+  cashSale          Decimal  @default(0)
+  bankSale          Decimal  @default(0)
+  zomatoSale        Decimal  @default(0)
+  swiggySale        Decimal  @default(0)
+  totalSale         Decimal  @default(0)
+  totalExpense      Decimal  @default(0)
+  profit            Decimal  @default(0)
+  stockSnapshot     Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  otherOnline       Decimal  @default(0)
+  otherOnlinePayout Decimal  @default(0)
+  outlet            Outlet   @relation(fields: [outletId], references: [id])
+
+  @@unique([outletId, date])
+  @@index([outletId])
+}
+
+model Wastage {
+  id        String   @id @default(cuid())
+  outletId  String
+  productId String
+  qty       Float
+  cost      Decimal  @default(0)
+  reason    String
+  date      DateTime @default(now())
+  staffId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  outlet    Outlet   @relation(fields: [outletId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@index([outletId])
+  @@index([productId])
+}
+
+enum PlatformRole {
+  SUPER_SUPPORT_BILLING
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+enum OutletStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum UserRole {
+  SUPER
+  BRAND_ADMIN
+  OUTLET_MANAGER
+  STAFF
+}
+
+enum ExpenseCategory {
+  FRUITS
+  VEGETABLES
+  DAIRY
+  PACKAGING
+  FUEL
+  SALARY
+  RENT
+  UTILITIES
+  MARKETING
+  EQUIPMENT
+  MAINTENANCE
+  INSURANCE
+  TAXES
+  LICENSES
+  SUPPLIES
+  TRANSPORT
+  PROFESSIONAL_FEES
+  BANK_CHARGES
+  ENTERTAINMENT
+  TRAVEL
+  MISCELLANEOUS
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  BANK
+}
+
+enum MoveType {
+  PURCHASE
+  SALE
+  WASTE
+  ADJUSTMENT
+}
+
+enum POStatus {
+  DRAFT
+  SENT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  VERIFIED
+  CANCELLED
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum StockCheckStatus {
+  DRAFT
+  COMPLETED
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  PAUSED
+  TRIAL
+  PENDING
+}
+
+model Payment {
+  id         String   @id @default(cuid())
+  tenantId   String
+  amount     Float
+  currency   String   @default("INR")
+  status     String // COMPLETED, PENDING, FAILED
+  method     String // CASH, UPI, BANK_TRANSFER
+  reference  String?
+  recordedBy String // UserId
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Ticket {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String // Creator
+  subject     String
+  description String
+  status      String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  category    String // BUG, FEATURE, BILLING, OTHER
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  user     User            @relation(fields: [userId], references: [id])
+  comments TicketComment[]
+}
+
+model TicketComment {
+  id         String   @id @default(cuid())
+  ticketId   String
+  userId     String
+  content    String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+}
