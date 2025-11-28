@@ -123,8 +123,7 @@ export default function DailySalesPage() {
                 zomatoPayout: 0,
                 cashInHand: Number(cashInHand) || 0,
                 cashInBank: Number(cashInBank) || 0,
-                cashWithdrawal: Number(cashWithdrawal) || 0,
-                closingNote
+                cashWithdrawal: Number(cashWithdrawal) || 0
             });
 
             // Submit quick expenses if any
