@@ -102,7 +102,7 @@ export const expensesRouter = router({
                     },
                     update: {
                         totalExpenses: totalMonthExpense,
-                        profit: totalMonthSale - totalMonthExpense,
+                        netProfit: totalMonthSale - totalMonthExpense,
                         lastRefreshed: new Date()
                     },
                     create: {
@@ -110,7 +110,7 @@ export const expensesRouter = router({
                         month,
                         totalSales: 0,
                         totalExpenses: totalMonthExpense,
-                        profit: -totalMonthExpense,
+                        netProfit: -totalMonthExpense,
                     }
                 });
 
