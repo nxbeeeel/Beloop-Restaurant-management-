@@ -26,7 +26,7 @@ export const analyticsRouter = router({
             if (redis) {
                 const cached = await redis.get(cacheKey);
                 if (cached) {
-                    return JSON.parse(cached);
+                    return cached;
                 }
             }
 
@@ -135,7 +135,7 @@ export const analyticsRouter = router({
 
             // 3. Set Cache
             if (redis) {
-                await redis.set(cacheKey, JSON.stringify(result), { ex: CACHE_TTL });
+                await redis.set(cacheKey, result, { ex: CACHE_TTL });
             }
 
             return result;
@@ -155,7 +155,7 @@ export const analyticsRouter = router({
             if (redis) {
                 const cached = await redis.get(cacheKey);
                 if (cached) {
-                    return JSON.parse(cached);
+                    return cached;
                 }
             }
 
@@ -186,7 +186,7 @@ export const analyticsRouter = router({
             }));
 
             if (redis) {
-                await redis.set(cacheKey, JSON.stringify(result), { ex: CACHE_TTL });
+                await redis.set(cacheKey, result, { ex: CACHE_TTL });
             }
 
             return result;
