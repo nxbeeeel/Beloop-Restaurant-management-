@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/server/db";
 import { redirect } from "next/navigation";
-import MonthlyReportView from "@/components/reports/MonthlyReportView";
+import { MonthlyReportView } from "@/components/reports/MonthlyReportView";
 
 export default async function BrandReportsPage() {
     const { userId } = auth();
