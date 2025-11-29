@@ -227,15 +227,27 @@ function setupSheets() {
   let salesSheet = ss.getSheetByName('Daily Sales');
   if (!salesSheet) {
     salesSheet = ss.insertSheet('Daily Sales');
-    salesSheet.getRange('A1:I1').setValues([[
+    
+    // Add opening balance section
+    salesSheet.getRange('A1:B1').merge().setValue('OPENING BALANCE (From Last Month)').setFontWeight('bold').setBackground('#FBBC04').setFontColor('#000000');
+    salesSheet.getRange('A2').setValue('Last Month Net Profit/Loss:');
+    salesSheet.getRange('B2').setValue(0).setNumberFormat('₹#,##0.00').setFontWeight('bold');
+    salesSheet.getRange('A3').setValue('Notes:');
+    salesSheet.getRange('B3').setValue('Update this manually from last month ledger');
+    
+    // Add spacing
+    salesSheet.getRange('A4').setValue('');
+    
+    // Add headers for daily sales
+    salesSheet.getRange('A5:I5').setValues([[
       'Date', 'Cash Sale', 'Bank Sale', 'Swiggy', 'Zomato', 
       'Other Online', 'Total', 'Notes', 'Status'
     ]]);
-    salesSheet.getRange('A1:I1').setFontWeight('bold').setBackground('#4285F4').setFontColor('#FFFFFF');
-    salesSheet.setFrozenRows(1);
+    salesSheet.getRange('A5:I5').setFontWeight('bold').setBackground('#4285F4').setFontColor('#FFFFFF');
+    salesSheet.setFrozenRows(5);
     
-    // Add formula for Total column
-    salesSheet.getRange('G2').setFormula('=SUM(B2:F2)');
+    // Add formula for Total column (starting from row 6)
+    salesSheet.getRange('G6').setFormula('=SUM(B6:F6)');
   }
   
   // ===== EXPENSES SHEET =====
@@ -404,12 +416,13 @@ function pushSalesToBeloop() {
   }
   
   const data = sheet.getDataRange().getValues();
-  const rows = data.slice(1);
+  // Skip first 5 rows (opening balance section + headers)
+  const rows = data.slice(5);
   
   const sales = rows
     .filter(row => row[0] && row[8] !== 'Synced') // Has date and not synced
     .map((row, index) => ({
-      rowIndex: index + 2,
+      rowIndex: index + 6, // Data starts at row 6
       date: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
       cashSale: Number(row[1]) || 0,
       bankSale: Number(row[2]) || 0,
