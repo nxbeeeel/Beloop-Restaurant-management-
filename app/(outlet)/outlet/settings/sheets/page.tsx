@@ -41,9 +41,14 @@ export default function SheetsSettingsPage() {
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto pb-20 md:pb-6">
-            <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Google Sheets Integration</h1>
-                <p className="text-gray-500 text-sm md:text-base">Connect your outlet data to Google Sheets for automated reporting</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Google Sheets Integration</h1>
+                    <p className="text-gray-500 text-sm md:text-base">Connect your outlet data to Google Sheets for automated reporting</p>
+                </div>
+                <Button asChild variant="outline">
+                    <a href="/outlet/settings/sheets/generate">Generate Script</a>
+                </Button>
             </div>
 
             <Card className="border-0 shadow-lg ring-1 ring-gray-100">
