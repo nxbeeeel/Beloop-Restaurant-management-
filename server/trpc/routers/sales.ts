@@ -159,7 +159,7 @@ export const salesRouter = router({
                     update: {
                         totalSales: monthAgg._sum.totalSale || 0,
                         totalExpenses: monthAgg._sum.totalExpense || 0,
-                        profit: monthAgg._sum.profit || 0,
+                        netProfit: monthAgg._sum.profit || 0,
                         cashSales: monthAgg._sum.cashSale || 0,
                         bankSales: monthAgg._sum.bankSale || 0,
                         lastRefreshed: new Date()
@@ -169,7 +169,7 @@ export const salesRouter = router({
                         month,
                         totalSales: monthAgg._sum.totalSale || 0,
                         totalExpenses: monthAgg._sum.totalExpense || 0,
-                        profit: monthAgg._sum.profit || 0,
+                        netProfit: monthAgg._sum.profit || 0,
                         cashSales: monthAgg._sum.cashSale || 0,
                         bankSales: monthAgg._sum.bankSale || 0,
                     }
