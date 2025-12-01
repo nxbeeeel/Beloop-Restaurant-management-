@@ -228,90 +228,91 @@ export const posRouter = router({
                     data: { currentStock: { increment: input.quantity } }
                 }),
                 ctx.prisma.stockMove.create({
-                    outletId,
-                    productId: product.id,
-                    qty: input.quantity,
-                    type: input.type as any, // Map enum if needed
-                    date: new Date(input.createdAt),
-                    notes: `POS Ref: ${input.referenceId}`
-                }
+                    data: {
+                        outletId,
+                        productId: product.id,
+                        qty: input.quantity,
+                        type: input.type as any,
+                        date: new Date(input.createdAt),
+                        notes: `POS Ref: ${input.referenceId}`
+                    }
                 })
             ]);
 
-return { success: true };
+            return { success: true };
         }),
 
-// 4. Close Day (Push) - New Full Closure
-closeDay: publicProcedure
-    .input(z.object({
-        date: z.string(), // ISO Date String
-        cashSales: z.number(),
-        cardSales: z.number(), // Bank/Card
-        upiSales: z.number().optional(), // Treat as Bank for now or separate
-        totalSales: z.number(),
-        ordersCount: z.number()
-    }))
-    .mutation(async ({ ctx, input }) => {
-        const tenantId = ctx.headers.get('x-tenant-id');
-        const outletId = ctx.headers.get('x-outlet-id');
+    // 4. Close Day (Push) - New Full Closure
+    closeDay: publicProcedure
+        .input(z.object({
+            date: z.string(), // ISO Date String
+            cashSales: z.number(),
+            cardSales: z.number(), // Bank/Card
+            upiSales: z.number().optional(), // Treat as Bank for now or separate
+            totalSales: z.number(),
+            ordersCount: z.number()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const tenantId = ctx.headers.get('x-tenant-id');
+            const outletId = ctx.headers.get('x-outlet-id');
 
-        if (!tenantId || !outletId) {
-            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Missing SaaS Context Headers' });
-        }
-
-        // Parse date to start of day
-        const dateObj = new Date(input.date);
-
-        // Upsert DailyClosure (Detailed Record)
-        await ctx.prisma.dailyClosure.upsert({
-            where: {
-                outletId_date: {
-                    outletId,
-                    date: dateObj
-                }
-            },
-            update: {
-                cashSale: input.cashSales,
-                bankSale: input.cardSales + (input.upiSales || 0),
-                totalSale: input.totalSales,
-            },
-            create: {
-                outletId,
-                date: dateObj,
-                cashSale: input.cashSales,
-                bankSale: input.cardSales + (input.upiSales || 0),
-                totalSale: input.totalSales,
-                totalExpense: 0,
-                profit: input.totalSales
+            if (!tenantId || !outletId) {
+                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Missing SaaS Context Headers' });
             }
-        });
 
-        // ALSO Upsert Sale (Legacy/Main Record for Tracker UI)
-        await ctx.prisma.sale.upsert({
-            where: {
-                outletId_date: {
+            // Parse date to start of day
+            const dateObj = new Date(input.date);
+
+            // Upsert DailyClosure (Detailed Record)
+            await ctx.prisma.dailyClosure.upsert({
+                where: {
+                    outletId_date: {
+                        outletId,
+                        date: dateObj
+                    }
+                },
+                update: {
+                    cashSale: input.cashSales,
+                    bankSale: input.cardSales + (input.upiSales || 0),
+                    totalSale: input.totalSales,
+                },
+                create: {
                     outletId,
-                    date: dateObj
+                    date: dateObj,
+                    cashSale: input.cashSales,
+                    bankSale: input.cardSales + (input.upiSales || 0),
+                    totalSale: input.totalSales,
+                    totalExpense: 0,
+                    profit: input.totalSales
                 }
-            },
-            update: {
-                cashSale: input.cashSales,
-                bankSale: input.cardSales + (input.upiSales || 0),
-                totalSale: input.totalSales,
-                // We don't overwrite expenses or other fields if they exist
-            },
-            create: {
-                outletId,
-                staffId: 'pos-system', // Placeholder
-                date: dateObj,
-                cashSale: input.cashSales,
-                bankSale: input.cardSales + (input.upiSales || 0),
-                totalSale: input.totalSales,
-                totalExpense: 0,
-                profit: input.totalSales
-            }
-        });
+            });
 
-        return { success: true };
-    }),
+            // ALSO Upsert Sale (Legacy/Main Record for Tracker UI)
+            await ctx.prisma.sale.upsert({
+                where: {
+                    outletId_date: {
+                        outletId,
+                        date: dateObj
+                    }
+                },
+                update: {
+                    cashSale: input.cashSales,
+                    bankSale: input.cardSales + (input.upiSales || 0),
+                    totalSale: input.totalSales,
+                    // We don't overwrite expenses or other fields if they exist
+                },
+                create: {
+                    outletId,
+                    staffId: 'pos-system', // Placeholder
+                    date: dateObj,
+                    cashSale: input.cashSales,
+                    bankSale: input.cardSales + (input.upiSales || 0),
+                    totalSale: input.totalSales,
+                    totalExpense: 0,
+                    profit: input.totalSales
+                }
+            });
+
+            return { success: true };
+        }),
 });
