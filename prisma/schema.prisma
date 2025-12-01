@@ -625,7 +625,7 @@ model Order {
   customer        Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
   customerId      String?
 
-  @@index([outletId, createdAt])
+  @@index([outletId, status, createdAt])
   @@index([customerId])
 }
 
