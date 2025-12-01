@@ -346,4 +346,302 @@ export const posRouter = router({
                 serverVersion
             };
         }),
+
+    // --- Reports ---
+
+    getReportStats: publicProcedure
+        .input(z.object({
+            startDate: z.string(),
+            endDate: z.string(),
+        }))
+        .query(async ({ ctx, input }) => {
+            const tenantId = ctx.headers.get('x-tenant-id');
+            const outletId = ctx.headers.get('x-outlet-id');
+            if (!tenantId || !outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
+
+            const startDate = new Date(input.startDate);
+            const endDate = new Date(input.endDate);
+
+            const orderWhere: any = {
+                outletId,
+                createdAt: {
+                    gte: startDate,
+                    lte: endDate,
+                },
+                status: 'COMPLETED',
+            };
+
+            const orders = await ctx.prisma.order.findMany({
+                where: orderWhere,
+                select: {
+                    totalAmount: true,
+                    customerId: true,
+                }
+            });
+
+            const orderCount = orders.length;
+            const uniqueCustomers = new Set(orders.map(o => o.customerId).filter(Boolean)).size;
+            const orderSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+
+            return {
+                sales: orderSales,
+                orders: orderCount,
+                customers: uniqueCustomers,
+                avgOrderValue: orderCount > 0 ? orderSales / orderCount : 0,
+            };
+        }),
+
+    getReportSalesTrend: publicProcedure
+        .input(z.object({
+            startDate: z.string(),
+            endDate: z.string(),
+        }))
+        .query(async ({ ctx, input }) => {
+            const outletId = ctx.headers.get('x-outlet-id');
+            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
+
+            const startDate = new Date(input.startDate);
+            const endDate = new Date(input.endDate);
+
+            const orders = await ctx.prisma.order.findMany({
+                where: {
+                    outletId,
+                    createdAt: { gte: startDate, lte: endDate },
+                    status: 'COMPLETED',
+                },
+                orderBy: { createdAt: 'asc' },
+                select: {
+                    createdAt: true,
+                    totalAmount: true,
+                }
+            });
+
+            const aggregated: Record<string, number> = {};
+            orders.forEach(o => {
+                const d = o.createdAt.toISOString().split('T')[0];
+                aggregated[d] = (aggregated[d] || 0) + Number(o.totalAmount);
+            });
+
+            return Object.entries(aggregated).map(([date, amount]) => ({ date, amount }));
+        }),
+
+    getReportTopItems: publicProcedure
+        .input(z.object({
+            startDate: z.string(),
+            endDate: z.string(),
+            limit: z.number().default(5),
+        }))
+        .query(async ({ ctx, input }) => {
+            const outletId = ctx.headers.get('x-outlet-id');
+            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
+
+            const startDate = new Date(input.startDate);
+            const endDate = new Date(input.endDate);
+
+            const items = await ctx.prisma.orderItem.groupBy({
+                by: ['name'],
+                where: {
+                    order: {
+                        outletId,
+                        createdAt: { gte: startDate, lte: endDate },
+                        status: 'COMPLETED',
+                    }
+                },
+                _sum: {
+                    quantity: true,
+                    total: true,
+                },
+                orderBy: {
+                    _sum: { total: 'desc' }
+                },
+                take: input.limit,
+            });
+
+            return items.map(i => ({
+                name: i.name,
+                orders: i._sum.quantity || 0,
+                revenue: Number(i._sum.total || 0),
+            }));
+        }),
+
+    // --- Customers ---
+
+    getCustomers: publicProcedure
+        .input(z.object({
+            search: z.string().optional(),
+        }))
+        .query(async ({ ctx, input }) => {
+            const tenantId = ctx.headers.get('x-tenant-id');
+            if (!tenantId) throw new TRPCError({ code: 'BAD_REQUEST' });
+
+            const where: any = { tenantId };
+
+            if (input.search) {
+                where.OR = [
+                    { name: { contains: input.search, mode: 'insensitive' } },
+                    { phoneNumber: { contains: input.search } },
+                ];
+            }
+
+            const customers = await ctx.prisma.customer.findMany({
+                where,
+                include: {
+                    orders: {
+                        select: {
+                            totalAmount: true,
+                            createdAt: true,
+                        }
+                    },
+                    loyalty: true
+                },
+                orderBy: { updatedAt: 'desc' },
+                take: 50 // Limit for POS performance
+            });
+
+            return customers.map(c => {
+                const totalSpent = c.orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+                const totalOrders = c.orders.length;
+                const lastVisit = c.orders.length > 0 ? c.orders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0].createdAt : c.createdAt;
+
+                return {
+                    id: c.id,
+                    name: c.name || 'Unknown',
+                    phone: c.phoneNumber,
+                    totalOrders,
+                    totalSpent,
+                    lastVisit: lastVisit.toISOString().split('T')[0],
+                    loyaltyPoints: c.loyalty.reduce((sum, l) => sum + l.stamps, 0),
+                };
+            });
+        }),
+
+    getCustomerHistory: publicProcedure
+        .input(z.object({
+            customerId: z.string()
+        }))
+        .query(async ({ ctx, input }) => {
+            const tenantId = ctx.headers.get('x-tenant-id');
+            if (!tenantId) throw new TRPCError({ code: 'BAD_REQUEST' });
+
+            const orders = await ctx.prisma.order.findMany({
+                where: {
+                    customerId: input.customerId,
+                    outlet: { tenantId } // Ensure tenant isolation
+                },
+                include: {
+                    items: true
+                },
+                orderBy: { createdAt: 'desc' },
+                take: 20 // Limit history
+            });
+
+            return orders.map(order => ({
+                id: order.id,
+                date: order.createdAt.toISOString(),
+                total: Number(order.totalAmount),
+                status: order.status,
+                items: order.items.map(item => ({
+                    name: item.name,
+                    quantity: item.quantity,
+                    price: Number(item.price)
+                }))
+            }));
+        }),
+
+    createCustomer: publicProcedure
+        .input(z.object({
+            name: z.string(),
+            phoneNumber: z.string(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const tenantId = ctx.headers.get('x-tenant-id');
+            if (!tenantId) throw new TRPCError({ code: 'BAD_REQUEST' });
+
+            // Check if exists
+            let customer = await ctx.prisma.customer.findUnique({
+                where: { tenantId_phoneNumber: { tenantId, phoneNumber: input.phoneNumber } }
+            });
+
+            if (customer) {
+                // If exists but name was missing/different, maybe update? 
+                // For now, just return existing to avoid duplicates.
+                return customer;
+            }
+
+            // Create new
+            return ctx.prisma.customer.create({
+                data: {
+                    tenantId,
+                    name: input.name,
+                    phoneNumber: input.phoneNumber,
+                    loyalty: {
+                        create: [] // No loyalty progress initially
+                    }
+                }
+            });
+        }),
+
+
+    // --- Products ---
+
+    createProduct: publicProcedure
+        .input(z.object({
+            name: z.string(),
+            sku: z.string(),
+            price: z.number(),
+            unit: z.string(),
+            categoryId: z.string().optional(),
+            description: z.string().optional(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const outletId = ctx.headers.get('x-outlet-id');
+            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
+
+            // Check for existing SKU in this outlet
+            const existing = await ctx.prisma.product.findUnique({
+                where: { outletId_sku: { outletId, sku: input.sku } }
+            });
+
+            if (existing) {
+                throw new TRPCError({ code: 'CONFLICT', message: 'SKU already exists' });
+            }
+
+            return ctx.prisma.product.create({
+                data: {
+                    outletId,
+                    name: input.name,
+                    sku: input.sku,
+                    price: input.price,
+                    unit: input.unit,
+                    categoryId: input.categoryId,
+                    description: input.description,
+                    currentStock: 0,
+                    version: 1
+                }
+            });
+        }),
+
+    updateProduct: publicProcedure
+        .input(z.object({
+            id: z.string(),
+            name: z.string().optional(),
+            price: z.number().optional(),
+            unit: z.string().optional(),
+            description: z.string().optional(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const outletId = ctx.headers.get('x-outlet-id');
+            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
+
+            return ctx.prisma.product.update({
+                where: { id: input.id },
+                data: {
+                    name: input.name,
+                    price: input.price,
+                    unit: input.unit,
+                    description: input.description,
+                    version: { increment: 1 }
+                }
+            });
+        }),
 });

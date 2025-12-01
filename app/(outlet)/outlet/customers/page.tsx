@@ -4,18 +4,19 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Users, UserCheck, Star, Wallet, Search, Plus, Loader2 } from "lucide-react";
-import { toast } from "sonner"; // Assuming sonner or similar toast is used, if not I'll use alert or check
+import { Users, UserCheck, Star, Wallet, Search, Plus, Loader2, Calendar, ShoppingBag } from "lucide-react";
+import { format } from "date-fns";
 
 export default function CustomersPage() {
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", email: "" });
+    const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
     const utils = trpc.useUtils();
     const { data: customers, isLoading } = trpc.customers.getAll.useQuery({
@@ -24,13 +25,18 @@ export default function CustomersPage() {
     });
     const { data: stats } = trpc.customers.getStats.useQuery();
 
+    // Fetch history only when a customer is selected
+    const { data: history, isLoading: historyLoading } = trpc.customers.getHistory.useQuery(
+        { customerId: selectedCustomerId! },
+        { enabled: !!selectedCustomerId }
+    );
+
     const createMutation = trpc.customers.create.useMutation({
         onSuccess: () => {
             utils.customers.getAll.invalidate();
             utils.customers.getStats.invalidate();
             setIsAddOpen(false);
             setNewCustomer({ name: "", phone: "", email: "" });
-            // toast.success("Customer added successfully");
         }
     });
 
@@ -52,6 +58,8 @@ export default function CustomersPage() {
         if (spent >= 5000) return "Silver";
         return "Bronze";
     };
+
+    const selectedCustomer = customers?.find(c => c.id === selectedCustomerId);
 
     return (
         <div className="space-y-6 pb-24 lg:pb-6">
@@ -181,7 +189,7 @@ export default function CustomersPage() {
                         const tierColor = getTierColor(customer.totalSpent);
 
                         return (
-                            <Card key={customer.id} className="hover:shadow-md transition-shadow">
+                            <Card key={customer.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedCustomerId(customer.id)}>
                                 <CardContent className="p-6">
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="flex items-center gap-4">
@@ -226,12 +234,92 @@ export default function CustomersPage() {
                                             </Badge>
                                         ))}
                                     </div>
+                                    <div className="mt-4 text-center">
+                                        <Button variant="ghost" size="sm" className="w-full text-primary hover:text-primary/80 hover:bg-primary/5">
+                                            View Profile & History
+                                        </Button>
+                                    </div>
                                 </CardContent>
                             </Card>
                         );
                     })}
                 </div>
             )}
+
+            {/* Customer Profile Dialog */}
+            <Dialog open={!!selectedCustomerId} onOpenChange={(open) => !open && setSelectedCustomerId(null)}>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Customer Profile</DialogTitle>
+                    </DialogHeader>
+                    {selectedCustomer && (
+                        <div className="space-y-6">
+                            {/* Profile Header */}
+                            <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                                <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-2xl">
+                                    {selectedCustomer.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold">{selectedCustomer.name}</h2>
+                                    <p className="text-gray-500">{selectedCustomer.phone}</p>
+                                    <p className="text-sm text-gray-400">{selectedCustomer.email}</p>
+                                </div>
+                                <div className="ml-auto text-right">
+                                    <div className="text-2xl font-bold text-primary">{selectedCustomer.loyaltyPoints}</div>
+                                    <div className="text-xs text-gray-500">Loyalty Points</div>
+                                </div>
+                            </div>
+
+                            {/* Order History */}
+                            <div>
+                                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                    <ShoppingBag className="w-5 h-5" /> Order History
+                                </h3>
+                                {historyLoading ? (
+                                    <div className="flex justify-center py-8">
+                                        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {history?.map((order) => (
+                                            <div key={order.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div>
+                                                        <div className="font-medium flex items-center gap-2">
+                                                            #{order.id.slice(-6).toUpperCase()}
+                                                            <Badge variant={order.status === 'COMPLETED' ? 'default' : 'secondary'} className="text-[10px] h-5">
+                                                                {order.status}
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                                                            <Calendar className="w-3 h-3" />
+                                                            {format(new Date(order.date), 'PPP p')}
+                                                        </div>
+                                                    </div>
+                                                    <div className="font-bold">
+                                                        ₹{order.total.toLocaleString()}
+                                                    </div>
+                                                </div>
+                                                <div className="text-sm text-gray-600 space-y-1">
+                                                    {order.items.map((item, idx) => (
+                                                        <div key={idx} className="flex justify-between">
+                                                            <span>{item.quantity}x {item.name}</span>
+                                                            <span className="text-gray-400">₹{item.price * item.quantity}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {history?.length === 0 && (
+                                            <p className="text-center text-gray-500 py-8">No order history found.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

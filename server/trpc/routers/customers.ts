@@ -78,7 +78,7 @@ export const customersRouter = router({
         .use(enforceTenant)
         .query(async ({ ctx }) => {
             const customers = await ctx.prisma.customer.findMany({
-                where: { tenantId: ctx.tenantId },
+                where: { tenantId: ctx.tenantId! },
                 include: { orders: { select: { totalAmount: true } } }
             });
 
@@ -115,5 +115,35 @@ export const customersRouter = router({
                     // Birthday and tags not in schema yet, ignoring for now or storing in metadata if we had it
                 }
             });
+        }),
+
+    getHistory: protectedProcedure
+        .use(enforceTenant)
+        .input(z.object({
+            customerId: z.string()
+        }))
+        .query(async ({ ctx, input }) => {
+            const orders = await ctx.prisma.order.findMany({
+                where: {
+                    customerId: input.customerId,
+                    outlet: { tenantId: ctx.tenantId! } // Ensure tenant isolation
+                },
+                include: {
+                    items: true
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            return orders.map(order => ({
+                id: order.id,
+                date: order.createdAt.toISOString(),
+                total: Number(order.totalAmount),
+                status: order.status,
+                items: order.items.map(item => ({
+                    name: item.name,
+                    quantity: item.quantity,
+                    price: Number(item.price)
+                }))
+            }));
         }),
 });
