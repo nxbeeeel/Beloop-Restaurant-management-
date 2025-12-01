@@ -28,28 +28,65 @@ export const productsRouter = router({
             categoryId: z.string().optional(),
             description: z.string().optional(),
             imageUrl: z.string().optional(),
+            applyToAllOutlets: z.boolean().default(false), // New flag
         }))
         .mutation(async ({ ctx, input }) => {
-            // Check if SKU exists
-            const existing = await ctx.prisma.product.findUnique({
-                where: {
-                    outletId_sku: {
-                        outletId: input.outletId,
-                        sku: input.sku
+            const { applyToAllOutlets, ...productData } = input;
+
+            if (applyToAllOutlets) {
+                // Fetch all outlets for this tenant
+                const outlets = await ctx.prisma.outlet.findMany({
+                    where: { tenantId: ctx.user!.tenantId! },
+                    select: { id: true }
+                });
+
+                // Create product for each outlet (skipping if SKU exists)
+                const results = await Promise.all(outlets.map(async (outlet) => {
+                    const existing = await ctx.prisma.product.findUnique({
+                        where: {
+                            outletId_sku: {
+                                outletId: outlet.id,
+                                sku: input.sku
+                            }
+                        }
+                    });
+
+                    if (existing) return null; // Skip duplicates
+
+                    return ctx.prisma.product.create({
+                        data: {
+                            ...productData,
+                            outletId: outlet.id,
+                            currentStock: 0,
+                            version: 1
+                        }
+                    });
+                }));
+
+                return results.find(r => r !== null) || results[0]; // Return one of them
+            } else {
+                // Single Outlet Create
+                const existing = await ctx.prisma.product.findUnique({
+                    where: {
+                        outletId_sku: {
+                            outletId: input.outletId,
+                            sku: input.sku
+                        }
                     }
-                }
-            });
+                });
 
-            if (existing) {
-                throw new TRPCError({ code: 'CONFLICT', message: 'SKU already exists in this outlet' });
+                if (existing) {
+                    throw new TRPCError({ code: 'CONFLICT', message: 'SKU already exists in this outlet' });
+                }
+
+                return ctx.prisma.product.create({
+                    data: {
+                        ...productData,
+                        currentStock: 0,
+                        version: 1
+                    }
+                });
             }
-
-            return ctx.prisma.product.create({
-                data: {
-                    ...input,
-                    currentStock: 0
-                }
-            });
         }),
 
     update: protectedProcedure
@@ -64,21 +101,54 @@ export const productsRouter = router({
             categoryId: z.string().optional().nullable(),
             description: z.string().optional(),
             imageUrl: z.string().optional(),
+            applyToAllOutlets: z.boolean().default(false), // New flag
         }))
         .mutation(async ({ ctx, input }) => {
-            return ctx.prisma.product.update({
-                where: { id: input.id },
-                data: {
-                    name: input.name,
-                    unit: input.unit,
-                    minStock: input.minStock,
-                    supplierId: input.supplierId,
-                    price: input.price,
-                    categoryId: input.categoryId,
-                    description: input.description,
-                    imageUrl: input.imageUrl
+            const { applyToAllOutlets, id, ...updateData } = input;
+
+            if (applyToAllOutlets) {
+                // 1. Get the SKU of the product being updated
+                const currentProduct = await ctx.prisma.product.findUnique({
+                    where: { id },
+                    select: { sku: true }
+                });
+
+                if (!currentProduct) {
+                    throw new TRPCError({ code: 'NOT_FOUND', message: 'Product not found' });
                 }
-            });
+
+                // 2. Update ALL products with this SKU in the tenant
+                // We need to find them first to ensure they belong to the tenant (via outlet)
+                // But since we are in a protected procedure with enforceTenant, we can trust the tenantId context if we filter by it.
+                // However, Product doesn't have tenantId directly. We must query via Outlet.
+
+                const outlets = await ctx.prisma.outlet.findMany({
+                    where: { tenantId: ctx.user!.tenantId! },
+                    select: { id: true }
+                });
+
+                const outletIds = outlets.map(o => o.id);
+
+                return ctx.prisma.product.updateMany({
+                    where: {
+                        sku: currentProduct.sku,
+                        outletId: { in: outletIds }
+                    },
+                    data: {
+                        ...updateData,
+                        version: { increment: 1 }
+                    }
+                });
+            } else {
+                // Single Update
+                return ctx.prisma.product.update({
+                    where: { id: input.id },
+                    data: {
+                        ...updateData,
+                        version: { increment: 1 }
+                    }
+                });
+            }
         }),
 
     delete: protectedProcedure
@@ -107,7 +177,8 @@ export const productsRouter = router({
                 const product = await tx.product.update({
                     where: { id: input.productId },
                     data: {
-                        currentStock: { increment: input.qty }
+                        currentStock: { increment: input.qty },
+                        version: { increment: 1 }
                     }
                 });
 

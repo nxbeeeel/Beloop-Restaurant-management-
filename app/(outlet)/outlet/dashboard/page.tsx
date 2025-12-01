@@ -13,7 +13,7 @@ export default function DashboardPage() {
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     });
 
-    const { outletId, isLoading: userLoading } = useOutlet();
+    const { outletId, isLoading: userLoading, user } = useOutlet();
 
     // Calculate date range for selected month
     const [year, month] = selectedMonth.split('-').map(Number);
@@ -215,6 +215,42 @@ export default function DashboardPage() {
                             <span className="text-sm text-gray-600">Profit Margin</span>
                             <span className={`font-semibold text-base ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {profitMargin}%
+                            </span>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Sync Health Card */}
+            <Card className="bg-gradient-to-br from-violet-50 to-purple-50 border-violet-200">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                        <div className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-violet-500"></span>
+                        </div>
+                        POS Sync Status
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Last Sync</span>
+                            <span className="font-bold text-violet-700">
+                                {user?.outlet?.lastSyncAt
+                                    ? new Date(user.outlet.lastSyncAt).toLocaleTimeString()
+                                    : 'Never'}
+                            </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Status</span>
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full ${user?.outlet?.lastSyncAt && (new Date().getTime() - new Date(user.outlet.lastSyncAt).getTime() < 60000)
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                {user?.outlet?.lastSyncAt && (new Date().getTime() - new Date(user.outlet.lastSyncAt).getTime() < 60000)
+                                    ? 'Online'
+                                    : 'Idle / Offline'}
                             </span>
                         </div>
                     </div>

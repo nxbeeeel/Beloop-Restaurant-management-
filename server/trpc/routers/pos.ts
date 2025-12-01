@@ -315,4 +315,35 @@ export const posRouter = router({
 
             return { success: true };
         }),
+
+    // 5. Check Sync (Poll)
+    checkSync: publicProcedure
+        .input(z.object({
+            productsVersion: z.number().default(0)
+        }))
+        .query(async ({ ctx, input }) => {
+            const outletId = ctx.headers.get('x-outlet-id');
+            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
+
+            // 1. Update Heartbeat
+            await ctx.prisma.outlet.update({
+                where: { id: outletId },
+                data: { lastSyncAt: new Date() }
+            });
+
+            // 2. Check Products Version
+            // We want the MAX version of any product in this outlet
+            const result = await ctx.prisma.product.aggregate({
+                where: { outletId },
+                _max: { version: true }
+            });
+
+            const serverVersion = result._max.version || 0;
+            const hasChanges = serverVersion > input.productsVersion;
+
+            return {
+                hasChanges,
+                serverVersion
+            };
+        }),
 });
