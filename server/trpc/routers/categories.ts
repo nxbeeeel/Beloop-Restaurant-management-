@@ -8,10 +8,18 @@ export const categoriesRouter = router({
         .use(enforceTenant)
         .input(z.object({ outletId: z.string() }))
         .query(async ({ ctx, input }) => {
-            return ctx.prisma.category.findMany({
-                where: { outletId: input.outletId },
-                orderBy: { name: 'asc' }
-            });
+            try {
+                return await ctx.prisma.category.findMany({
+                    where: { outletId: input.outletId },
+                    orderBy: { name: 'asc' }
+                });
+            } catch (error) {
+                throw new TRPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: "Failed to list categories",
+                    cause: error,
+                });
+            }
         }),
 
     create: protectedProcedure
@@ -21,20 +29,40 @@ export const categoriesRouter = router({
             name: z.string().min(1),
         }))
         .mutation(async ({ ctx, input }) => {
-            return ctx.prisma.category.create({
-                data: {
-                    outletId: input.outletId,
-                    name: input.name
-                }
-            });
+            try {
+                return await ctx.prisma.$transaction(async (tx) => {
+                    return tx.category.create({
+                        data: {
+                            outletId: input.outletId,
+                            name: input.name
+                        }
+                    });
+                });
+            } catch (error) {
+                throw new TRPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: "Failed to create category",
+                    cause: error,
+                });
+            }
         }),
 
     delete: protectedProcedure
         .use(enforceTenant)
         .input(z.string())
         .mutation(async ({ ctx, input }) => {
-            return ctx.prisma.category.delete({
-                where: { id: input }
-            });
+            try {
+                return await ctx.prisma.$transaction(async (tx) => {
+                    return tx.category.delete({
+                        where: { id: input }
+                    });
+                });
+            } catch (error) {
+                throw new TRPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: "Failed to delete category",
+                    cause: error,
+                });
+            }
         }),
 });
