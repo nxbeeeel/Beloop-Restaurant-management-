@@ -481,11 +481,11 @@ model Ingredient {
   name             String
   
   // Purchase/Stock Unit (Physical counting - what staff counts)
-  purchaseUnit     String   // "tub", "bottle", "bag", "box", "pcs"
-  qtyPerUnit       Float    // How much usage unit in 1 purchase unit (e.g., 2.5 kg per tub)
+  purchaseUnit     String   @default("pcs") // "tub", "bottle", "bag", "box", "pcs"
+  qtyPerUnit       Float    @default(1) // How much usage unit in 1 purchase unit (e.g., 2.5 kg per tub)
   
   // Usage Unit (Recipe/Consumption - what recipes use)
-  usageUnit        String   // "kg", "g", "L", "ml"
+  usageUnit        String   @default("kg") // "kg", "g", "L", "ml"
   baseUnit         String   @default("kg") // Standardized base unit for calculations
   conversionFactor Float    @default(1) // Conversion to base unit
   
