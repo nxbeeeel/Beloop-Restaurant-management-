@@ -6,7 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { UNIT_CATEGORIES, calculateCostPerUnit, getBaseUnit, getConversionFactor } from "@/lib/units";
+import {
+    PURCHASE_UNITS,
+    USAGE_UNITS,
+    calculateCostPerUsageUnit,
+    convertStockToUsageUnits,
+    getBaseUnit,
+    getConversionFactor
+} from "@/lib/units";
 
 interface IngredientModalProps {
     isOpen: boolean;
@@ -19,30 +26,37 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
     const utils = trpc.useContext();
 
     const [name, setName] = useState("");
-    const [unit, setUnit] = useState("kg");
-    const [purchaseQty, setPurchaseQty] = useState("");
-    const [totalCost, setTotalCost] = useState("");
+    const [purchaseUnit, setPurchaseUnit] = useState("tub");
+    const [qtyPerUnit, setQtyPerUnit] = useState("");
+    const [usageUnit, setUsageUnit] = useState("kg");
+    const [costPerPurchaseUnit, setCostPerPurchaseUnit] = useState("");
     const [stock, setStock] = useState("");
     const [minStock, setMinStock] = useState("");
 
-    // Calculated cost per unit
-    const costPerUnit = purchaseQty && totalCost
-        ? calculateCostPerUnit(parseFloat(totalCost), parseFloat(purchaseQty))
+    // Calculated values
+    const costPerUsage = qtyPerUnit && costPerPurchaseUnit
+        ? calculateCostPerUsageUnit(parseFloat(costPerPurchaseUnit), parseFloat(qtyPerUnit))
+        : 0;
+
+    const stockInUsageUnits = stock && qtyPerUnit
+        ? convertStockToUsageUnits(parseFloat(stock), parseFloat(qtyPerUnit))
         : 0;
 
     useEffect(() => {
         if (ingredient) {
             setName(ingredient.name);
-            setUnit(ingredient.unit);
-            setPurchaseQty(ingredient.purchaseQty?.toString() || "");
-            setTotalCost(ingredient.totalCost?.toString() || "");
+            setPurchaseUnit(ingredient.purchaseUnit);
+            setQtyPerUnit(ingredient.qtyPerUnit?.toString() || "");
+            setUsageUnit(ingredient.usageUnit);
+            setCostPerPurchaseUnit(ingredient.costPerPurchaseUnit?.toString() || "");
             setStock(ingredient.stock.toString());
             setMinStock(ingredient.minStock.toString());
         } else {
             setName("");
-            setUnit("kg");
-            setPurchaseQty("");
-            setTotalCost("");
+            setPurchaseUnit("tub");
+            setQtyPerUnit("");
+            setUsageUnit("kg");
+            setCostPerPurchaseUnit("");
             setStock("0");
             setMinStock("0");
         }
@@ -71,20 +85,21 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
     });
 
     const handleSubmit = () => {
-        if (!name || !unit) {
-            toast.error("Name and Unit are required");
+        if (!name || !purchaseUnit || !usageUnit || !qtyPerUnit) {
+            toast.error("Name, Purchase Unit, Usage Unit, and Qty per Unit are required");
             return;
         }
 
         const data = {
             outletId,
             name,
-            unit,
-            baseUnit: getBaseUnit(unit),
-            conversionFactor: getConversionFactor(unit),
-            cost: costPerUnit,
-            purchaseQty: purchaseQty ? parseFloat(purchaseQty) : undefined,
-            totalCost: totalCost ? parseFloat(totalCost) : undefined,
+            purchaseUnit,
+            qtyPerUnit: parseFloat(qtyPerUnit),
+            usageUnit,
+            baseUnit: getBaseUnit(usageUnit),
+            conversionFactor: getConversionFactor(usageUnit),
+            costPerPurchaseUnit: parseFloat(costPerPurchaseUnit) || 0,
+            costPerUsageUnit: costPerUsage,
             stock: parseFloat(stock) || 0,
             minStock: parseFloat(minStock) || 0,
         };
@@ -115,64 +130,99 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
                         />
                     </div>
 
-                    {/* Unit Selection */}
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="unit" className="text-right">Unit</Label>
-                        <Select value={unit} onValueChange={setUnit}>
-                            <SelectTrigger className="col-span-3">
-                                <SelectValue placeholder="Select unit" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {Object.entries(UNIT_CATEGORIES).map(([key, category]) => (
-                                    <SelectGroup key={key}>
-                                        <SelectLabel>{category.label}</SelectLabel>
-                                        {category.units.map((u) => (
-                                            <SelectItem key={u.value} value={u.value}>
-                                                {u.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    {/* Purchase Details Section */}
+                    {/* Purchase/Stock Unit Section */}
                     <div className="col-span-4 border-t pt-4 mt-2">
-                        <h4 className="text-sm font-semibold mb-3 text-gray-700">Purchase Details</h4>
+                        <h4 className="text-sm font-semibold mb-3 text-gray-700">Purchase/Stock Unit (Physical Counting)</h4>
+                        <p className="text-xs text-gray-500 mb-3">How staff counts this item in inventory</p>
 
                         <div className="grid grid-cols-4 items-center gap-4 mb-3">
-                            <Label htmlFor="purchaseQty" className="text-right text-sm">Purchase Qty</Label>
-                            <Input
-                                id="purchaseQty"
-                                type="number"
-                                step="0.01"
-                                value={purchaseQty}
-                                onChange={(e) => setPurchaseQty(e.target.value)}
-                                className="col-span-3"
-                                placeholder={`e.g., 2.5 (in ${unit})`}
-                            />
+                            <Label htmlFor="purchaseUnit" className="text-right">Unit</Label>
+                            <Select value={purchaseUnit} onValueChange={setPurchaseUnit}>
+                                <SelectTrigger className="col-span-3">
+                                    <SelectValue placeholder="Select purchase unit" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.entries(PURCHASE_UNITS).map(([key, category]) => (
+                                        <SelectGroup key={key}>
+                                            <SelectLabel>{category.label}</SelectLabel>
+                                            {category.units.map((u) => (
+                                                <SelectItem key={u.value} value={u.value}>
+                                                    {u.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="qtyPerUnit" className="text-right">Qty per {purchaseUnit}</Label>
+                            <div className="col-span-3 flex gap-2">
+                                <Input
+                                    id="qtyPerUnit"
+                                    type="number"
+                                    step="0.01"
+                                    value={qtyPerUnit}
+                                    onChange={(e) => setQtyPerUnit(e.target.value)}
+                                    className="flex-1"
+                                    placeholder="e.g., 2.5"
+                                />
+                                <span className="flex items-center text-sm text-gray-500">{usageUnit}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Usage Unit Section */}
+                    <div className="col-span-4 border-t pt-4 mt-2">
+                        <h4 className="text-sm font-semibold mb-3 text-gray-700">Usage Unit (Recipes)</h4>
+                        <p className="text-xs text-gray-500 mb-3">How this item is used in recipes</p>
+
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="usageUnit" className="text-right">Unit</Label>
+                            <Select value={usageUnit} onValueChange={setUsageUnit}>
+                                <SelectTrigger className="col-span-3">
+                                    <SelectValue placeholder="Select usage unit" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.entries(USAGE_UNITS).map(([key, category]) => (
+                                        <SelectGroup key={key}>
+                                            <SelectLabel>{category.label}</SelectLabel>
+                                            {category.units.map((u) => (
+                                                <SelectItem key={u.value} value={u.value}>
+                                                    {u.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    {/* Cost Section */}
+                    <div className="col-span-4 border-t pt-4 mt-2">
+                        <h4 className="text-sm font-semibold mb-3 text-gray-700">Cost Details</h4>
+
                         <div className="grid grid-cols-4 items-center gap-4 mb-3">
-                            <Label htmlFor="totalCost" className="text-right text-sm">Total Cost</Label>
+                            <Label htmlFor="costPerPurchaseUnit" className="text-right">Cost per {purchaseUnit}</Label>
                             <Input
-                                id="totalCost"
+                                id="costPerPurchaseUnit"
                                 type="number"
                                 step="0.01"
-                                value={totalCost}
-                                onChange={(e) => setTotalCost(e.target.value)}
+                                value={costPerPurchaseUnit}
+                                onChange={(e) => setCostPerPurchaseUnit(e.target.value)}
                                 className="col-span-3"
                                 placeholder="e.g., 3007.50"
                             />
                         </div>
 
-                        {/* Calculated Cost Per Unit */}
-                        {costPerUnit > 0 && (
+                        {/* Calculated Cost Per Usage Unit */}
+                        {costPerUsage > 0 && (
                             <div className="grid grid-cols-4 items-center gap-4">
-                                <Label className="text-right text-sm font-semibold">Cost per {unit}</Label>
+                                <Label className="text-right text-sm font-semibold">Cost per {usageUnit}</Label>
                                 <div className="col-span-3 px-3 py-2 bg-green-50 border border-green-200 rounded-md">
-                                    <span className="text-green-700 font-bold">₹{costPerUnit.toFixed(2)}/{unit}</span>
+                                    <span className="text-green-700 font-bold">₹{costPerUsage.toFixed(2)}/{usageUnit}</span>
                                     <span className="text-xs text-green-600 ml-2">(auto-calculated)</span>
                                 </div>
                             </div>
@@ -185,14 +235,21 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
 
                         <div className="grid grid-cols-4 items-center gap-4 mb-3">
                             <Label htmlFor="stock" className="text-right">Current Stock</Label>
-                            <Input
-                                id="stock"
-                                type="number"
-                                step="0.01"
-                                value={stock}
-                                onChange={(e) => setStock(e.target.value)}
-                                className="col-span-3"
-                            />
+                            <div className="col-span-3">
+                                <Input
+                                    id="stock"
+                                    type="number"
+                                    step="0.01"
+                                    value={stock}
+                                    onChange={(e) => setStock(e.target.value)}
+                                    placeholder={`in ${purchaseUnit}`}
+                                />
+                                {stockInUsageUnits > 0 && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        = {stockInUsageUnits.toFixed(2)} {usageUnit}
+                                    </p>
+                                )}
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-4 items-center gap-4">
@@ -204,6 +261,7 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
                                 value={minStock}
                                 onChange={(e) => setMinStock(e.target.value)}
                                 className="col-span-3"
+                                placeholder={`in ${purchaseUnit}`}
                             />
                         </div>
                     </div>

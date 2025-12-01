@@ -480,19 +480,22 @@ model Ingredient {
   outletId         String
   name             String
   
-  // Unit system
-  unit             String   // Display unit: "kg", "g", "L", "ml", "pcs"
+  // Purchase/Stock Unit (Physical counting - what staff counts)
+  purchaseUnit     String   // "tub", "bottle", "bag", "box", "pcs"
+  qtyPerUnit       Float    // How much usage unit in 1 purchase unit (e.g., 2.5 kg per tub)
+  
+  // Usage Unit (Recipe/Consumption - what recipes use)
+  usageUnit        String   // "kg", "g", "L", "ml"
   baseUnit         String   @default("kg") // Standardized base unit for calculations
   conversionFactor Float    @default(1) // Conversion to base unit
   
   // Cost tracking
-  cost             Decimal  @default(0) @db.Decimal(10, 2) // Cost per display unit (calculated)
-  purchaseQty      Float?   // Quantity as purchased (e.g., 2.5 for 2.5kg tub)
-  totalCost        Decimal? @db.Decimal(10, 2) // Total purchase cost
+  costPerPurchaseUnit Decimal @default(0) @db.Decimal(10, 2) // Cost per tub/bottle/bag
+  costPerUsageUnit    Decimal @default(0) @db.Decimal(10, 2) // Cost per kg/L (calculated)
   
-  // Stock
-  stock            Float    @default(0) // In display unit
-  minStock         Float    @default(0)
+  // Stock (in purchase units for easy counting by staff)
+  stock            Float    @default(0) // e.g., 3 tubs
+  minStock         Float    @default(0) // e.g., 1 tub
   
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
