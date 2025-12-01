@@ -114,7 +114,7 @@ export default function ProductsPage() {
             sku: formData.get("sku") as string,
             unit: formData.get("unit") as string,
             minStock: Number(formData.get("minStock")),
-            supplierId: formData.get("supplierId") as string || undefined,
+            supplierId: (formData.get("supplierId") as string) === "none" ? undefined : (formData.get("supplierId") as string || undefined),
             price: Number(formData.get("price")),
             categoryId: formData.get("categoryId") as string || undefined,
             imageUrl: formData.get("imageUrl") as string || undefined,
