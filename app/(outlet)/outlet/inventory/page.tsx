@@ -5,8 +5,12 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingCart, AlertTriangle, CheckCircle, Package, ClipboardList, Trash2, ArrowRight } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ShoppingCart, AlertTriangle, CheckCircle, Package, ClipboardList, Trash2, ArrowRight, Search, Plus, Minus, Edit, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface Supplier {
     id: string;
@@ -22,6 +26,8 @@ interface Product {
     unit: string;
     supplierId: string | null;
     supplier: Supplier | null;
+    category?: { name: string } | null;
+    price: number;
 }
 
 interface CartItem {
@@ -29,9 +35,10 @@ interface CartItem {
     qty: number;
 }
 
-export default function InventoryOrderPage() {
+export default function InventoryPage() {
     const [cart, setCart] = useState<Map<string, CartItem>>(new Map());
     const [showConfirm, setShowConfirm] = useState(false);
+    const [activeTab, setActiveTab] = useState("ordering");
 
     const { data: user } = trpc.dashboard.getUser.useQuery();
     const outletId = user?.outletId || "";
@@ -45,7 +52,6 @@ export default function InventoryOrderPage() {
         onSuccess: (orders) => {
             setShowConfirm(false);
             setCart(new Map());
-            // Show success with WhatsApp links
             alert(`${orders.length} order(s) created successfully!`);
         }
     });
@@ -65,15 +71,12 @@ export default function InventoryOrderPage() {
             productId: product.id,
             qty
         }));
-
         createOrdersMutation.mutate({ outletId, items });
     };
 
-    // Group cart by supplier for preview
     const cartBySupplier = new Map<string, { supplier: Supplier | null; items: CartItem[] }>();
     cart.forEach(({ product, qty }) => {
         const supplierId = product.supplierId || "no-supplier";
-
         if (!cartBySupplier.has(supplierId)) {
             cartBySupplier.set(supplierId, { supplier: product.supplier, items: [] });
         }
@@ -82,7 +85,6 @@ export default function InventoryOrderPage() {
 
     return (
         <div className="space-y-6 pb-24 lg:pb-6">
-            {/* Header Section */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 tracking-tight">Inventory Management</h1>
@@ -110,103 +112,114 @@ export default function InventoryOrderPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Low Stock Items */}
-                <div className="lg:col-span-2 space-y-4">
-                    <div className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                        <AlertTriangle className="w-5 h-5 text-orange-500" />
-                        <h2>Low Stock Alerts</h2>
-                    </div>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="ordering">Ordering & Alerts</TabsTrigger>
+                    <TabsTrigger value="manage">All Items</TabsTrigger>
+                </TabsList>
 
-                    {lowStockProducts && lowStockProducts.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {lowStockProducts.map((product) => (
-                                <div key={product.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div>
-                                            <h3 className="font-semibold text-gray-900 line-clamp-1">{product.name}</h3>
-                                            <p className="text-xs text-gray-500 mt-0.5">
-                                                {product.supplier?.name || "No Supplier"}
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-sm font-medium text-red-600">
-                                                {product.currentStock} <span className="text-gray-400 text-xs">{product.unit}</span>
-                                            </div>
-                                            <div className="text-xs text-gray-400">
-                                                Min: {product.minStock}
-                                            </div>
-                                        </div>
-                                    </div>
+                <TabsContent value="ordering" className="space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2 space-y-4">
+                            <div className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                                <AlertTriangle className="w-5 h-5 text-orange-500" />
+                                <h2>Low Stock Alerts</h2>
+                            </div>
 
-                                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1.5">
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            placeholder="Order Qty"
-                                            className="h-9 bg-white border-gray-200 focus:ring-primary/20"
-                                            value={cart.get(product.id)?.qty || ""}
-                                            onChange={(e) => addToCart(product, parseFloat(e.target.value) || 0)}
-                                        />
-                                        <span className="text-xs font-medium text-gray-500 px-2 w-12 text-center">
-                                            {product.unit}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
-                            <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-500/50" />
-                            <p className="text-gray-500 font-medium">All items are well stocked!</p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Desktop Cart Summary */}
-                <div className="hidden lg:block">
-                    <Card className="sticky top-6 border-0 shadow-lg ring-1 ring-gray-100">
-                        <CardHeader className="pb-3 border-b border-gray-50">
-                            <CardTitle className="flex items-center gap-2 text-lg">
-                                <ShoppingCart className="w-5 h-5 text-primary" />
-                                Order Cart ({cart.size})
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="pt-4">
-                            {cart.size > 0 ? (
-                                <div className="space-y-4">
-                                    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
-                                        {Array.from(cart.values()).map(({ product, qty }) => (
-                                            <div key={product.id} className="flex justify-between items-center text-sm group">
+                            {lowStockProducts && lowStockProducts.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {lowStockProducts.map((product) => (
+                                        <div key={product.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                            <div className="flex justify-between items-start mb-3">
                                                 <div>
-                                                    <p className="font-medium text-gray-900">{product.name}</p>
-                                                    <p className="text-xs text-gray-500">{product.supplier?.name}</p>
+                                                    <h3 className="font-semibold text-gray-900 line-clamp-1">{product.name}</h3>
+                                                    <p className="text-xs text-gray-500 mt-0.5">
+                                                        {product.supplier?.name || "No Supplier"}
+                                                    </p>
                                                 </div>
-                                                <div className="font-medium bg-gray-50 px-2 py-1 rounded text-gray-700">
-                                                    {qty} {product.unit}
+                                                <div className="text-right">
+                                                    <div className="text-sm font-medium text-red-600">
+                                                        {product.currentStock} <span className="text-gray-400 text-xs">{product.unit}</span>
+                                                    </div>
+                                                    <div className="text-xs text-gray-400">
+                                                        Min: {product.minStock}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                    <Button
-                                        className="w-full h-11 text-base shadow-lg shadow-primary/20"
-                                        onClick={() => setShowConfirm(true)}
-                                    >
-                                        Review & Create Orders
-                                    </Button>
+
+                                            <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1.5">
+                                                <Input
+                                                    type="number"
+                                                    step="0.01"
+                                                    placeholder="Order Qty"
+                                                    className="h-9 bg-white border-gray-200 focus:ring-primary/20"
+                                                    value={cart.get(product.id)?.qty || ""}
+                                                    onChange={(e) => addToCart(product, parseFloat(e.target.value) || 0)}
+                                                />
+                                                <span className="text-xs font-medium text-gray-500 px-2 w-12 text-center">
+                                                    {product.unit}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             ) : (
-                                <p className="text-sm text-gray-500 text-center py-8">
-                                    Add items from the list to create an order
-                                </p>
+                                <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
+                                    <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-500/50" />
+                                    <p className="text-gray-500 font-medium">All items are well stocked!</p>
+                                </div>
                             )}
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
+                        </div>
+
+                        <div className="hidden lg:block">
+                            <Card className="sticky top-6 border-0 shadow-lg ring-1 ring-gray-100">
+                                <CardHeader className="pb-3 border-b border-gray-50">
+                                    <CardTitle className="flex items-center gap-2 text-lg">
+                                        <ShoppingCart className="w-5 h-5 text-primary" />
+                                        Order Cart ({cart.size})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="pt-4">
+                                    {cart.size > 0 ? (
+                                        <div className="space-y-4">
+                                            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                                                {Array.from(cart.values()).map(({ product, qty }) => (
+                                                    <div key={product.id} className="flex justify-between items-center text-sm group">
+                                                        <div>
+                                                            <p className="font-medium text-gray-900">{product.name}</p>
+                                                            <p className="text-xs text-gray-500">{product.supplier?.name}</p>
+                                                        </div>
+                                                        <div className="font-medium bg-gray-50 px-2 py-1 rounded text-gray-700">
+                                                            {qty} {product.unit}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <Button
+                                                className="w-full h-11 text-base shadow-lg shadow-primary/20"
+                                                onClick={() => setShowConfirm(true)}
+                                            >
+                                                Review & Create Orders
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 text-center py-8">
+                                            Add items from the list to create an order
+                                        </p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="manage">
+                    {outletId && <InventoryList outletId={outletId} />}
+                </TabsContent>
+            </Tabs>
 
             {/* Mobile Sticky Cart Bar */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-lg border-t border-gray-200 lg:hidden z-20">
+            <div className={`fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-lg border-t border-gray-200 lg:hidden z-20 ${activeTab !== 'ordering' ? 'hidden' : ''}`}>
                 <div className="flex items-center gap-4">
                     <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900">{cart.size} items in cart</p>
@@ -268,6 +281,192 @@ export default function InventoryOrderPage() {
                     </Card>
                 </div>
             )}
+        </div>
+    );
+}
+
+function InventoryList({ outletId }: { outletId: string }) {
+    const [search, setSearch] = useState("");
+    const [isAddOpen, setIsAddOpen] = useState(false);
+    const [newProduct, setNewProduct] = useState<Partial<Product>>({ name: "", unit: "kg", minStock: 5, price: 0, sku: "" });
+
+    const utils = trpc.useUtils();
+    const { data: products, isLoading } = trpc.products.list.useQuery({ outletId });
+
+    const createMutation = trpc.products.create.useMutation({
+        onSuccess: () => {
+            utils.products.list.invalidate();
+            setIsAddOpen(false);
+            setNewProduct({ name: "", unit: "kg", minStock: 5, price: 0, sku: "" });
+        }
+    });
+
+    const adjustMutation = trpc.inventory.adjustStock.useMutation({
+        onSuccess: () => utils.products.list.invalidate()
+    });
+
+    const handleCreate = () => {
+        if (!newProduct.name || !newProduct.sku) return;
+        createMutation.mutate({
+            outletId,
+            name: newProduct.name,
+            sku: newProduct.sku,
+            unit: newProduct.unit || "kg",
+            minStock: newProduct.minStock || 0,
+            price: newProduct.price || 0,
+            applyToAllOutlets: false
+        });
+    };
+
+    const handleAdjust = (product: Product, qty: number) => {
+        adjustMutation.mutate({
+            productId: product.id,
+            outletId,
+            qty,
+            type: 'ADJUSTMENT',
+            notes: 'Manual adjustment from inventory list'
+        });
+    };
+
+    const filteredProducts = products?.filter(p =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.supplier?.name.toLowerCase().includes(search.toLowerCase())
+    );
+
+    return (
+        <div className="space-y-4">
+            <div className="flex gap-4">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                    <Input
+                        placeholder="Search products..."
+                        className="pl-9"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                    />
+                </div>
+                <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                    <DialogTrigger asChild>
+                        <Button className="gap-2">
+                            <Plus className="w-4 h-4" /> Add Item
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Add New Product</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Name</label>
+                                    <Input
+                                        value={newProduct.name}
+                                        onChange={e => setNewProduct({ ...newProduct, name: e.target.value })}
+                                        placeholder="Product Name"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">SKU</label>
+                                    <Input
+                                        value={newProduct.sku}
+                                        onChange={e => setNewProduct({ ...newProduct, sku: e.target.value })}
+                                        placeholder="SKU-123"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Unit</label>
+                                    <Input
+                                        value={newProduct.unit}
+                                        onChange={e => setNewProduct({ ...newProduct, unit: e.target.value })}
+                                        placeholder="kg"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Min Stock</label>
+                                    <Input
+                                        type="number"
+                                        value={newProduct.minStock}
+                                        onChange={e => setNewProduct({ ...newProduct, minStock: parseFloat(e.target.value) })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Price</label>
+                                    <Input
+                                        type="number"
+                                        value={newProduct.price}
+                                        onChange={e => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) })}
+                                    />
+                                </div>
+                            </div>
+                            <Button onClick={handleCreate} disabled={createMutation.isPending} className="w-full">
+                                {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                                Create Product
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
+
+            <div className="bg-white rounded-md border">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50 text-gray-500 font-medium border-b">
+                        <tr>
+                            <th className="p-4">Product</th>
+                            <th className="p-4">Category</th>
+                            <th className="p-4">Stock</th>
+                            <th className="p-4">Price</th>
+                            <th className="p-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {filteredProducts?.map(product => (
+                            <tr key={product.id} className="hover:bg-gray-50">
+                                <td className="p-4">
+                                    <div className="font-medium text-gray-900">{product.name}</div>
+                                    <div className="text-xs text-gray-500">{product.supplier?.name}</div>
+                                </td>
+                                <td className="p-4 text-gray-500">{product.category?.name || '-'}</td>
+                                <td className="p-4">
+                                    <div className={`font-medium ${product.currentStock <= product.minStock ? 'text-red-600' : 'text-gray-900'}`}>
+                                        {product.currentStock} {product.unit}
+                                    </div>
+                                    <div className="text-xs text-gray-400">Min: {product.minStock}</div>
+                                </td>
+                                <td className="p-4">₹{product.price}</td>
+                                <td className="p-4 text-right">
+                                    <div className="flex justify-end gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                            onClick={() => handleAdjust(product, -1)}
+                                            disabled={adjustMutation.isPending}
+                                        >
+                                            <Minus className="w-4 h-4" />
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                            onClick={() => handleAdjust(product, 1)}
+                                            disabled={adjustMutation.isPending}
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                        {filteredProducts?.length === 0 && (
+                            <tr>
+                                <td colSpan={5} className="p-8 text-center text-gray-500">No products found</td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }

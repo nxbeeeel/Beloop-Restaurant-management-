@@ -1,250 +1,233 @@
 import { router, protectedProcedure } from "../trpc";
+import { enforceTenant } from "../middleware/roleCheck";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
-// TEMPORARILY DISABLED - Has TypeScript errors with ctx.tenantId null checks
-// TODO: Fix null safety issues and re-enable
 export const reportsRouter = router({
-    // Placeholder to prevent import errors
-    ping: protectedProcedure.query(() => ({ message: "Reports router temporarily disabled" }))
-});
-
-/*
-export const reportsRouter = router({
-    getMonthlyReport: protectedProcedure
+    getStats: protectedProcedure
+        .use(enforceTenant)
         .input(z.object({
             outletId: z.string().optional(),
-            year: z.number(),
-            month: z.number().min(1).max(12),
+            startDate: z.date(),
+            endDate: z.date(),
         }))
         .query(async ({ ctx, input }) => {
-            const { outletId, year, month } = input;
-
-            if (!ctx.tenantId) {
-                throw new TRPCError({ code: 'BAD_REQUEST', message: 'User is not associated with a tenant' });
+            // Optimize: Get outlet IDs first to avoid join if querying all
+            let outletIds: string[] = [];
+            if (input.outletId && input.outletId !== 'ALL') {
+                outletIds = [input.outletId];
+            } else {
+                const outlets = await ctx.prisma.outlet.findMany({
+                    where: { tenantId: ctx.tenantId },
+                    select: { id: true }
+                });
+                outletIds = outlets.map(o => o.id);
             }
-
-            const startDate = new Date(year, month - 1, 1);
-            const endDate = new Date(year, month, 1);
-
-            // If outletId is provided, return specific outlet report
-            if (outletId && outletId !== 'ALL') {
-                const outlet = await ctx.prisma.outlet.findUnique({
-                    where: { id: outletId },
-                    select: { tenantId: true, name: true, code: true }
-                });
-
-                if (!outlet || outlet.tenantId !== ctx.tenantId) {
-                    throw new TRPCError({ code: "FORBIDDEN" });
-                }
-
-                const summary = await ctx.prisma.monthlySummary.findUnique({
-                    where: {
-                        outletId_month: {
-                            outletId,
-                            month: `${year}-${month.toString().padStart(2, '0')}`,
-                        }
-                    }
-                });
-
-                const sales = await ctx.prisma.sale.findMany({
-                    where: {
-                        outletId,
-                        date: { gte: startDate, lt: endDate }
-                    },
-                    orderBy: { date: 'asc' }
-                });
-
-                const expenses = await ctx.prisma.expense.findMany({
-                    where: {
-                        outletId,
-                        date: { gte: startDate, lt: endDate }
-                    },
-                    include: {
-                        staff: { select: { name: true, email: true } }
-                    },
-                    orderBy: { date: 'desc' }
-                });
-
-                return {
-                    outlet: { name: outlet.name },
-                    summary,
-                    sales,
-                    expenses: expenses.map(e => ({
-                        ...e,
-                        description: e.description || ''
-                    })),
-                };
-            }
-
-            // Aggregated Report for ALL Outlets
-            const summaries = await ctx.prisma.monthlySummary.findMany({
-                where: {
-                    outlet: { tenantId: ctx.tenantId },
-                    month: `${year}-${month.toString().padStart(2, '0')}`
-                }
-            });
-
-            const aggregatedSummary = {
-                totalSales: summaries.reduce((sum, s) => sum + Number(s.totalSales), 0),
-                totalExpenses: summaries.reduce((sum, s) => sum + Number(s.totalExpenses), 0),
-                netProfit: summaries.reduce((sum, s) => sum + Number(s.netProfit || 0), 0),
-            };
-
-            // Fetch recent expenses from all outlets
-            const allExpenses = await ctx.prisma.expense.findMany({
-                where: {
-                    outlet: { tenantId: ctx.tenantId },
-                    date: { gte: startDate, lt: endDate }
-                },
-                include: {
-                    staff: { select: { name: true, email: true } },
-                    outlet: { select: { name: true } }
-                },
-                orderBy: { date: 'desc' },
-                take: 50
-            });
-
-            return {
-                outlet: { name: "All Outlets" },
-                summary: aggregatedSummary,
-                sales: [],
-                expenses: allExpenses.map(e => ({
-                    ...e,
-                    description: `[${e.outlet.name}] ${e.description || ''}`
-                })),
-            };
-        }),
-
-    getOutletComparison: protectedProcedure
-        .input(z.object({
-            year: z.number(),
-            month: z.number().min(1).max(12),
-        }))
-        .query(async ({ ctx, input }) => {
-            const { year, month } = input;
-            const targetMonth = `${year}-${month.toString().padStart(2, '0')}`;
-
-            const summaries = await ctx.prisma.monthlySummary.findMany({
-                where: {
-                    outlet: { tenantId: ctx.tenantId },
-                    month: targetMonth
-                },
-                include: {
-                    outlet: { select: { name: true } }
-                }
-            });
-
-            return summaries.map(s => ({
-                outletName: s.outlet.name,
-                sales: Number(s.totalSales),
-                expenses: Number(s.totalExpenses),
-                profit: Number(s.netProfit || 0),
-            })).sort((a, b) => b.sales - a.sales);
-        }),
-
-    getExpensesByCategory: protectedProcedure
-        .input(z.object({
-            outletId: z.string().optional(),
-            year: z.number(),
-            month: z.number().min(1).max(12),
-        }))
-        .query(async ({ ctx, input }) => {
-            const { outletId, year, month } = input;
 
             const where: any = {
-                tenantId: ctx.tenantId,
+                outletId: { in: outletIds },
                 date: {
-                    gte: new Date(year, month - 1, 1),
-                    lt: new Date(year, month, 1),
-                }
+                    gte: input.startDate,
+                    lte: input.endDate,
+                },
+                deletedAt: null,
             };
-
-            if (outletId && outletId !== 'ALL') {
-                where.outletId = outletId;
-            }
-
-            const expenses = await ctx.prisma.expense.findMany({
-                where,
-                select: {
-                    category: true,
-                    amount: true,
-                }
-            });
-
-            const categoryTotals = expenses.reduce((acc: Record<string, number>, expense) => {
-                const category = expense.category || 'Uncategorized';
-                acc[category] = (acc[category] || 0) + Number(expense.amount);
-                return acc;
-            }, {});
-
-            return Object.entries(categoryTotals)
-                .map(([category, total]) => ({ category, total }))
-                .sort((a, b) => (b.total as number) - (a.total as number));
-        }),
-
-    getSalesTrend: protectedProcedure
-        .input(z.object({
-            outletId: z.string().optional(),
-            year: z.number(),
-            month: z.number().min(1).max(12),
-        }))
-        .query(async ({ ctx, input }) => {
-            const { outletId, year, month } = input;
-
-            const where: any = {
-                outlet: { tenantId: ctx.tenantId },
-                date: {
-                    gte: new Date(year, month - 1, 1),
-                    lt: new Date(year, month, 1),
-                }
-            };
-
-            if (outletId && outletId !== 'ALL') {
-                where.outletId = outletId;
-            }
 
             const sales = await ctx.prisma.sale.findMany({
                 where,
-                orderBy: { date: 'asc' },
                 select: {
-                    date: true,
                     totalSale: true,
-                    cashSale: true,
-                    bankSale: true,
-                    swiggy: true,
-                    zomato: true,
+                    date: true,
                 }
             });
 
-            // Aggregate by date if ALL outlets
-            if (!outletId || outletId === 'ALL') {
-                const aggregated: Record<string, any> = {};
-                sales.forEach(sale => {
-                    const dateStr = sale.date.toISOString().split('T')[0];
-                    if (!aggregated[dateStr]) {
-                        aggregated[dateStr] = {
-                            date: dateStr,
-                            total: 0, cash: 0, bank: 0, swiggy: 0, zomato: 0
-                        };
-                    }
-                    aggregated[dateStr].total += Number(sale.totalSale);
-                    aggregated[dateStr].cash += Number(sale.cashSale);
-                    aggregated[dateStr].bank += Number(sale.bankSale);
-                    aggregated[dateStr].swiggy += Number(sale.swiggy);
-                    aggregated[dateStr].zomato += Number(sale.zomato);
+            const totalSales = sales.reduce((sum, s) => sum + Number(s.totalSale), 0);
+
+            // Use Order model for more accurate counts if available
+            const orderWhere: any = {
+                outletId: { in: outletIds },
+                createdAt: {
+                    gte: input.startDate,
+                    lte: input.endDate,
+                },
+                status: 'COMPLETED',
+            };
+
+            const orders = await ctx.prisma.order.findMany({
+                where: orderWhere,
+                select: {
+                    totalAmount: true,
+                    customerId: true,
+                }
+            });
+
+            const orderCount = orders.length;
+            const uniqueCustomers = new Set(orders.map(o => o.customerId).filter(Boolean)).size;
+            const orderSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+
+            return {
+                sales: orderSales, // Use Order table for real-time accuracy
+                orders: orderCount,
+                customers: uniqueCustomers,
+                avgOrderValue: orderCount > 0 ? orderSales / orderCount : 0,
+            };
+        }),
+
+    getSalesTrend: protectedProcedure
+        .use(enforceTenant)
+        .input(z.object({
+            outletId: z.string().optional(),
+            startDate: z.date(),
+            endDate: z.date(),
+        }))
+        .query(async ({ ctx, input }) => {
+            let outletIds: string[] = [];
+            if (input.outletId && input.outletId !== 'ALL') {
+                outletIds = [input.outletId];
+            } else {
+                const outlets = await ctx.prisma.outlet.findMany({
+                    where: { tenantId: ctx.tenantId },
+                    select: { id: true }
                 });
-                return Object.values(aggregated).sort((a: any, b: any) => a.date.localeCompare(b.date));
+                outletIds = outlets.map(o => o.id);
             }
 
-            return sales.map(sale => ({
-                date: sale.date.toISOString().split('T')[0],
-                total: Number(sale.totalSale),
-                cash: Number(sale.cashSale),
-                bank: Number(sale.bankSale),
-                swiggy: Number(sale.swiggy),
-                zomato: Number(sale.zomato),
+            const where: any = {
+                outletId: { in: outletIds },
+                createdAt: {
+                    gte: input.startDate,
+                    lte: input.endDate,
+                },
+                status: 'COMPLETED',
+            };
+
+            const orders = await ctx.prisma.order.findMany({
+                where,
+                orderBy: { createdAt: 'asc' },
+                select: {
+                    createdAt: true,
+                    totalAmount: true,
+                }
+            });
+
+            // Aggregate by date
+            const aggregated: Record<string, number> = {};
+            orders.forEach(o => {
+                const d = o.createdAt.toISOString().split('T')[0];
+                aggregated[d] = (aggregated[d] || 0) + Number(o.totalAmount);
+            });
+
+            return Object.entries(aggregated).map(([date, amount]) => ({ date, amount }));
+        }),
+
+    getTopItems: protectedProcedure
+        .use(enforceTenant)
+        .input(z.object({
+            outletId: z.string().optional(),
+            startDate: z.date(),
+            endDate: z.date(),
+            limit: z.number().default(5),
+        }))
+        .query(async ({ ctx, input }) => {
+            let outletIds: string[] = [];
+            if (input.outletId && input.outletId !== 'ALL') {
+                outletIds = [input.outletId];
+            } else {
+                const outlets = await ctx.prisma.outlet.findMany({
+                    where: { tenantId: ctx.tenantId },
+                    select: { id: true }
+                });
+                outletIds = outlets.map(o => o.id);
+            }
+
+            const where: any = {
+                order: {
+                    outletId: { in: outletIds },
+                    createdAt: {
+                        gte: input.startDate,
+                        lte: input.endDate,
+                    },
+                    status: 'COMPLETED',
+                }
+            };
+
+            // Group by product name
+            const items = await ctx.prisma.orderItem.groupBy({
+                by: ['name'],
+                where,
+                _sum: {
+                    quantity: true,
+                    total: true,
+                },
+                orderBy: {
+                    _sum: {
+                        total: 'desc',
+                    }
+                },
+                take: input.limit,
+            });
+
+            return items.map(i => ({
+                name: i.name,
+                orders: i._sum.quantity || 0,
+                revenue: Number(i._sum.total || 0),
             }));
         }),
+
+    getPaymentMethods: protectedProcedure
+        .use(enforceTenant)
+        .input(z.object({
+            outletId: z.string().optional(),
+            startDate: z.date(),
+            endDate: z.date(),
+        }))
+        .query(async ({ ctx, input }) => {
+            let outletIds: string[] = [];
+            if (input.outletId && input.outletId !== 'ALL') {
+                outletIds = [input.outletId];
+            } else {
+                const outlets = await ctx.prisma.outlet.findMany({
+                    where: { tenantId: ctx.tenantId },
+                    select: { id: true }
+                });
+                outletIds = outlets.map(o => o.id);
+            }
+
+            const where: any = {
+                outletId: { in: outletIds },
+                createdAt: {
+                    gte: input.startDate,
+                    lte: input.endDate,
+                },
+                status: 'COMPLETED',
+            };
+
+            const orders = await ctx.prisma.order.findMany({
+                where,
+                select: {
+                    paymentMethod: true,
+                    totalAmount: true,
+                }
+            });
+
+            const methodStats: Record<string, number> = {};
+            let total = 0;
+
+            orders.forEach(o => {
+                const method = o.paymentMethod || 'UNKNOWN';
+                const amount = Number(o.totalAmount);
+                methodStats[method] = (methodStats[method] || 0) + amount;
+                total += amount;
+            });
+
+            if (total === 0) return [];
+
+            return Object.entries(methodStats)
+                .map(([method, amount]) => ({
+                    method,
+                    amount,
+                    percentage: Math.round((amount / total) * 100)
+                }))
+                .sort((a, b) => b.amount - a.amount);
+        }),
 });
-*/
