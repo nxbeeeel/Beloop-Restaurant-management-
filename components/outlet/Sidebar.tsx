@@ -12,7 +12,10 @@ import {
     Menu,
     Users,
     FileText,
-    Store
+    Store,
+    Truck,
+    Receipt,
+    UserCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -33,7 +36,7 @@ export function Sidebar({ user, outlet }: SidebarProps) {
         {
             title: "Overview",
             items: [
-                { name: "Dashboard", href: "/outlet", icon: LayoutDashboard },
+                { name: "Dashboard", href: "/outlet/dashboard", icon: LayoutDashboard },
             ]
         },
         {
@@ -41,14 +44,21 @@ export function Sidebar({ user, outlet }: SidebarProps) {
             items: [
                 { name: "Menu", href: "/outlet/menu", icon: Menu },
                 { name: "Inventory", href: "/outlet/inventory", icon: Package },
+                { name: "Suppliers", href: "/outlet/suppliers", icon: Truck },
                 { name: "Customers", href: "/outlet/customers", icon: Users },
+            ]
+        },
+        {
+            title: "Operations",
+            items: [
+                { name: "Sales Entry", href: "/outlet/sales/entry", icon: ShoppingBag },
+                { name: "Expenses", href: "/outlet/entries", icon: Receipt },
             ]
         },
         {
             title: "Analytics",
             items: [
                 { name: "Reports", href: "/outlet/reports", icon: BarChart3 },
-                { name: "Sales", href: "/outlet/sales", icon: ShoppingBag },
             ]
         },
     ];
@@ -123,8 +133,20 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
                         <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                        <p className="text-[10px] text-primary font-semibold uppercase tracking-wider mt-0.5">
+                            {user?.role?.replace('_', ' ')}
+                        </p>
                     </div>
                 </div>
+                <Link href="/outlet/profile">
+                    <Button
+                        variant="ghost"
+                        className="w-full justify-start text-gray-600 hover:text-gray-900 hover:bg-gray-100 h-9 mb-1"
+                    >
+                        <UserCircle className="w-4 h-4 mr-2" />
+                        Profile & Settings
+                    </Button>
+                </Link>
                 <Button
                     variant="ghost"
                     className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 h-9"

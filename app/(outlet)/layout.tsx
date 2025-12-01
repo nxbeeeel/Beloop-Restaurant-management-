@@ -24,12 +24,8 @@ export default async function OutletLayout({
 
     return (
         <div className="flex min-h-screen bg-gray-50/50">
-            <Sidebar
-                outletName={user.outlet?.name}
-                isManager={isManager}
-                userName={user.name || undefined}
-            />
-            <main className="flex-1 h-screen overflow-y-auto">
+            <Sidebar user={user} outlet={user.outlet} />
+            <main className="flex-1 ml-64 h-screen overflow-y-auto">
                 <div className="p-8 max-w-7xl mx-auto">
                     {children}
                 </div>
