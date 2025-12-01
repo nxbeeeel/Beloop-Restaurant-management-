@@ -520,6 +520,201 @@ function pushExpensesToBeloop() {
     } else {
       SpreadsheetApp.getUi().alert('Sync failed: ' + result.message);
     }
+    if (salesData[i][0]) { // Has date
+      totalCash += Number(salesData[i][1]) || 0;
+      totalBank += Number(salesData[i][2]) || 0;
+      totalSwiggy += Number(salesData[i][3]) || 0;
+      totalZomato += Number(salesData[i][4]) || 0;
+      totalOther += Number(salesData[i][5]) || 0;
+    }
+  }
+  
+  const totalSales = totalCash + totalBank + totalSwiggy + totalZomato + totalOther;
+  
+  // Calculate totals from expenses
+  const expensesData = expensesSheet.getDataRange().getValues();
+  let totalExpenses = 0;
+  const expensesByCategory = {};
+  
+  for (let i = 1; i < expensesData.length; i++) {
+    if (expensesData[i][0]) { // Has date
+      const amount = Number(expensesData[i][3]) || 0;
+      const category = expensesData[i][1];
+      totalExpenses += amount;
+      
+      if (category) {
+        expensesByCategory[category] = (expensesByCategory[category] || 0) + amount;
+      }
+    }
+  }
+  
+  // Create or get ledger sheet
+  let ledgerSheet = ss.getSheetByName('Month End Ledger');
+  if (!ledgerSheet) {
+    ledgerSheet = ss.insertSheet('Month End Ledger');
+  }
+  ledgerSheet.clear();
+  
+  // Write ledger
+  let row = 1;
+  ledgerSheet.getRange(row, 1, 1, 2).setValues([['MONTH END LEDGER', month]]);
+  ledgerSheet.getRange(row, 1, 1, 2).setFontWeight('bold').setFontSize(14);
+  row += 2;
+  
+  // Sales Summary
+  ledgerSheet.getRange(row, 1).setValue('SALES SUMMARY').setFontWeight('bold').setBackground('#4285F4').setFontColor('#FFFFFF');
+  row++;
+  ledgerSheet.getRange(row, 1, 5, 2).setValues([
+    ['Cash Sales', totalCash],
+    ['Bank Sales', totalBank],
+    ['Swiggy', totalSwiggy],
+    ['Zomato', totalZomato],
+    ['Other Online', totalOther]
+  ]);
+  row += 5;
+  ledgerSheet.getRange(row, 1, 1, 2).setValues([['TOTAL SALES', totalSales]]).setFontWeight('bold');
+  row += 2;
+  
+  // Expenses Summary
+  ledgerSheet.getRange(row, 1).setValue('EXPENSES SUMMARY').setFontWeight('bold').setBackground('#EA4335').setFontColor('#FFFFFF');
+  row++;
+  Object.keys(expensesByCategory).forEach(category => {
+    ledgerSheet.getRange(row, 1, 1, 2).setValues([[category, expensesByCategory[category]]]);
+    row++;
+  });
+  ledgerSheet.getRange(row, 1, 1, 2).setValues([['TOTAL EXPENSES', totalExpenses]]).setFontWeight('bold');
+  row += 2;
+  
+  // Net Profit
+  const netProfit = totalSales - totalExpenses;
+  ledgerSheet.getRange(row, 1, 1, 2).setValues([['NET PROFIT', netProfit]])
+    .setFontWeight('bold')
+    .setFontSize(12)
+    .setBackground(netProfit >= 0 ? '#34A853' : '#EA4335')
+    .setFontColor('#FFFFFF');
+  
+  // Format currency columns
+  ledgerSheet.getRange(4, 2, row - 3, 1).setNumberFormat('₹#,##0.00');
+  
+  SpreadsheetApp.getUi().alert('Month End Ledger generated successfully!');
+}
+
+// ============================================
+// SYNC FUNCTIONS
+// ============================================
+
+function pushSalesToBeloop() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Daily Sales');
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('Daily Sales sheet not found. Run Setup Sheets first.');
+    return;
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  // Skip first 5 rows (opening balance section + headers)
+  const rows = data.slice(5);
+  
+  const sales = rows
+    .filter(row => row[0] && row[8] !== 'Synced') // Has date and not synced
+    .map((row, index) => ({
+      rowIndex: index + 6, // Data starts at row 6
+      date: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+      cashSale: Number(row[1]) || 0,
+      bankSale: Number(row[2]) || 0,
+      swiggy: Number(row[3]) || 0,
+      zomato: Number(row[4]) || 0,
+      otherOnline: Number(row[5]) || 0,
+      notes: row[7] || ''
+    }));
+  
+  if (sales.length === 0) {
+    SpreadsheetApp.getUi().alert('No new sales to sync.');
+    return;
+  }
+  
+  // Send to API
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'Authorization': 'Bearer ' + AUTH_TOKEN
+    },
+    payload: JSON.stringify({
+      outletId: OUTLET_ID,
+      type: 'sales',
+      data: sales
+    })
+  };
+  
+  try {
+    const response = UrlFetchApp.fetch(API_URL, options);
+    const result = JSON.parse(response.getContentText());
+    
+    if (result.success) {
+      sales.forEach(sale => {
+        sheet.getRange(sale.rowIndex, 9).setValue('Synced');
+      });
+      SpreadsheetApp.getUi().alert(`Successfully synced ${sales.length} sales records!`);
+    } else {
+      SpreadsheetApp.getUi().alert('Sync failed: ' + result.message);
+    }
+  } catch (error) {
+    SpreadsheetApp.getUi().alert('Error: ' + error.message);
+  }
+}
+
+function pushExpensesToBeloop() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Daily Expenses');
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('Daily Expenses sheet not found. Run Setup Sheets first.');
+    return;
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  const rows = data.slice(1);
+  
+  const expenses = rows
+    .filter(row => row[0] && row[5] !== 'Synced') // Has date and not synced
+    .map((row, index) => ({
+      rowIndex: index + 2,
+      date: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+      category: row[1],
+      product: row[2] || '',
+      amount: Number(row[3]) || 0,
+      description: row[4] || ''
+    }));
+  
+  if (expenses.length === 0) {
+    SpreadsheetApp.getUi().alert('No new expenses to sync.');
+    return;
+  }
+  
+  // Send to API
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'Authorization': 'Bearer ' + AUTH_TOKEN
+    },
+    payload: JSON.stringify({
+      outletId: OUTLET_ID,
+      type: 'expenses',
+      data: expenses
+    })
+  };
+  
+  try {
+    const response = UrlFetchApp.fetch(API_URL, options);
+    const result = JSON.parse(response.getContentText());
+    
+    if (result.success) {
+      expenses.forEach(expense => {
+        sheet.getRange(expense.rowIndex, 6).setValue('Synced');
+      });
+      SpreadsheetApp.getUi().alert(`Successfully synced ${expenses.length} expense records!`);
+    } else {
+      SpreadsheetApp.getUi().alert('Sync failed: ' + result.message);
+    }
   } catch (error) {
     SpreadsheetApp.getUi().alert('Error: ' + error.message);
   }
@@ -530,7 +725,7 @@ function pushExpensesToBeloop() {
         outletName: outlet.name,
         outletCode: outlet.code,
         scriptCode,
-        expenseCategories: categories
+        expenseCategories: categories as string[]
       };
     }),
 });

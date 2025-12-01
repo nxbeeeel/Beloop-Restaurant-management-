@@ -43,7 +43,19 @@ export default function ProductsPage() {
         { enabled: !!selectedOutletId }
     );
 
+    const { data: categories } = trpc.categories.list.useQuery(
+        { outletId: selectedOutletId },
+        { enabled: !!selectedOutletId }
+    );
+
     const { data: suppliers } = trpc.suppliers.list.useQuery();
+
+    const createCategoryMutation = trpc.categories.create.useMutation({
+        onSuccess: () => {
+            toast.success("Category created");
+            utils.categories.list.invalidate();
+        }
+    });
 
     const createMutation = trpc.products.create.useMutation({
         onSuccess: () => {
@@ -81,6 +93,13 @@ export default function ProductsPage() {
         onError: (err) => toast.error(err.message),
     });
 
+    const handleCreateCategory = () => {
+        const name = prompt("Enter category name:");
+        if (name) {
+            createCategoryMutation.mutate({ outletId: selectedOutletId, name });
+        }
+    };
+
     const filteredProducts = products?.filter(p =>
         p.name.toLowerCase().includes(search.toLowerCase()) ||
         p.sku.toLowerCase().includes(search.toLowerCase())
@@ -96,6 +115,10 @@ export default function ProductsPage() {
             unit: formData.get("unit") as string,
             minStock: Number(formData.get("minStock")),
             supplierId: formData.get("supplierId") as string || undefined,
+            price: Number(formData.get("price")),
+            categoryId: formData.get("categoryId") as string || undefined,
+            imageUrl: formData.get("imageUrl") as string || undefined,
+            description: formData.get("description") as string || undefined,
         };
 
         if (editingProduct) {
@@ -110,12 +133,6 @@ export default function ProductsPage() {
         const formData = new FormData(e.currentTarget);
         const qty = Number(formData.get("qty"));
         const type = formData.get("type") as any;
-
-        // If type is WASTE or SALE (manual), qty should be negative effectively for stock, 
-        // but the mutation expects signed qty. 
-        // Let's assume the user enters positive number for "Add" and positive for "Remove" and we handle sign based on type?
-        // Actually, let's make it explicit: "Add" or "Remove" action.
-
         const action = formData.get("action") as string;
         const finalQty = action === "remove" ? -qty : qty;
 
@@ -153,7 +170,6 @@ export default function ProductsPage() {
                     </div>
                 </div>
 
-                {/* Search Bar */}
                 <Card className="border-none shadow-sm bg-white/60 backdrop-blur-xl ring-1 ring-gray-200/50">
                     <CardContent className="p-4">
                         <div className="relative">
@@ -168,7 +184,6 @@ export default function ProductsPage() {
                     </CardContent>
                 </Card>
 
-                {/* Products List */}
                 {isLoading ? (
                     <div className="space-y-4">
                         {[1, 2, 3].map((i) => (
@@ -189,7 +204,15 @@ export default function ProductsPage() {
                                             <div className="flex items-center gap-2 text-sm text-gray-500">
                                                 <Badge variant="outline" className="text-xs font-normal">SKU: {product.sku}</Badge>
                                                 <span>•</span>
+                                                <span className="font-semibold text-gray-900">${Number(product.price).toFixed(2)}</span>
+                                                <span>•</span>
                                                 <span>{product.unit}</span>
+                                                {product.category && (
+                                                    <>
+                                                        <span>•</span>
+                                                        <Badge variant="secondary" className="text-xs">{product.category.name}</Badge>
+                                                    </>
+                                                )}
                                                 {product.supplier && (
                                                     <>
                                                         <span>•</span>
@@ -233,7 +256,6 @@ export default function ProductsPage() {
                     </StaggerContainer>
                 )}
 
-                {/* Create/Edit Dialog */}
                 <Dialog open={isCreateOpen} onOpenChange={(open) => {
                     if (!open) {
                         setIsCreateOpen(false);
@@ -255,16 +277,53 @@ export default function ProductsPage() {
                                     <Input name="sku" defaultValue={editingProduct?.sku} required />
                                 </div>
                             </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Price</Label>
+                                    <Input name="price" type="number" step="0.01" defaultValue={editingProduct?.price || 0} required />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Category</Label>
+                                    <div className="flex gap-2">
+                                        <Select name="categoryId" defaultValue={editingProduct?.categoryId || ""}>
+                                            <SelectTrigger className="w-full">
+                                                <SelectValue placeholder="Select Category" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {categories?.map((c) => (
+                                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <Button type="button" variant="outline" size="icon" onClick={handleCreateCategory}>
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>Unit</Label>
-                                    <Input name="unit" defaultValue={editingProduct?.unit} placeholder="kg, pcs, ltr" required />
+                                    <Input name="unit" defaultValue={editingProduct?.unit} placeholder="kg, pcs" required />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Min Stock Alert</Label>
                                     <Input name="minStock" type="number" defaultValue={editingProduct?.minStock || 0} required />
                                 </div>
                             </div>
+
+                            <div className="space-y-2">
+                                <Label>Image URL</Label>
+                                <Input name="imageUrl" defaultValue={editingProduct?.imageUrl} placeholder="https://..." />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Description</Label>
+                                <Textarea name="description" defaultValue={editingProduct?.description} />
+                            </div>
+
                             <div className="space-y-2">
                                 <Label>Supplier (Optional)</Label>
                                 <Select name="supplierId" defaultValue={editingProduct?.supplierId || ""}>
@@ -288,7 +347,6 @@ export default function ProductsPage() {
                     </DialogContent>
                 </Dialog>
 
-                {/* Adjust Stock Dialog */}
                 <Dialog open={isAdjustOpen} onOpenChange={(open) => {
                     if (!open) {
                         setIsAdjustOpen(false);

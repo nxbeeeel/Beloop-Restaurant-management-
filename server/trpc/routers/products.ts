@@ -10,7 +10,7 @@ export const productsRouter = router({
         .query(async ({ ctx, input }) => {
             return ctx.prisma.product.findMany({
                 where: { outletId: input.outletId },
-                include: { supplier: true },
+                include: { supplier: true, category: true },
                 orderBy: { name: 'asc' }
             });
         }),
@@ -24,6 +24,10 @@ export const productsRouter = router({
             unit: z.string().min(1),
             minStock: z.number().min(0).default(0),
             supplierId: z.string().optional(),
+            price: z.number().min(0).default(0),
+            categoryId: z.string().optional(),
+            description: z.string().optional(),
+            imageUrl: z.string().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
             // Check if SKU exists
@@ -56,6 +60,10 @@ export const productsRouter = router({
             unit: z.string().min(1).optional(),
             minStock: z.number().min(0).optional(),
             supplierId: z.string().optional().nullable(),
+            price: z.number().min(0).optional(),
+            categoryId: z.string().optional().nullable(),
+            description: z.string().optional(),
+            imageUrl: z.string().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
             return ctx.prisma.product.update({
@@ -64,7 +72,11 @@ export const productsRouter = router({
                     name: input.name,
                     unit: input.unit,
                     minStock: input.minStock,
-                    supplierId: input.supplierId
+                    supplierId: input.supplierId,
+                    price: input.price,
+                    categoryId: input.categoryId,
+                    description: input.description,
+                    imageUrl: input.imageUrl
                 }
             });
         }),

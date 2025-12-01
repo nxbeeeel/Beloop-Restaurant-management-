@@ -18,25 +18,12 @@ import { superRouter } from "./super";
 import { superAnalyticsRouter } from "./superAnalytics";
 import { paymentRouter } from "./payment";
 import { supportRouter } from "./support";
+import { posRouter } from "./pos";
+import { categoriesRouter } from "./categories";
 
 export const appRouter = router({
     health: publicProcedure.query(() => ({ status: "ok" })),
-    dashboard: dashboardRouter,
-    sales: salesRouter,
-    expenses: expensesRouter,
-    reports: reportsRouter,
-    googleSheets: googleSheetsRouter,
-    analytics: analyticsRouter,
-    suppliers: suppliersRouter,
-    products: productsRouter,
-    inventory: inventoryRouter,
-    procurement: procurementRouter,
-    dailyClosure: dailyClosureRouter,
-    wastage: wastageRouter,
-    adjustments: adjustmentsRouter,
-    tenant: tenantRouter,
-    outlets: outletsRouter,
-    super: superRouter,
+    pos: posRouter,
     superAnalytics: superAnalyticsRouter,
     payment: paymentRouter,
     support: supportRouter,

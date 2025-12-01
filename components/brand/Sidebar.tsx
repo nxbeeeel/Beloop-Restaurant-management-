@@ -12,7 +12,8 @@ import {
     HelpCircle,
     ChevronLeft,
     ChevronRight,
-    LogOut
+    LogOut,
+    Utensils
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -33,6 +34,7 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName }: SidebarP
     const navItems = [
         { href: "/brand/dashboard", label: "Overview", icon: LayoutDashboard },
         { href: "/brand/outlets", label: "Outlets", icon: Store },
+        { href: "/brand/products", label: "Menu", icon: Utensils },
         { href: "/brand/staff", label: "Staff", icon: Users },
         { href: "/brand/reports", label: "Reports", icon: FileBarChart },
     ];

@@ -33,7 +33,8 @@ export default function OutletDetailsPage({ params }: { params: { outletId: stri
         code: "",
         address: "",
         phone: "",
-        status: "ACTIVE"
+        status: "ACTIVE",
+        isPosEnabled: false
     });
 
     useEffect(() => {
@@ -43,7 +44,8 @@ export default function OutletDetailsPage({ params }: { params: { outletId: stri
                 code: outlet.code,
                 address: outlet.address || "",
                 phone: outlet.phone || "",
-                status: outlet.status
+                status: outlet.status,
+                isPosEnabled: outlet.isPosEnabled || false
             });
         }
     }, [outlet]);
@@ -56,7 +58,8 @@ export default function OutletDetailsPage({ params }: { params: { outletId: stri
             code: formData.code,
             address: formData.address,
             phone: formData.phone,
-            status: formData.status as any
+            status: formData.status as any,
+            isPosEnabled: formData.isPosEnabled
         });
     };
 
@@ -164,6 +167,21 @@ export default function OutletDetailsPage({ params }: { params: { outletId: stri
                                             <SelectItem value="ACTIVE">Active</SelectItem>
                                             <SelectItem value="INACTIVE">Inactive</SelectItem>
                                             <SelectItem value="ARCHIVED">Archived</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="isPosEnabled">POS Access</Label>
+                                    <Select
+                                        value={formData.isPosEnabled ? "ENABLED" : "DISABLED"}
+                                        onValueChange={(val) => setFormData({ ...formData, isPosEnabled: val === "ENABLED" })}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ENABLED">Enabled</SelectItem>
+                                            <SelectItem value="DISABLED">Disabled</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

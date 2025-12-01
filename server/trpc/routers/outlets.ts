@@ -67,6 +67,7 @@ export const outletsRouter = router({
             address: z.string().optional(),
             phone: z.string().optional(),
             status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+            isPosEnabled: z.boolean().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
             // Verify user has permission (BRAND_ADMIN or SUPER)
@@ -109,6 +110,7 @@ export const outletsRouter = router({
                     address: input.address,
                     phone: input.phone,
                     status: input.status,
+                    isPosEnabled: input.isPosEnabled,
                 }
             });
         }),

@@ -54,6 +54,7 @@ model Tenant {
   nextBillingDate DateTime?
   isPaymentDue    Boolean      @default(false)
   Ticket          Ticket[]
+  customers       Customer[]
 
   @@index([slug, subscriptionStatus])
 }
@@ -68,6 +69,7 @@ model Outlet {
   email            String?
   googleSheetsUrl  String?
   status           OutletStatus      @default(ACTIVE)
+  isPosEnabled     Boolean           @default(false) // Controls POS access
   sheetExportUrl   String?
   spreadsheetId    String?
   dailyClosures    DailyClosure[]
@@ -83,6 +85,10 @@ model Outlet {
   stockMoves       StockMove[]
   users            User[]
   wastages         Wastage[]
+  orders           Order[]
+  loyaltyProgress  LoyaltyProgress[]
+  loyaltyRule      LoyaltyRule?
+  Category         Category[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -155,22 +161,22 @@ model Sale {
 }
 
 model Expense {
-  id            String          @id @default(cuid())
+  id            String         @id @default(cuid())
   outletId      String
   staffId       String
-  date          DateTime        @db.Date
+  date          DateTime       @db.Date
   category      String
-  amount        Decimal         @db.Decimal(12, 2)
-  paymentMethod PaymentMethod   @default(CASH)
+  amount        Decimal        @db.Decimal(12, 2)
+  paymentMethod PaymentMethod  @default(CASH)
   description   String?
   receiptUrl    String?
   ocrJson       Json?
-  needsReview   Boolean         @default(false)
+  needsReview   Boolean        @default(false)
   deletedAt     DateTime?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  outlet        Outlet          @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  staff         User            @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  outlet        Outlet         @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  staff         User           @relation(fields: [staffId], references: [id], onDelete: Cascade)
   purchaseOrder PurchaseOrder?
 
   @@index([outletId, date])
@@ -203,12 +209,28 @@ model MonthlySummary {
   @@index([outletId, month])
 }
 
+model Category {
+  id        String    @id @default(cuid())
+  outletId  String
+  name      String
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  outlet    Outlet    @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@index([outletId])
+}
+
 model Product {
   id              String            @id @default(cuid())
   outletId        String
   supplierId      String?
+  categoryId      String?
   sku             String
   name            String
+  description     String?
+  imageUrl        String?
+  price           Decimal           @default(0) @db.Decimal(10, 2)
   unit            String
   minStock        Float             @default(0)
   currentStock    Float             @default(0)
@@ -218,14 +240,17 @@ model Product {
   poItems         POItem[]
   outlet          Outlet            @relation(fields: [outletId], references: [id], onDelete: Cascade)
   supplier        Supplier?         @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  category        Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   saleLinks       ProductSaleLink[]
   stockCheckItems StockCheckItem[]
   stockMoves      StockMove[]
   wastages        Wastage[]
+  orderItems      OrderItem[]
 
   @@unique([outletId, sku])
   @@index([outletId])
   @@index([supplierId])
+  @@index([categoryId])
   @@index([outletId, version])
 }
 
@@ -580,4 +605,92 @@ model TicketComment {
 
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  outletId      String
+  customerName  String?
+  status        OrderStatus @default(COMPLETED)
+  totalAmount   Decimal     @db.Decimal(12, 2)
+  discount      Decimal     @default(0) @db.Decimal(12, 2)
+  tax           Decimal     @default(0) @db.Decimal(12, 2)
+  paymentMethod String // CASH, CARD, UPI, etc.
+  items           OrderItem[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  outlet          Outlet      @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  customer        Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId      String?
+
+  @@index([outletId, createdAt])
+  @@index([customerId])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String?
+  name      String
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+  total     Decimal @db.Decimal(12, 2)
+  modifiers Json?   // Store modifiers as JSON for now
+  
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  VOIDED
+  REFUNDED
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  tenantId    String
+  phoneNumber String
+  name        String?
+  email       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  loyalty     LoyaltyProgress[]
+  orders      Order[]
+
+  @@unique([tenantId, phoneNumber])
+  @@index([phoneNumber])
+}
+
+model LoyaltyProgress {
+  id          String   @id @default(cuid())
+  customerId  String
+  outletId    String
+  stamps      Int      @default(0)
+  totalSpend  Decimal  @default(0) @db.Decimal(12, 2)
+  lastVisit   DateTime @default(now())
+  
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  outlet      Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, outletId])
+  @@index([outletId])
+}
+
+model LoyaltyRule {
+  id                String   @id @default(cuid())
+  outletId          String   @unique
+  minSpendPerVisit  Decimal  @default(0) @db.Decimal(10, 2)
+  visitsRequired    Int      @default(6)
+  rewardType        String   @default("PERCENTAGE") // PERCENTAGE, FLAT
+  rewardValue       Decimal  @db.Decimal(10, 2)
+  isActive          Boolean  @default(true)
+
+  outlet            Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
 }

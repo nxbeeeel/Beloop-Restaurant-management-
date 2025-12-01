@@ -152,7 +152,7 @@ export default function GenerateScriptPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="flex flex-wrap gap-2">
-                            {scriptData.expenseCategories.map((category) => (
+                            {scriptData.expenseCategories.map((category: string) => (
                                 <span
                                     key={category}
                                     className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
