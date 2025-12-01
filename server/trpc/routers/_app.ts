@@ -23,10 +23,27 @@ import { categoriesRouter } from "./categories";
 
 export const appRouter = router({
     health: publicProcedure.query(() => ({ status: "ok" })),
-    pos: posRouter,
+    sales: salesRouter,
+    expenses: expensesRouter,
+    dashboard: dashboardRouter,
+    reports: reportsRouter,
+    googleSheets: googleSheetsRouter,
+    suppliers: suppliersRouter,
+    products: productsRouter,
+    inventory: inventoryRouter,
+    procurement: procurementRouter,
+    dailyClosure: dailyClosureRouter,
+    wastage: wastageRouter,
+    adjustments: adjustmentsRouter,
+    analytics: analyticsRouter,
+    tenant: tenantRouter,
+    outlets: outletsRouter,
+    super: superRouter,
     superAnalytics: superAnalyticsRouter,
     payment: paymentRouter,
     support: supportRouter,
+    pos: posRouter,
+    categories: categoriesRouter,
 });
 
 export type AppRouter = typeof appRouter;
