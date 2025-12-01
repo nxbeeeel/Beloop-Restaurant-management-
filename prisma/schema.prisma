@@ -90,6 +90,7 @@ model Outlet {
   loyaltyProgress  LoyaltyProgress[]
   loyaltyRule      LoyaltyRule?
   Category         Category[]
+  ingredients      Ingredient[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
