@@ -13,20 +13,16 @@ export default function DashboardPage() {
 
     const { data: stats, isLoading: statsLoading } = trpc.dashboard.getOutletStats.useQuery(
         { outletId: outletId || "" },
-        { enabled: !!outletId }
+        {
+            enabled: !!outletId,
+            staleTime: 30 * 1000, // Cache for 30 seconds
+            refetchOnWindowFocus: false, // Don't refetch on window focus
+        }
     );
 
     const loading = userLoading || statsLoading;
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    if (!outletId) {
+    if (!outletId && !userLoading) {
         return (
             <div className="flex items-center justify-center h-64">
                 <p className="text-gray-500">No outlet assigned</p>
@@ -42,6 +38,24 @@ export default function DashboardPage() {
     const formatCurrency = (amount: number | string | undefined) => {
         return `₹${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
+
+    // Skeleton Loader Component
+    if (loading) {
+        return (
+            <div className="space-y-8 pb-10 max-w-7xl mx-auto animate-pulse">
+                <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
+                    ))}
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="h-64 bg-gray-200 rounded-lg"></div>
+                    <div className="h-64 bg-gray-200 rounded-lg"></div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8 pb-10 max-w-7xl mx-auto">

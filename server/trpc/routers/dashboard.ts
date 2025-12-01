@@ -25,63 +25,77 @@ export const dashboardRouter = router({
         .input(z.object({ outletId: z.string() }))
         .query(async ({ ctx, input }) => {
             const currentMonth = new Date().toISOString().slice(0, 7);
-
-            const summary = await ctx.prisma.monthlySummary.findUnique({
-                where: {
-                    outletId_month: {
-                        outletId: input.outletId,
-                        month: currentMonth
-                    }
-                }
-            });
-
-            // Get recent sales
-            const recentSales = await ctx.prisma.sale.findMany({
-                where: { outletId: input.outletId, deletedAt: null },
-                orderBy: { date: 'desc' },
-                take: 5
-            });
-
-            // Get Top Items (by quantity) - This month
-            // Note: Prisma groupBy doesn't support joining easily, so we might need raw query or just fetch recent orders
-            // For simplicity/performance, let's just count from OrderItems created this month
             const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
-            const topItems = await ctx.prisma.orderItem.groupBy({
-                by: ['name'],
-                where: {
-                    order: {
-                        outletId: input.outletId,
-                        createdAt: { gte: startOfMonth }
+            // Execute all queries in parallel for faster performance
+            const [
+                summary,
+                recentSales,
+                topItems,
+                lowStockProductsCount,
+                lowStockIngredientsCount
+            ] = await Promise.all([
+                // Monthly summary
+                ctx.prisma.monthlySummary.findUnique({
+                    where: {
+                        outletId_month: {
+                            outletId: input.outletId,
+                            month: currentMonth
+                        }
                     }
-                },
-                _sum: {
-                    quantity: true,
-                    total: true
-                },
-                orderBy: {
+                }),
+
+                // Recent sales (limit 5)
+                ctx.prisma.sale.findMany({
+                    where: { outletId: input.outletId, deletedAt: null },
+                    orderBy: { date: 'desc' },
+                    take: 5,
+                    select: {
+                        id: true,
+                        date: true,
+                        cashSale: true,
+                        bankSale: true,
+                        profit: true
+                    }
+                }),
+
+                // Top items this month
+                ctx.prisma.orderItem.groupBy({
+                    by: ['name'],
+                    where: {
+                        order: {
+                            outletId: input.outletId,
+                            createdAt: { gte: startOfMonth }
+                        }
+                    },
                     _sum: {
-                        quantity: 'desc'
-                    }
-                },
-                take: 5
-            });
+                        quantity: true,
+                        total: true
+                    },
+                    orderBy: {
+                        _sum: {
+                            quantity: 'desc'
+                        }
+                    },
+                    take: 5
+                }),
 
-            // Low Stock Alerts
-            // We use $queryRaw because comparing two columns (stock <= minStock) is not directly supported in Prisma's where clause
-            const lowStockProductsCount = await ctx.prisma.$queryRaw<{ count: bigint }[]>`
-                SELECT COUNT(*)::bigint as count
-                FROM "Product"
-                WHERE "outletId" = ${input.outletId}
-                AND "currentStock" <= "minStock"
-            `;
+                // Low stock products count
+                ctx.prisma.$queryRaw<{ count: bigint }[]>`
+                    SELECT COUNT(*)::bigint as count
+                    FROM "Product"
+                    WHERE "outletId" = ${input.outletId}
+                    AND "currentStock" <= "minStock"
+                `,
 
-            const lowStockIngredientsCount = await ctx.prisma.$queryRaw<{ count: bigint }[]>`
-                SELECT COUNT(*)::bigint as count
-                FROM "Ingredient"
-                WHERE "outletId" = ${input.outletId}
-                AND "stock" <= "minStock"
-            `;
+                // Low stock ingredients count
+                ctx.prisma.$queryRaw<{ count: bigint }[]>`
+                    SELECT COUNT(*)::bigint as count
+                    FROM "Ingredient"
+                    WHERE "outletId" = ${input.outletId}
+                    AND "stock" <= "minStock"
+                `
+            ]);
 
             const lowStockProducts = Number(lowStockProductsCount[0]?.count || 0);
             const lowStockIngredients = Number(lowStockIngredientsCount[0]?.count || 0);
