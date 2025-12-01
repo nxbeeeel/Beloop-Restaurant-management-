@@ -511,6 +511,7 @@ model RecipeItem {
   productId    String
   ingredientId String
   quantity     Float      // Amount of ingredient used
+  unit         String     @default("g") // Unit of measurement: "g", "kg", "ml", "L"
   
   product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
