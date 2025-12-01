@@ -166,12 +166,12 @@ export default function ReportsPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
-                                {topItems?.map((item, i) => (
+                                {topItems?.map((item: any, i: number) => (
                                     <div key={i} className="flex items-center justify-between group">
                                         <div className="flex items-center gap-3">
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                    i === 1 ? 'bg-gray-100 text-gray-700' :
-                                                        i === 2 ? 'bg-orange-100 text-orange-700' : 'bg-gray-50 text-gray-500'
+                                                i === 1 ? 'bg-gray-100 text-gray-700' :
+                                                    i === 2 ? 'bg-orange-100 text-orange-700' : 'bg-gray-50 text-gray-500'
                                                 }`}>
                                                 {i + 1}
                                             </div>

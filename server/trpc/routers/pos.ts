@@ -193,6 +193,50 @@ export const posRouter = router({
                 }
             });
 
+            // 3. Handle Stock Deduction (Server-Side)
+            // We do this AFTER order creation to ensure order exists.
+            // We iterate through items and deduct stock.
+            for (const item of input.items) {
+                if (item.productId) {
+                    const product = await ctx.prisma.product.findUnique({
+                        where: { id: item.productId },
+                        include: { recipeItems: true }
+                    });
+
+                    if (product) {
+                        if (product.recipeItems && product.recipeItems.length > 0) {
+                            // Deduct Ingredients
+                            for (const recipeItem of product.recipeItems) {
+                                const qtyToDeduct = recipeItem.quantity * item.quantity;
+                                await ctx.prisma.ingredient.update({
+                                    where: { id: recipeItem.ingredientId },
+                                    data: { stock: { decrement: qtyToDeduct } }
+                                });
+                                // Optional: Record Stock Move for Ingredient?
+                            }
+                        } else {
+                            // Deduct Product Stock (Direct)
+                            await ctx.prisma.product.update({
+                                where: { id: product.id },
+                                data: { currentStock: { decrement: item.quantity } }
+                            });
+
+                            // Record Stock Move
+                            await ctx.prisma.stockMove.create({
+                                data: {
+                                    outletId,
+                                    productId: product.id,
+                                    qty: -1 * item.quantity,
+                                    type: 'SALE',
+                                    date: new Date(input.createdAt),
+                                    notes: `Order: ${order.id}`
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+
             return { success: true, id: order.id };
         }),
 

@@ -247,6 +247,7 @@ model Product {
   stockMoves      StockMove[]
   wastages        Wastage[]
   orderItems      OrderItem[]
+  recipeItems     RecipeItem[]
 
   @@unique([outletId, sku])
   @@index([outletId])
@@ -471,6 +472,37 @@ model Wastage {
 
   @@index([outletId])
   @@index([productId])
+}
+
+model Ingredient {
+  id        String   @id @default(cuid())
+  outletId  String
+  name      String
+  unit      String   // e.g., "kg", "l", "pcs"
+  cost      Decimal  @default(0) @db.Decimal(10, 2) // Cost per unit
+  stock     Float    @default(0)
+  minStock  Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  outlet      Outlet       @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  recipeItems RecipeItem[]
+
+  @@index([outletId])
+}
+
+model RecipeItem {
+  id           String     @id @default(cuid())
+  productId    String
+  ingredientId String
+  quantity     Float      // Amount of ingredient used
+  
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, ingredientId])
+  @@index([productId])
+  @@index([ingredientId])
 }
 
 enum PlatformRole {

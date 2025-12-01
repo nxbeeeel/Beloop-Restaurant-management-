@@ -10,7 +10,11 @@ export const productsRouter = router({
         .query(async ({ ctx, input }) => {
             return ctx.prisma.product.findMany({
                 where: { outletId: input.outletId },
-                include: { supplier: true, category: true },
+                include: {
+                    supplier: true,
+                    category: true,
+                    recipeItems: { include: { ingredient: true } }
+                },
                 orderBy: { name: 'asc' }
             });
         }),
@@ -28,10 +32,14 @@ export const productsRouter = router({
             categoryId: z.string().optional(),
             description: z.string().optional(),
             imageUrl: z.string().optional(),
-            applyToAllOutlets: z.boolean().default(false), // New flag
+            applyToAllOutlets: z.boolean().default(false),
+            recipe: z.array(z.object({
+                ingredientId: z.string(),
+                quantity: z.number().min(0)
+            })).optional(),
         }))
         .mutation(async ({ ctx, input }) => {
-            const { applyToAllOutlets, ...productData } = input;
+            const { applyToAllOutlets, recipe, ...productData } = input;
 
             if (applyToAllOutlets) {
                 // Fetch all outlets for this tenant
@@ -58,7 +66,13 @@ export const productsRouter = router({
                             ...productData,
                             outletId: outlet.id,
                             currentStock: 0,
-                            version: 1
+                            version: 1,
+                            recipeItems: recipe ? {
+                                create: recipe.map(r => ({
+                                    ingredientId: r.ingredientId,
+                                    quantity: r.quantity
+                                }))
+                            } : undefined
                         }
                     });
                 }));
@@ -83,7 +97,13 @@ export const productsRouter = router({
                     data: {
                         ...productData,
                         currentStock: 0,
-                        version: 1
+                        version: 1,
+                        recipeItems: recipe ? {
+                            create: recipe.map(r => ({
+                                ingredientId: r.ingredientId,
+                                quantity: r.quantity
+                            }))
+                        } : undefined
                     }
                 });
             }
@@ -101,10 +121,14 @@ export const productsRouter = router({
             categoryId: z.string().optional().nullable(),
             description: z.string().optional(),
             imageUrl: z.string().optional(),
-            applyToAllOutlets: z.boolean().default(false), // New flag
+            applyToAllOutlets: z.boolean().default(false),
+            recipe: z.array(z.object({
+                ingredientId: z.string(),
+                quantity: z.number().min(0)
+            })).optional(),
         }))
         .mutation(async ({ ctx, input }) => {
-            const { applyToAllOutlets, id, ...updateData } = input;
+            const { applyToAllOutlets, id, recipe, ...updateData } = input;
 
             if (applyToAllOutlets) {
                 // 1. Get the SKU of the product being updated
@@ -117,11 +141,6 @@ export const productsRouter = router({
                     throw new TRPCError({ code: 'NOT_FOUND', message: 'Product not found' });
                 }
 
-                // 2. Update ALL products with this SKU in the tenant
-                // We need to find them first to ensure they belong to the tenant (via outlet)
-                // But since we are in a protected procedure with enforceTenant, we can trust the tenantId context if we filter by it.
-                // However, Product doesn't have tenantId directly. We must query via Outlet.
-
                 const outlets = await ctx.prisma.outlet.findMany({
                     where: { tenantId: ctx.user!.tenantId! },
                     select: { id: true }
@@ -129,7 +148,8 @@ export const productsRouter = router({
 
                 const outletIds = outlets.map(o => o.id);
 
-                return ctx.prisma.product.updateMany({
+                // Update products
+                await ctx.prisma.product.updateMany({
                     where: {
                         sku: currentProduct.sku,
                         outletId: { in: outletIds }
@@ -139,15 +159,57 @@ export const productsRouter = router({
                         version: { increment: 1 }
                     }
                 });
+
+                // Update recipes if provided
+                if (recipe) {
+                    // Find all product IDs to update recipes for
+                    const products = await ctx.prisma.product.findMany({
+                        where: {
+                            sku: currentProduct.sku,
+                            outletId: { in: outletIds }
+                        },
+                        select: { id: true }
+                    });
+
+                    for (const p of products) {
+                        await ctx.prisma.recipeItem.deleteMany({ where: { productId: p.id } });
+                        if (recipe.length > 0) {
+                            await ctx.prisma.recipeItem.createMany({
+                                data: recipe.map(r => ({
+                                    productId: p.id,
+                                    ingredientId: r.ingredientId,
+                                    quantity: r.quantity
+                                }))
+                            });
+                        }
+                    }
+                }
+
+                return { success: true };
             } else {
                 // Single Update
-                return ctx.prisma.product.update({
+                const result = await ctx.prisma.product.update({
                     where: { id: input.id },
                     data: {
                         ...updateData,
                         version: { increment: 1 }
                     }
                 });
+
+                if (recipe) {
+                    await ctx.prisma.recipeItem.deleteMany({ where: { productId: input.id } });
+                    if (recipe.length > 0) {
+                        await ctx.prisma.recipeItem.createMany({
+                            data: recipe.map(r => ({
+                                productId: input.id,
+                                ingredientId: r.ingredientId,
+                                quantity: r.quantity
+                            }))
+                        });
+                    }
+                }
+
+                return result;
             }
         }),
 

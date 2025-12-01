@@ -21,6 +21,7 @@ import { supportRouter } from "./support";
 import { posRouter } from "./pos";
 import { categoriesRouter } from "./categories";
 import { customersRouter } from "./customers";
+import { ingredientsRouter } from "./ingredients";
 
 export const appRouter = router({
     health: publicProcedure.query(() => ({ status: "ok" })),
@@ -46,6 +47,7 @@ export const appRouter = router({
     pos: posRouter,
     categories: categoriesRouter,
     customers: customersRouter,
+    ingredients: ingredientsRouter,
 });
 
 export type AppRouter = typeof appRouter;

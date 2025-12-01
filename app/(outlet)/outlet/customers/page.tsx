@@ -59,7 +59,7 @@ export default function CustomersPage() {
         return "Bronze";
     };
 
-    const selectedCustomer = customers?.find(c => c.id === selectedCustomerId);
+    const selectedCustomer = customers?.find((c: any) => c.id === selectedCustomerId);
 
     return (
         <div className="space-y-6 pb-24 lg:pb-6">
@@ -184,7 +184,7 @@ export default function CustomersPage() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {customers?.map((customer) => {
+                    {customers?.map((customer: any) => {
                         const tierName = getTierName(customer.totalSpent);
                         const tierColor = getTierColor(customer.totalSpent);
 
@@ -228,7 +228,7 @@ export default function CustomersPage() {
                                     </div>
 
                                     <div className="mt-4 flex flex-wrap gap-2">
-                                        {customer.tags.map(tag => (
+                                        {customer.tags.map((tag: string) => (
                                             <Badge key={tag} variant="outline" className="text-xs font-normal">
                                                 {tag}
                                             </Badge>
@@ -281,7 +281,7 @@ export default function CustomersPage() {
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        {history?.map((order) => (
+                                        {history?.map((order: any) => (
                                             <div key={order.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <div>
@@ -301,7 +301,7 @@ export default function CustomersPage() {
                                                     </div>
                                                 </div>
                                                 <div className="text-sm text-gray-600 space-y-1">
-                                                    {order.items.map((item, idx) => (
+                                                    {order.items.map((item: any, idx: number) => (
                                                         <div key={idx} className="flex justify-between">
                                                             <span>{item.quantity}x {item.name}</span>
                                                             <span className="text-gray-400">₹{item.price * item.quantity}</span>

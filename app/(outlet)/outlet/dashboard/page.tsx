@@ -1,67 +1,24 @@
 "use client";
 
-import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Calendar, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { TrendingUp, TrendingDown, IndianRupee, Package, AlertTriangle, ShoppingBag, ArrowRight } from "lucide-react";
 import { useOutlet } from "@/hooks/use-outlet";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 
 export default function DashboardPage() {
-    const [selectedMonth, setSelectedMonth] = useState(() => {
-        const now = new Date();
-        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    });
-
     const { outletId, isLoading: userLoading, user } = useOutlet();
 
-    // Calculate date range for selected month
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
-
-    const { data: sales, isLoading: salesLoading } = trpc.sales.list.useQuery(
-        { outletId: outletId || "", startDate, endDate },
+    const { data: stats, isLoading: statsLoading } = trpc.dashboard.getOutletStats.useQuery(
+        { outletId: outletId || "" },
         { enabled: !!outletId }
     );
 
-    const { data: expenses, isLoading: expensesLoading } = trpc.expenses.list.useQuery(
-        { outletId: outletId || "", startDate, endDate },
-        { enabled: !!outletId }
-    );
+    const loading = userLoading || statsLoading;
 
-    const handlePreviousMonth = () => {
-        const date = new Date(year, month - 1, 1);
-        date.setMonth(date.getMonth() - 1);
-        setSelectedMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
-    };
-
-    const handleNextMonth = () => {
-        const date = new Date(year, month - 1, 1);
-        date.setMonth(date.getMonth() + 1);
-        setSelectedMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
-    };
-
-    const getMonthDisplay = () => {
-        return new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    };
-
-    // Calculate summary
-    const totalSales = sales?.reduce((sum, s) => sum + Number(s.totalSale), 0) || 0;
-    const cashSales = sales?.reduce((sum, s) => sum + Number(s.cashSale), 0) || 0;
-    const bankSales = sales?.reduce((sum, s) => sum + Number(s.bankSale), 0) || 0;
-    const totalExpenses = expenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
-    const profit = totalSales - totalExpenses;
-    const profitMargin = totalSales > 0 ? ((profit / totalSales) * 100).toFixed(1) : '0.0';
-    const expenseRatio = totalSales > 0 ? ((totalExpenses / totalSales) * 100).toFixed(1) : '0.0';
-
-    const formatCurrency = (amount: number) => {
-        return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    };
-
-    const loading = userLoading || salesLoading || expensesLoading;
-
-    if (userLoading) {
+    if (loading) {
         return (
             <div className="flex items-center justify-center h-screen">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -77,212 +34,212 @@ export default function DashboardPage() {
         );
     }
 
+    const summary = stats?.summary;
+    const topItems = stats?.topItems || [];
+    const alerts = stats?.alerts || { lowStockProducts: 0, lowStockIngredients: 0 };
+    const recentSales = stats?.recentSales || [];
+
+    const formatCurrency = (amount: number | string | undefined) => {
+        return `₹${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
     return (
-        <div className="space-y-4 pb-10 max-w-5xl mx-auto">
+        <div className="space-y-8 pb-10 max-w-7xl mx-auto">
             {/* Header */}
-            <Card>
-                <CardHeader className="pb-4">
-                    <CardTitle className="text-xl sm:text-2xl">📊 Dashboard</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">Monthly sales and expense summary</CardDescription>
-                </CardHeader>
-            </Card>
-
-            {/* Month Navigator */}
-            <Card>
-                <CardContent className="pt-6">
-                    <div className="space-y-4">
-                        {/* Month Navigation */}
-                        <div className="flex items-center gap-2">
-                            <Button
-                                onClick={handlePreviousMonth}
-                                variant="outline"
-                                className="h-14 px-4"
-                                disabled={loading}
-                            >
-                                <ChevronLeft className="h-6 w-6" />
-                            </Button>
-
-                            <div className="flex-1 text-center relative">
-                                <div className="text-lg sm:text-xl font-bold mb-2">
-                                    {getMonthDisplay()}
-                                </div>
-                                <div className="relative">
-                                    <input
-                                        type="month"
-                                        value={selectedMonth}
-                                        onChange={(e) => setSelectedMonth(e.target.value)}
-                                        className="w-full px-4 py-3 border rounded-xl bg-white text-base text-center shadow-sm cursor-pointer"
-                                    />
-                                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                                </div>
-                            </div>
-
-                            <Button
-                                onClick={handleNextMonth}
-                                variant="outline"
-                                className="h-14 px-4"
-                                disabled={loading}
-                            >
-                                <ChevronRight className="h-6 w-6" />
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {loading && (
-                <div className="text-center py-8">
-                    <div className="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                    <p className="mt-2 text-sm text-muted-foreground">Loading data...</p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Dashboard</h1>
+                    <p className="text-gray-500 text-sm">Overview for {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
                 </div>
-            )}
+                <div className="flex gap-2">
+                    <Button variant="outline" asChild>
+                        <Link href="/outlet/reports">View Full Reports</Link>
+                    </Button>
+                    <Button className="bg-primary hover:bg-primary/90 text-white" asChild>
+                        <Link href="/outlet/inventory">Manage Stock</Link>
+                    </Button>
+                </div>
+            </div>
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Total Sales Card */}
-                <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                            <TrendingUp className="h-5 w-5 text-green-600" />
-                            Total Sales
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl sm:text-3xl font-bold text-green-600">
-                            {formatCurrency(totalSales)}
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="border-none shadow-sm bg-white ring-1 ring-gray-100">
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between space-y-0 pb-2">
+                            <p className="text-sm font-medium text-gray-500">Total Revenue</p>
+                            <TrendingUp className="h-4 w-4 text-green-500" />
                         </div>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-2">For selected month</p>
+                        <div className="text-2xl font-bold text-gray-900">{formatCurrency(summary?.totalSales)}</div>
+                        <p className="text-xs text-gray-500 mt-1">
+                            {summary?.daysWithSales || 0} active days this month
+                        </p>
                     </CardContent>
                 </Card>
-
-                {/* Total Expenses Card */}
-                <Card className="bg-gradient-to-br from-red-50 to-orange-50 border-red-200">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                            <TrendingDown className="h-5 w-5 text-red-600" />
-                            Total Expenses
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl sm:text-3xl font-bold text-red-600">
-                            {formatCurrency(totalExpenses)}
+                <Card className="border-none shadow-sm bg-white ring-1 ring-gray-100">
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between space-y-0 pb-2">
+                            <p className="text-sm font-medium text-gray-500">Net Profit</p>
+                            <IndianRupee className={`h-4 w-4 ${Number(summary?.netProfit) >= 0 ? 'text-blue-500' : 'text-red-500'}`} />
                         </div>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-2">All expenses combined</p>
+                        <div className={`text-2xl font-bold ${Number(summary?.netProfit) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                            {formatCurrency(summary?.netProfit)}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                            {Number(summary?.profitMargin).toFixed(1)}% margin
+                        </p>
                     </CardContent>
                 </Card>
-
-                {/* Net Profit Card - Full Width */}
-                <Card className={`sm:col-span-2 bg-gradient-to-br ${profit >= 0 ? 'from-blue-50 to-cyan-50 border-blue-200' : 'from-red-50 to-pink-50 border-red-200'
-                    }`}>
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                            <DollarSign className={`h-5 w-5 ${profit >= 0 ? 'text-blue-600' : 'text-red-600'}`} />
-                            Net Profit
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className={`text-3xl sm:text-4xl font-bold ${profit >= 0 ? 'text-blue-600' : 'text-red-600'
-                            }`}>
-                            {formatCurrency(profit)}
+                <Card className="border-none shadow-sm bg-white ring-1 ring-gray-100">
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between space-y-0 pb-2">
+                            <p className="text-sm font-medium text-gray-500">Total Expenses</p>
+                            <TrendingDown className="h-4 w-4 text-red-500" />
                         </div>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-2">
-                            Sales - Expenses = Profit
+                        <div className="text-2xl font-bold text-gray-900">{formatCurrency(summary?.totalExpenses)}</div>
+                        <p className="text-xs text-gray-500 mt-1">
+                            {Number(summary?.expenseRatio).toFixed(1)}% of revenue
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className="border-none shadow-sm bg-white ring-1 ring-gray-100">
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between space-y-0 pb-2">
+                            <p className="text-sm font-medium text-gray-500">Avg Ticket Size</p>
+                            <ShoppingBag className="h-4 w-4 text-purple-500" />
+                        </div>
+                        <div className="text-2xl font-bold text-gray-900">{formatCurrency(summary?.avgTicketSize)}</div>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Per completed order
                         </p>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Quick Stats */}
-            <Card>
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-base sm:text-lg">Quick Stats</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center py-2 border-b">
-                            <span className="text-sm text-gray-600">Cash Sales</span>
-                            <span className="font-semibold text-base">{formatCurrency(cashSales)}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-2 border-b">
-                            <span className="text-sm text-gray-600">Bank Sales</span>
-                            <span className="font-semibold text-base">{formatCurrency(bankSales)}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-2 border-b">
-                            <span className="text-sm text-gray-600">Expense Ratio</span>
-                            <span className="font-semibold text-base text-red-600">{expenseRatio}%</span>
-                        </div>
-                        <div className="flex justify-between items-center py-2">
-                            <span className="text-sm text-gray-600">Profit Margin</span>
-                            <span className={`font-semibold text-base ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {profitMargin}%
-                            </span>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Main Content Area (2 cols) */}
+                <div className="lg:col-span-2 space-y-8">
+                    {/* Recent Sales */}
+                    <Card className="border-gray-200 shadow-sm">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="text-lg">Recent Activity</CardTitle>
+                                <CardDescription>Latest transactions from POS</CardDescription>
+                            </div>
+                            <Button variant="ghost" size="sm" asChild>
+                                <Link href="/outlet/reports">View All <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                            </Button>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                {recentSales.map((sale: any) => (
+                                    <div key={sale.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center border text-gray-500">
+                                                <ShoppingBag size={18} />
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-gray-900">Sale #{sale.id.slice(-4)}</p>
+                                                <p className="text-xs text-gray-500">{new Date(sale.date).toLocaleDateString()} • {new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-bold text-gray-900">{formatCurrency(Number(sale.totalSale))}</p>
+                                            <p className="text-xs text-gray-500">{sale.paymentMethod || 'CASH'}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                                {recentSales.length === 0 && (
+                                    <div className="text-center py-8 text-gray-500">No recent sales found.</div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
 
-            {/* Sync Health Card */}
-            <Card className="bg-gradient-to-br from-violet-50 to-purple-50 border-violet-200">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                        <div className="relative flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-violet-500"></span>
-                        </div>
-                        POS Sync Status
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Last Sync</span>
-                            <span className="font-bold text-violet-700">
-                                {user?.outlet?.lastSyncAt
-                                    ? new Date(user.outlet.lastSyncAt).toLocaleTimeString()
-                                    : 'Never'}
-                            </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">Status</span>
-                            <span className={`text-xs font-bold px-2 py-1 rounded-full ${user?.outlet?.lastSyncAt && (new Date().getTime() - new Date(user.outlet.lastSyncAt).getTime() < 60000)
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-yellow-100 text-yellow-700'
-                                }`}>
-                                {user?.outlet?.lastSyncAt && (new Date().getTime() - new Date(user.outlet.lastSyncAt).getTime() < 60000)
-                                    ? 'Online'
-                                    : 'Idle / Offline'}
-                            </span>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+                    {/* Top Items */}
+                    <Card className="border-gray-200 shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="text-lg">Top Selling Items</CardTitle>
+                            <CardDescription>Best performers this month</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                {topItems.map((item: any, idx: number) => (
+                                    <div key={idx} className="flex items-center justify-between border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-8 w-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs">
+                                                {idx + 1}
+                                            </div>
+                                            <span className="font-medium text-gray-700">{item.name}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="block font-bold text-gray-900">{item.quantity} sold</span>
+                                            <span className="text-xs text-gray-500">{formatCurrency(item.revenue)} revenue</span>
+                                        </div>
+                                    </div>
+                                ))}
+                                {topItems.length === 0 && (
+                                    <div className="text-center py-8 text-gray-500">No sales data available yet.</div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
 
-            {/* Sales Breakdown */}
-            {sales && sales.length > 0 && (
-                <Card>
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base sm:text-lg">Recent Sales</CardTitle>
-                        <CardDescription className="text-xs">Last 5 entries</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-2">
-                            {sales.slice(0, 5).map((sale) => (
-                                <div key={sale.id} className="flex justify-between items-center py-2 border-b last:border-0">
-                                    <span className="text-sm font-medium">
-                                        {new Date(sale.date).toLocaleDateString('en-IN', {
-                                            day: '2-digit',
-                                            month: 'short'
-                                        })}
-                                    </span>
-                                    <span className="font-bold text-green-600">
-                                        {formatCurrency(Number(sale.totalSale))}
-                                    </span>
+                {/* Sidebar Area (1 col) */}
+                <div className="space-y-8">
+                    {/* Alerts Widget */}
+                    <Card className="border-gray-200 shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                                Action Needed
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-100">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="font-medium text-yellow-800">Low Stock Products</span>
+                                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">{alerts.lowStockProducts}</Badge>
                                 </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+                                <p className="text-xs text-yellow-700 mb-3">Products below minimum stock level.</p>
+                                <Button variant="outline" size="sm" className="w-full border-yellow-200 text-yellow-800 hover:bg-yellow-100" asChild>
+                                    <Link href="/outlet/inventory?tab=products">Restock Products</Link>
+                                </Button>
+                            </div>
+
+                            <div className="p-4 bg-red-50 rounded-lg border border-red-100">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="font-medium text-red-800">Low Ingredients</span>
+                                    <Badge variant="secondary" className="bg-red-100 text-red-800">{alerts.lowStockIngredients}</Badge>
+                                </div>
+                                <p className="text-xs text-red-700 mb-3">Raw materials running low.</p>
+                                <Button variant="outline" size="sm" className="w-full border-red-200 text-red-800 hover:bg-red-100" asChild>
+                                    <Link href="/outlet/inventory?tab=ingredients">Order Ingredients</Link>
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Quick Actions */}
+                    <Card className="border-gray-200 shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="text-lg">Quick Actions</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            <Button variant="outline" className="w-full justify-start" asChild>
+                                <Link href="/outlet/menu">
+                                    <Package className="mr-2 h-4 w-4" /> Add Menu Item
+                                </Link>
+                            </Button>
+                            <Button variant="outline" className="w-full justify-start" asChild>
+                                <Link href="/outlet/inventory">
+                                    <ShoppingBag className="mr-2 h-4 w-4" /> Update Stock
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
         </div>
     );
 }
