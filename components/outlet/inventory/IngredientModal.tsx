@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface IngredientModalProps {
     isOpen: boolean;
@@ -14,7 +14,6 @@ interface IngredientModalProps {
 }
 
 export function IngredientModal({ isOpen, onClose, ingredient, outletId }: IngredientModalProps) {
-    const { toast } = useToast();
     const utils = trpc.useContext();
 
     const [name, setName] = useState("");
@@ -42,28 +41,28 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
     const createMutation = trpc.ingredients.create.useMutation({
         onSuccess: () => {
             utils.ingredients.list.invalidate();
-            toast({ title: "Success", description: "Ingredient created successfully" });
+            toast.success("Ingredient created successfully");
             onClose();
         },
         onError: (err) => {
-            toast({ title: "Error", description: err.message, variant: "destructive" });
+            toast.error(err.message);
         }
     });
 
     const updateMutation = trpc.ingredients.update.useMutation({
         onSuccess: () => {
             utils.ingredients.list.invalidate();
-            toast({ title: "Success", description: "Ingredient updated successfully" });
+            toast.success("Ingredient updated successfully");
             onClose();
         },
         onError: (err) => {
-            toast({ title: "Error", description: err.message, variant: "destructive" });
+            toast.error(err.message);
         }
     });
 
     const handleSubmit = () => {
         if (!name || !unit) {
-            toast({ title: "Error", description: "Name and Unit are required", variant: "destructive" });
+            toast.error("Name and Unit are required");
             return;
         }
 
@@ -113,7 +112,7 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={createMutation.isLoading || updateMutation.isLoading}>
+                    <Button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
                         {ingredient ? "Update" : "Create"}
                     </Button>
                 </DialogFooter>
