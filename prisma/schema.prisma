@@ -476,18 +476,29 @@ model Wastage {
 }
 
 model Ingredient {
-  id        String   @id @default(cuid())
-  outletId  String
-  name      String
-  unit      String   // e.g., "kg", "l", "pcs"
-  cost      Decimal  @default(0) @db.Decimal(10, 2) // Cost per unit
-  stock     Float    @default(0)
-  minStock  Float    @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(cuid())
+  outletId         String
+  name             String
+  
+  // Unit system
+  unit             String   // Display unit: "kg", "g", "L", "ml", "pcs"
+  baseUnit         String   @default("kg") // Standardized base unit for calculations
+  conversionFactor Float    @default(1) // Conversion to base unit
+  
+  // Cost tracking
+  cost             Decimal  @default(0) @db.Decimal(10, 2) // Cost per display unit (calculated)
+  purchaseQty      Float?   // Quantity as purchased (e.g., 2.5 for 2.5kg tub)
+  totalCost        Decimal? @db.Decimal(10, 2) // Total purchase cost
+  
+  // Stock
+  stock            Float    @default(0) // In display unit
+  minStock         Float    @default(0)
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  outlet      Outlet       @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  recipeItems RecipeItem[]
+  outlet           Outlet       @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  recipeItems      RecipeItem[]
 
   @@index([outletId])
 }

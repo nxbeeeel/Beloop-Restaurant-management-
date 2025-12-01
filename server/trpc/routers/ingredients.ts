@@ -28,7 +28,11 @@ export const ingredientsRouter = router({
             outletId: z.string(),
             name: z.string(),
             unit: z.string(),
+            baseUnit: z.string(),
+            conversionFactor: z.number(),
             cost: z.number().min(0),
+            purchaseQty: z.number().optional(),
+            totalCost: z.number().optional(),
             stock: z.number().min(0),
             minStock: z.number().min(0),
         }))
@@ -38,7 +42,11 @@ export const ingredientsRouter = router({
                     outletId: input.outletId,
                     name: input.name,
                     unit: input.unit,
+                    baseUnit: input.baseUnit,
+                    conversionFactor: input.conversionFactor,
                     cost: input.cost,
+                    purchaseQty: input.purchaseQty,
+                    totalCost: input.totalCost,
                     stock: input.stock,
                     minStock: input.minStock,
                 }
@@ -51,7 +59,11 @@ export const ingredientsRouter = router({
             id: z.string(),
             name: z.string(),
             unit: z.string(),
+            baseUnit: z.string(),
+            conversionFactor: z.number(),
             cost: z.number().min(0),
+            purchaseQty: z.number().optional(),
+            totalCost: z.number().optional(),
             stock: z.number().min(0),
             minStock: z.number().min(0),
         }))
@@ -61,7 +73,11 @@ export const ingredientsRouter = router({
                 data: {
                     name: input.name,
                     unit: input.unit,
+                    baseUnit: input.baseUnit,
+                    conversionFactor: input.conversionFactor,
                     cost: input.cost,
+                    purchaseQty: input.purchaseQty,
+                    totalCost: input.totalCost,
                     stock: input.stock,
                     minStock: input.minStock,
                 }
