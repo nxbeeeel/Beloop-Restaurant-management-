@@ -22,7 +22,7 @@ export default function OutletSettingsPage({ params }: { params: { id: string } 
     const updateOutletSettings = trpc.outlets.updateSettings.useMutation({
         onSuccess: () => {
             toast.success('Outlet settings saved successfully!');
-            utils.outlets.getSettings.invalidate({ outletId: params.id });
+            utils.outlets.getSettings.invalidate({ outletId });
         },
         onError: (error) => toast.error(error.message || 'Failed to save outlet settings'),
     });
@@ -62,7 +62,7 @@ export default function OutletSettingsPage({ params }: { params: { id: string } 
     // Handlers for Outlet Settings
     const handleSaveOutletSettings = async () => {
         await updateOutletSettings.mutateAsync({
-            outletId: params.id,
+            outletId,
             googleSheetsUrl: googleSheetsUrl || null,
             isPosEnabled,
         });
@@ -166,7 +166,7 @@ export default function OutletSettingsPage({ params }: { params: { id: string } 
                                             setIsPosEnabled(checked);
                                             try {
                                                 await updateOutletSettings.mutateAsync({
-                                                    outletId: params.id,
+                                                    outletId,
                                                     googleSheetsUrl: googleSheetsUrl || null,
                                                     isPosEnabled: checked,
                                                 });
