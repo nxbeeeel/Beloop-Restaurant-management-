@@ -37,7 +37,7 @@ export function IngredientsTab({ outletId }: IngredientsTabProps) {
     const totalItems = ingredients?.length || 0;
     const lowStockItems = ingredients?.filter(i => i.stock <= i.minStock && i.stock > 0).length || 0;
     const outOfStockItems = ingredients?.filter(i => i.stock === 0).length || 0;
-    const totalValue = ingredients?.reduce((sum, i) => sum + (i.stock * Number(i.cost)), 0) || 0;
+    const totalValue = ingredients?.reduce((sum, i) => sum + (i.stock * Number(i.costPerPurchaseUnit)), 0) || 0;
 
     return (
         <div className="space-y-6">
@@ -143,9 +143,9 @@ export function IngredientsTab({ outletId }: IngredientsTabProps) {
                                         </div>
                                         <div className="text-xs text-gray-400">Min: {ingredient.minStock}</div>
                                     </td>
-                                    <td className="p-4 text-gray-600">₹{Number(ingredient.cost).toFixed(2)}</td>
+                                    <td className="p-4 text-gray-600">₹{Number(ingredient.costPerPurchaseUnit).toFixed(2)}</td>
                                     <td className="p-4 text-gray-600 font-medium">
-                                        ₹{(ingredient.stock * Number(ingredient.cost)).toLocaleString()}
+                                        ₹{(ingredient.stock * Number(ingredient.costPerPurchaseUnit)).toLocaleString()}
                                     </td>
                                     <td className="p-4 text-right">
                                         <Button
