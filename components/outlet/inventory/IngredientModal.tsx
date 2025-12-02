@@ -157,18 +157,25 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
                         </div>
 
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="qtyPerUnit" className="text-right">Qty per {purchaseUnit}</Label>
-                            <div className="col-span-3 flex gap-2">
-                                <Input
-                                    id="qtyPerUnit"
-                                    type="number"
-                                    step="0.01"
-                                    value={qtyPerUnit}
-                                    onChange={(e) => setQtyPerUnit(e.target.value)}
-                                    className="flex-1"
-                                    placeholder="e.g., 2.5"
-                                />
-                                <span className="flex items-center text-sm text-gray-500">{usageUnit}</span>
+                            <Label htmlFor="qtyPerUnit" className="text-right">Content per {purchaseUnit}</Label>
+                            <div className="col-span-3">
+                                <div className="flex gap-2">
+                                    <Input
+                                        id="qtyPerUnit"
+                                        type="number"
+                                        step="0.01"
+                                        value={qtyPerUnit}
+                                        onChange={(e) => setQtyPerUnit(e.target.value)}
+                                        className="flex-1"
+                                        placeholder="e.g., 2.5"
+                                    />
+                                    <span className="flex items-center text-sm text-gray-500">{usageUnit}</span>
+                                </div>
+                                {qtyPerUnit && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        1 {purchaseUnit} = {qtyPerUnit} {usageUnit}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -246,7 +253,7 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
                                 />
                                 {stockInUsageUnits > 0 && (
                                     <p className="text-xs text-gray-500 mt-1">
-                                        = {stockInUsageUnits.toFixed(2)} {usageUnit}
+                                        {stock} {purchaseUnit} = {stockInUsageUnits.toFixed(2)} {usageUnit}
                                     </p>
                                 )}
                             </div>
