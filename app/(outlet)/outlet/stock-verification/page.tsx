@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,9 +20,12 @@ export default function StockVerificationPage() {
         { enabled: !!outletId }
     );
 
+    const router = useRouter();
+
     const createMutation = trpc.stockVerification.create.useMutation({
-        onSuccess: () => {
+        onSuccess: (data) => {
             toast.success("Stock verification started");
+            router.push(`/outlet/stock-verification/${data.id}`);
         },
         onError: (err) => toast.error(err.message)
     });
