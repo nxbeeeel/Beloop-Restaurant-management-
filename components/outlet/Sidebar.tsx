@@ -15,7 +15,10 @@ import {
     Store,
     Truck,
     Receipt,
-    UserCircle
+    UserCircle,
+    ShoppingCart,
+    IndianRupee,
+    ClipboardCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -53,6 +56,9 @@ export function Sidebar({ user, outlet }: SidebarProps) {
             items: [
                 { name: "Sales Entry", href: "/outlet/sales/entry", icon: ShoppingBag },
                 { name: "Expenses", href: "/outlet/entries", icon: Receipt },
+                { name: "Purchase Orders", href: "/outlet/purchase-orders", icon: Truck },
+                { name: "Supplier Payments", href: "/outlet/payments", icon: IndianRupee },
+                { name: "Stock Verification", href: "/outlet/stock-verification", icon: ClipboardCheck },
             ]
         },
         {

@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Plus, Loader2, UtensilsCrossed, MoreHorizontal, Pencil, Trash2, Image as ImageIcon, X } from "lucide-react";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ interface Product {
     price: number;
     sku: string;
     unit: string;
+    supplierId?: string | null;
     category?: { id: string; name: string } | null;
     description?: string | null;
     currentStock: number;
@@ -39,7 +40,7 @@ export default function MenuPage() {
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
     // Form State
-    const [formData, setFormData] = useState<Partial<Product> & { recipe: { ingredientId: string; quantity: number }[] }>({
+    const [formData, setFormData] = useState<Partial<Product> & { recipe: { ingredientId: string; quantity: number; unit: string }[] }>({
         name: "", unit: "portion", price: 0, sku: "", description: "", recipe: []
     });
 
@@ -57,6 +58,7 @@ export default function MenuPage() {
         { enabled: !!outletId && isAddOpen }
     );
 
+    const { data: suppliers } = trpc.suppliers.list.useQuery();
     // Mutations
     const createMutation = trpc.products.create.useMutation({
         onSuccess: () => {
@@ -94,6 +96,7 @@ export default function MenuPage() {
                 name: formData.name,
                 price: formData.price,
                 unit: formData.unit,
+                supplierId: formData.supplierId || null,
                 description: formData.description || undefined,
                 recipe: formData.recipe
             });
@@ -104,6 +107,7 @@ export default function MenuPage() {
                 sku: formData.sku,
                 unit: formData.unit || "portion",
                 minStock: 0,
+                supplierId: formData.supplierId || undefined,
                 price: formData.price || 0,
                 description: formData.description || undefined,
                 applyToAllOutlets: false,
@@ -119,8 +123,13 @@ export default function MenuPage() {
             sku: product.sku,
             price: product.price,
             unit: product.unit,
+            supplierId: product.supplierId,
             description: product.description,
-            recipe: product.recipeItems?.map(r => ({ ingredientId: r.ingredientId, quantity: r.quantity })) || []
+            recipe: product.recipeItems?.map(r => ({
+                ingredientId: r.ingredientId,
+                quantity: r.quantity,
+                unit: r.ingredient.unit // Assuming the unit comes from the ingredient relation or recipe item if it existed
+            })) || []
         });
         setIsAddOpen(true);
     };
@@ -128,9 +137,10 @@ export default function MenuPage() {
     // Recipe Logic
     const addIngredientToRecipe = (ingredientId: string) => {
         if (formData.recipe.some(r => r.ingredientId === ingredientId)) return;
+        const ingredient = ingredients?.find(i => i.id === ingredientId);
         setFormData({
             ...formData,
-            recipe: [...formData.recipe, { ingredientId, quantity: 1 }]
+            recipe: [...formData.recipe, { ingredientId, quantity: 1, unit: ingredient?.unit || 'g' }]
         });
     };
 
@@ -148,50 +158,46 @@ export default function MenuPage() {
         });
     };
 
-    // Cost Calculation
-    const calculateBaseCost = () => {
-        if (!ingredients) return 0;
-        return formData.recipe.reduce((total, item) => {
-            const ing = ingredients.find(i => i.id === item.ingredientId);
-            return total + (item.quantity * Number(ing?.cost || 0));
-        }, 0);
+    const handleIngredientUnitChange = (ingredientId: string, unit: string) => {
+        setFormData({
+            ...formData,
+            recipe: formData.recipe.map(r => r.ingredientId === ingredientId ? { ...r, unit } : r)
+        });
     };
 
-    const baseCost = calculateBaseCost();
-    const grossMargin = formData.price ? ((formData.price - baseCost) / formData.price) * 100 : 0;
+    const baseCost = formData.recipe.reduce((acc, item) => {
+        const ingredient = ingredients?.find(i => i.id === item.ingredientId);
+        return acc + (ingredient ? Number(ingredient.costPerUsageUnit) * item.quantity : 0);
+    }, 0);
 
-    const filteredProducts = products?.map((p: any) => ({
-        ...p,
-        price: Number(p.price)
-    })).filter((p: any) => {
-        const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-            p.sku.toLowerCase().includes(search.toLowerCase());
-        return matchesSearch;
-    });
+    const grossMargin = formData.price > 0 ? ((formData.price - baseCost) / formData.price) * 100 : 0;
+
+    const filteredProducts = products?.filter(p =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.sku.toLowerCase().includes(search.toLowerCase())
+    );
 
     return (
-        <div className="space-y-6 pb-24 lg:pb-6">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="p-6 space-y-6">
+            <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 tracking-tight">Menu Management</h1>
-                    <p className="text-gray-500 text-sm lg:text-base">Manage your products, prices, and menu details.</p>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Menu Management</h1>
+                    <p className="text-sm text-gray-500 mt-1">Manage your products, recipes, and pricing</p>
                 </div>
-                <Dialog open={isAddOpen} onOpenChange={(open) => {
-                    setIsAddOpen(open);
-                    if (!open) {
-                        setEditingProduct(null);
-                        resetForm();
-                    }
-                }}>
+                <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                     <DialogTrigger asChild>
-                        <Button className="bg-primary hover:bg-primary/90 text-white shadow-sm">
-                            <Plus className="w-4 h-4 mr-2" /> Add New Item
+                        <Button onClick={() => { resetForm(); setIsAddOpen(true); }} className="bg-primary hover:bg-primary/90 shadow-sm transition-all duration-200">
+                            <Plus className="w-4 h-4 mr-2" /> Add Item
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>{editingProduct ? "Edit Menu Item" : "Add New Menu Item"}</DialogTitle>
+                            <DialogDescription>
+                                {editingProduct ? "Update the details of your menu item below." : "Fill in the details to create a new menu item."}
+                            </DialogDescription>
                         </DialogHeader>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
                             {/* Left Column: Product Details */}
                             <div className="space-y-4">
@@ -220,6 +226,25 @@ export default function MenuPage() {
                                         onChange={e => setFormData({ ...formData, description: e.target.value })}
                                         placeholder="Brief description..."
                                     />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Supplier (Optional)</Label>
+                                    <Select
+                                        value={formData.supplierId || ""}
+                                        onValueChange={(val) => setFormData({ ...formData, supplierId: val || undefined })}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select supplier..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="">None</SelectItem>
+                                            {suppliers?.map(s => (
+                                                <SelectItem key={s.id} value={s.id}>
+                                                    {s.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
@@ -297,7 +322,7 @@ export default function MenuPage() {
                                                     />
                                                 </div>
                                                 <div className="w-16">
-                                                    <Select value={item.unit} onValueChange={(val) => updateIngredientUnit(item.ingredientId, val)}>
+                                                    <Select value={item.unit} onValueChange={(val) => handleIngredientUnitChange(item.ingredientId, val)}>
                                                         <SelectTrigger className="h-8">
                                                             <SelectValue />
                                                         </SelectTrigger>

@@ -91,6 +91,8 @@ model Outlet {
   loyaltyRule      LoyaltyRule?
   Category         Category[]
   ingredients      Ingredient[]
+  stockVerifications StockVerification[]
+  payments         SupplierPayment[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -120,6 +122,8 @@ model User {
   tenant             Tenant?            @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   Ticket             Ticket[]
   TicketComment      TicketComment[]
+  stockVerifications StockVerification[]
+  purchaseOrders     PurchaseOrder[] @relation("CreatedBy")
 
   @@index([tenantId, role])
   @@index([outletId])
@@ -249,6 +253,7 @@ model Product {
   wastages        Wastage[]
   orderItems      OrderItem[]
   recipeItems     RecipeItem[]
+  stockVerificationItems StockVerificationItem[]
 
   @@unique([outletId, sku])
   @@index([outletId])
@@ -290,9 +295,30 @@ model PurchaseOrder {
   expense         Expense?  @relation(fields: [expenseId], references: [id], onDelete: SetNull)
   outlet          Outlet    @relation(fields: [outletId], references: [id], onDelete: Cascade)
   supplier        Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdBy       String?
+  user            User?     @relation("CreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
 
   @@index([outletId, status])
   @@index([supplierId])
+}
+
+model SupplierPayment {
+  id          String   @id @default(cuid())
+  outletId    String
+  supplierId  String
+  amount      Decimal  @db.Decimal(12, 2)
+  date        DateTime @default(now())
+  method      String   // "CASH", "UPI", "BANK_TRANSFER", "CHEQUE"
+  reference   String?  // Transaction ID or Cheque No
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  outlet      Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([outletId, supplierId])
+  @@index([date])
 }
 
 model POItem {
@@ -305,6 +331,8 @@ model POItem {
   total         Decimal       @default(0) @db.Decimal(12, 2)
   purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
   product       Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  ingredientId  String?
+  ingredient    Ingredient?   @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
 
   @@index([poId])
 }
@@ -401,7 +429,9 @@ model Supplier {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   products       Product[]
+  ingredients    Ingredient[]
   purchaseOrders PurchaseOrder[]
+  payments       SupplierPayment[]
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -478,6 +508,7 @@ model Wastage {
 model Ingredient {
   id               String   @id @default(cuid())
   outletId         String
+  supplierId       String?
   name             String
   
   // Purchase/Stock Unit (Physical counting - what staff counts)
@@ -501,7 +532,10 @@ model Ingredient {
   updatedAt        DateTime @updatedAt
 
   outlet           Outlet       @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier         Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   recipeItems      RecipeItem[]
+  stockVerificationItems StockVerificationItem[]
+  poItems          POItem[]
 
   @@index([outletId])
 }
@@ -529,9 +563,54 @@ enum SubscriptionStatus {
   TRIAL
   ACTIVE
   PAST_DUE
-  CANCELED
-  UNPAID
+  CANCELLED
+  REFUNDED
 }
+
+// Stock Verification Models
+model StockVerification {
+  id          String   @id @default(cuid())
+  outletId    String
+  date        DateTime @default(now())
+  type        String   // "OPENING" | "CLOSING"
+  verifiedBy  String
+  status      String   @default("PENDING") // "PENDING" | "COMPLETED"
+  notes       String?
+  createdAt   DateTime @default(now())
+  
+  outlet      Outlet   @relation(fields: [outletId], references: [id])
+  user        User     @relation(fields: [verifiedBy], references: [id])
+  items       StockVerificationItem[]
+  
+  @@index([outletId, date, type])
+}
+
+model StockVerificationItem {
+  id                String   @id @default(cuid())
+  verificationId    String
+  ingredientId      String?
+  productId         String?
+  
+  totalUnits        Float    // Total physical count
+  openedUnits       Float    // Opened/partial units
+  closedUnits       Float    // Sealed units
+  
+  systemStock       Float    // What system says
+  actualStock       Float    // What was counted
+  difference        Float    // Variance
+  
+  notes             String?
+  
+  verification      StockVerification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+  ingredient        Ingredient?       @relation(fields: [ingredientId], references: [id])
+  product           Product?          @relation(fields: [productId], references: [id])
+  
+  @@index([verificationId])
+}
+
+
+
+
 
 enum OutletStatus {
   ACTIVE

@@ -17,11 +17,13 @@ import { outletsRouter } from "./outlets";
 import { superRouter } from "./super";
 import { superAnalyticsRouter } from "./superAnalytics";
 import { paymentRouter } from "./payment";
+import { paymentsRouter } from "./payments";
 import { supportRouter } from "./support";
 import { posRouter } from "./pos";
 import { categoriesRouter } from "./categories";
 import { customersRouter } from "./customers";
 import { ingredientsRouter } from "./ingredients";
+import { stockVerificationRouter } from "./stockVerification";
 
 export const appRouter = router({
     health: publicProcedure.query(() => ({ status: "ok" })),
@@ -48,6 +50,8 @@ export const appRouter = router({
     categories: categoriesRouter,
     customers: customersRouter,
     ingredients: ingredientsRouter,
+    stockVerification: stockVerificationRouter,
+    payments: paymentsRouter,
 });
 
 export type AppRouter = typeof appRouter;

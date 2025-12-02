@@ -9,7 +9,8 @@ export const procurementRouter = router({
         .input(z.object({
             outletId: z.string(),
             items: z.array(z.object({
-                productId: z.string(),
+                productId: z.string().optional(),
+                ingredientId: z.string().optional(),
                 qty: z.number().min(0.1)
             }))
         }))
@@ -17,22 +18,45 @@ export const procurementRouter = router({
             // Group by Supplier
             const itemsBySupplier = new Map<string, typeof input.items>();
 
-            // Fetch products to get supplier IDs
-            const productIds = input.items.map(i => i.productId);
+            // Helper to get supplier ID
+            const getSupplierId = async (item: typeof input.items[0]) => {
+                if (item.productId) {
+                    const p = await ctx.prisma.product.findUnique({ where: { id: item.productId } });
+                    return p?.supplierId;
+                } else if (item.ingredientId) {
+                    const i = await ctx.prisma.ingredient.findUnique({ where: { id: item.ingredientId } });
+                    return i?.supplierId;
+                }
+                return null;
+            };
+
+            // Pre-fetch all needed data to avoid N+1
+            const productIds = input.items.filter(i => i.productId).map(i => i.productId!);
+            const ingredientIds = input.items.filter(i => i.ingredientId).map(i => i.ingredientId!);
+
             const products = await ctx.prisma.product.findMany({
                 where: { id: { in: productIds } },
                 include: { supplier: true }
             });
+            const ingredients = await ctx.prisma.ingredient.findMany({
+                where: { id: { in: ingredientIds } },
+                include: { supplier: true }
+            });
 
             const productMap = new Map(products.map(p => [p.id, p]));
+            const ingredientMap = new Map(ingredients.map(i => [i.id, i]));
 
             for (const item of input.items) {
-                const product = productMap.get(item.productId);
-                if (!product || !product.supplierId) {
-                    continue;
+                let supplierId: string | null | undefined = null;
+
+                if (item.productId) {
+                    supplierId = productMap.get(item.productId)?.supplierId;
+                } else if (item.ingredientId) {
+                    supplierId = ingredientMap.get(item.ingredientId)?.supplierId;
                 }
 
-                const supplierId = product.supplierId;
+                if (!supplierId) continue;
+
                 if (!itemsBySupplier.has(supplierId)) {
                     itemsBySupplier.set(supplierId, []);
                 }
@@ -42,15 +66,19 @@ export const procurementRouter = router({
             // Create POs
             const createdPOs = [];
 
-            // Use Array.from to iterate safely
             for (const [supplierId, items] of Array.from(itemsBySupplier.entries())) {
                 const supplier = await ctx.prisma.supplier.findUnique({ where: { id: supplierId } });
 
                 // Generate WhatsApp Message
                 let message = `*New Order for ${supplier?.name}*\n\n`;
                 items.forEach(item => {
-                    const p = productMap.get(item.productId);
-                    message += `- ${p?.name}: ${item.qty} ${p?.unit}\n`;
+                    if (item.productId) {
+                        const p = productMap.get(item.productId);
+                        message += `- ${p?.name}: ${item.qty} ${p?.unit}\n`;
+                    } else if (item.ingredientId) {
+                        const i = ingredientMap.get(item.ingredientId);
+                        message += `- ${i?.name}: ${item.qty} ${i?.purchaseUnit}\n`;
+                    }
                 });
                 message += `\nDate: ${new Date().toLocaleDateString()}`;
 
@@ -61,13 +89,20 @@ export const procurementRouter = router({
                         status: 'DRAFT',
                         whatsappMessage: message,
                         items: {
-                            create: items.map(item => ({
-                                productId: item.productId,
-                                productName: productMap.get(item.productId)!.name,
-                                qty: item.qty,
-                                unitCost: 0, // Unknown at order time
-                                total: 0
-                            }))
+                            create: items.map(item => {
+                                let name = "Unknown";
+                                if (item.productId) name = productMap.get(item.productId)?.name || "Unknown";
+                                else if (item.ingredientId) name = ingredientMap.get(item.ingredientId)?.name || "Unknown";
+
+                                return {
+                                    productId: item.productId,
+                                    ingredientId: item.ingredientId,
+                                    productName: name,
+                                    qty: item.qty,
+                                    unitCost: 0, // Unknown at order time
+                                    total: 0
+                                };
+                            })
                         }
                     }
                 });
@@ -88,7 +123,12 @@ export const procurementRouter = router({
                 },
                 include: {
                     supplier: true,
-                    items: true
+                    items: {
+                        include: {
+                            product: true,
+                            ingredient: true
+                        }
+                    }
                 },
                 orderBy: { createdAt: 'desc' }
             });
@@ -115,7 +155,8 @@ export const procurementRouter = router({
             supplierId: z.string(),
             status: z.enum(['DRAFT', 'SENT']),
             items: z.array(z.object({
-                productId: z.string(),
+                productId: z.string().optional(),
+                ingredientId: z.string().optional(),
                 qty: z.number().min(0.1),
                 unitCost: z.number().optional()
             }))
@@ -135,10 +176,19 @@ export const procurementRouter = router({
                     totalAmount,
                     items: {
                         create: await Promise.all(input.items.map(async (item) => {
-                            const product = await ctx.prisma.product.findUnique({ where: { id: item.productId } });
+                            let name = "Unknown";
+                            if (item.productId) {
+                                const p = await ctx.prisma.product.findUnique({ where: { id: item.productId } });
+                                name = p?.name || "Unknown";
+                            } else if (item.ingredientId) {
+                                const i = await ctx.prisma.ingredient.findUnique({ where: { id: item.ingredientId } });
+                                name = i?.name || "Unknown";
+                            }
+
                             return {
                                 productId: item.productId,
-                                productName: product?.name || "Unknown Product",
+                                ingredientId: item.ingredientId,
+                                productName: name,
                                 qty: item.qty,
                                 unitCost: item.unitCost || 0,
                                 total: item.qty * (item.unitCost || 0)
@@ -159,7 +209,10 @@ export const procurementRouter = router({
                 include: {
                     supplier: true,
                     items: {
-                        include: { product: true }
+                        include: {
+                            product: true,
+                            ingredient: true
+                        }
                     }
                 }
             });
@@ -200,51 +253,55 @@ export const procurementRouter = router({
                     const poItem = po.items.find(i => i.id === itemInput.itemId);
                     if (!poItem) continue;
 
-                    // Note: receivedQty tracking not implemented in schema
-                    // For now, we'll just update stock without tracking received quantities per item
-
-                    // Add to Stock
+                    // Update Stock
                     if (poItem.productId) {
-                        // 🔒 CRITICAL FIX: Lock the product row to prevent race conditions
-                        // This ensures concurrent receives don't cause lost updates
+                        // 🔒 Lock product
                         const [product] = await tx.$queryRaw<any[]>`
                             SELECT * FROM "Product" 
                             WHERE id = ${poItem.productId}
                             FOR UPDATE
                         `;
 
-                        if (!product) {
-                            throw new TRPCError({
-                                code: "NOT_FOUND",
-                                message: `Product ${poItem.productId} not found`
+                        if (product) {
+                            await tx.product.update({
+                                where: { id: poItem.productId },
+                                data: { currentStock: { increment: itemInput.receivedQty } }
+                            });
+
+                            await tx.stockMove.create({
+                                data: {
+                                    outletId: po.outletId,
+                                    productId: poItem.productId,
+                                    qty: itemInput.receivedQty,
+                                    type: 'PURCHASE',
+                                    date: new Date(),
+                                    notes: `Received PO ${po.id.slice(-6)}`
+                                }
                             });
                         }
+                    } else if (poItem.ingredientId) {
+                        // 🔒 Lock ingredient
+                        const [ingredient] = await tx.$queryRaw<any[]>`
+                            SELECT * FROM "Ingredient" 
+                            WHERE id = ${poItem.ingredientId}
+                            FOR UPDATE
+                        `;
 
-                        // Now safe to update - row is locked until transaction commits
-                        await tx.product.update({
-                            where: { id: poItem.productId },
-                            data: { currentStock: { increment: itemInput.receivedQty } }
-                        });
+                        if (ingredient) {
+                            await tx.ingredient.update({
+                                where: { id: poItem.ingredientId },
+                                data: { stock: { increment: itemInput.receivedQty } }
+                            });
 
-                        // Record Stock Move
-                        await tx.stockMove.create({
-                            data: {
-                                outletId: po.outletId,
-                                productId: poItem.productId,
-                                qty: itemInput.receivedQty,
-                                type: 'PURCHASE',
-                                date: new Date(),
-                                notes: `Received PO ${po.id.slice(-6)}`
-                            }
-                        });
+                            // Note: StockMove currently only supports productId. 
+                            // We should probably update StockMove to support ingredientId too, 
+                            // but for now we just update the stock.
+                        }
                     }
                 }
 
                 // Check if fully received
-                // Note: Since receivedQty is not in schema, we'll mark as RECEIVED if any items were received
-                // In a full implementation, you'd need to add receivedQty to POItem schema
                 const anyReceived = input.receivedItems.length > 0;
-                // For now, mark as PARTIALLY_RECEIVED if items were received, or RECEIVED if all items match
                 const totalReceivedQty = input.receivedItems.reduce((sum, item) => sum + item.receivedQty, 0);
                 const totalOrderedQty = po.items.reduce((sum, item) => sum + item.qty, 0);
                 const allReceived = totalReceivedQty >= totalOrderedQty;
@@ -258,8 +315,8 @@ export const procurementRouter = router({
 
                 return { success: true };
             }, {
-                isolationLevel: 'Serializable', // Highest isolation level for data integrity
-                timeout: 10000 // 10 second timeout to prevent long-running locks
+                isolationLevel: 'Serializable',
+                timeout: 10000
             });
         })
 });
