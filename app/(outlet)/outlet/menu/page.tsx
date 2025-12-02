@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { convertBetweenUsageUnits } from "@/lib/units";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -165,9 +166,27 @@ export default function MenuPage() {
         });
     };
 
+
+
     const baseCost = formData.recipe.reduce((acc, item) => {
         const ingredient = ingredients?.find(i => i.id === item.ingredientId);
-        return acc + (ingredient ? Number(ingredient.costPerUsageUnit) * item.quantity : 0);
+        if (!ingredient) return acc;
+
+        try {
+            // Convert recipe item quantity to ingredient's usage unit
+            // e.g. Recipe: 500g, Ingredient Usage: kg -> Convert 500g to 0.5kg
+            const convertedQty = convertBetweenUsageUnits(
+                item.quantity,
+                item.unit,
+                ingredient.usageUnit
+            );
+            return acc + (Number(ingredient.costPerUsageUnit) * convertedQty);
+        } catch (error) {
+            console.error(`Unit conversion error for ${ingredient.name}:`, error);
+            // Fallback: if conversion fails (e.g. kg to L), ignore cost or assume 1:1?
+            // For safety, we'll ignore cost to avoid wrong calculations, but maybe alert user?
+            return acc;
+        }
     }, 0);
 
     const grossMargin = formData.price > 0 ? ((formData.price - baseCost) / formData.price) * 100 : 0;
