@@ -184,9 +184,22 @@ export default function MenuPage() {
                     <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Menu Management</h1>
                     <p className="text-sm text-gray-500 mt-1">Manage your products, recipes, and pricing</p>
                 </div>
-                <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                <Dialog open={isAddOpen} onOpenChange={(open) => {
+                    setIsAddOpen(open);
+                    if (!open) {
+                        setEditingProduct(null);
+                        resetForm();
+                    }
+                }}>
                     <DialogTrigger asChild>
-                        <Button onClick={() => { resetForm(); setIsAddOpen(true); }} className="bg-primary hover:bg-primary/90 shadow-sm transition-all duration-200">
+                        <Button
+                            onClick={() => {
+                                setEditingProduct(null);
+                                resetForm();
+                                setIsAddOpen(true);
+                            }}
+                            className="bg-primary hover:bg-primary/90 shadow-sm transition-all duration-200"
+                        >
                             <Plus className="w-4 h-4 mr-2" /> Add Item
                         </Button>
                     </DialogTrigger>
@@ -237,12 +250,15 @@ export default function MenuPage() {
                                             <SelectValue placeholder="Select supplier..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="">None</SelectItem>
+                                            <SelectItem value="none_selection">None</SelectItem>
                                             {suppliers?.map(s => (
                                                 <SelectItem key={s.id} value={s.id}>
                                                     {s.name}
                                                 </SelectItem>
                                             ))}
+                                            {!suppliers?.length && (
+                                                <div className="p-2 text-sm text-gray-500 text-center">No suppliers found</div>
+                                            )}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -289,9 +305,9 @@ export default function MenuPage() {
 
                                 <div className="space-y-2">
                                     <Label>Add Ingredient</Label>
-                                    <Select onValueChange={addIngredientToRecipe}>
+                                    <Select onValueChange={addIngredientToRecipe} disabled={!ingredients?.length}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select ingredient..." />
+                                            <SelectValue placeholder={ingredients?.length ? "Select ingredient..." : "Loading ingredients..."} />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {ingredients?.map(ing => (
@@ -299,6 +315,9 @@ export default function MenuPage() {
                                                     {ing.name} ({ing.unit}) - ₹{Number(ing.cost).toFixed(2)}
                                                 </SelectItem>
                                             ))}
+                                            {!ingredients?.length && (
+                                                <div className="p-2 text-sm text-gray-500 text-center">No ingredients found</div>
+                                            )}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -309,8 +328,8 @@ export default function MenuPage() {
                                         return (
                                             <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border">
                                                 <div className="flex-1 text-sm">
-                                                    <div className="font-medium">{ing?.name}</div>
-                                                    <div className="text-xs text-gray-500">₹{Number(ing?.costPerUsageUnit || 0).toFixed(2)} / {ing?.usageUnit}</div>
+                                                    <div className="font-medium">{ing?.name || 'Loading...'}</div>
+                                                    <div className="text-xs text-gray-500">₹{Number(ing?.costPerUsageUnit || 0).toFixed(2)} / {ing?.usageUnit || '-'}</div>
                                                 </div>
                                                 <div className="w-20">
                                                     <Input
