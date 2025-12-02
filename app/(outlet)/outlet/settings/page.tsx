@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 export default function OutletSettingsPage({ params }: { params: { id: string } }) {
     const router = useRouter();
     const [googleSheetsUrl, setGoogleSheetsUrl] = useState('');
+    const [isPosEnabled, setIsPosEnabled] = useState(false);
 
     // Outlet Settings
     const { data: outletSettings, isLoading: isLoadingOutlet } = trpc.outlets.getSettings.useQuery({ outletId: params.id });
@@ -41,8 +42,9 @@ export default function OutletSettingsPage({ params }: { params: { id: string } 
 
     // Initialize state
     useEffect(() => {
-        if (outletSettings?.googleSheetsUrl) {
-            setGoogleSheetsUrl(outletSettings.googleSheetsUrl);
+        if (outletSettings) {
+            setGoogleSheetsUrl(outletSettings.googleSheetsUrl || '');
+            setIsPosEnabled(outletSettings.isPosEnabled || false);
         }
     }, [outletSettings]);
 
@@ -58,6 +60,7 @@ export default function OutletSettingsPage({ params }: { params: { id: string } 
         await updateOutletSettings.mutateAsync({
             outletId: params.id,
             googleSheetsUrl: googleSheetsUrl || null,
+            isPosEnabled,
         });
     };
 
@@ -131,8 +134,37 @@ export default function OutletSettingsPage({ params }: { params: { id: string } 
                     <TabsTrigger value="apps-script">Apps Script</TabsTrigger>
                 </TabsList>
 
-                {/* General Settings (Google Sheets URL) */}
-                <TabsContent value="general">
+                {/* General Settings (Google Sheets URL & POS) */}
+                <TabsContent value="general" className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>POS Configuration</CardTitle>
+                            <CardDescription>
+                                Manage Point of Sale access for this outlet.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="flex items-center justify-between p-4 border rounded-lg">
+                                <div className="space-y-0.5">
+                                    <Label className="text-base">Enable POS Access</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Allow the POS application to connect to this outlet.
+                                    </p>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        id="pos-toggle"
+                                        className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
+                                        checked={isPosEnabled}
+                                        onChange={(e) => setIsPosEnabled(e.target.checked)}
+                                    />
+                                    <Label htmlFor="pos-toggle">{isPosEnabled ? 'Enabled' : 'Disabled'}</Label>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     <Card>
                         <CardHeader>
                             <CardTitle>Google Sheets Integration</CardTitle>

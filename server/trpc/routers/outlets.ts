@@ -14,6 +14,7 @@ export const outletsRouter = router({
                     name: true,
                     googleSheetsUrl: true,
                     sheetExportUrl: true,
+                    isPosEnabled: true,
                 },
             });
 
@@ -115,12 +116,13 @@ export const outletsRouter = router({
             });
         }),
 
-    // Update outlet settings (Google Sheets URL)
+    // Update outlet settings (Google Sheets URL & POS Status)
     updateSettings: protectedProcedure
         .input(
             z.object({
                 outletId: z.string(),
                 googleSheetsUrl: z.string().url().optional().nullable(),
+                isPosEnabled: z.boolean().optional(),
             })
         )
         .mutation(async ({ ctx, input }) => {
@@ -144,15 +146,16 @@ export const outletsRouter = router({
                 where: { id: input.outletId },
                 data: {
                     googleSheetsUrl: input.googleSheetsUrl,
+                    isPosEnabled: input.isPosEnabled,
                 },
                 select: {
                     id: true,
                     name: true,
                     googleSheetsUrl: true,
+                    isPosEnabled: true,
                 },
             });
 
-            return updated;
             return updated;
         }),
 

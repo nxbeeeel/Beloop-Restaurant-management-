@@ -1,0 +1,88 @@
+{
+  "targetUser": {
+    "email": "beloopstore@gmail.com",
+    "outletId": "cmii7cpeb0008x2pj3m3zgol3"
+  },
+  "totalProducts": 0,
+  "allUsers": [
+    {
+      "email": "admin@demo.com",
+      "name": "Brand Admin",
+      "outlet": null
+    },
+    {
+      "email": "manager@demo.com",
+      "name": "Outlet Manager",
+      "outlet": {
+        "name": "Koramangala Main",
+        "id": "cmii72swh000280gzhoyfp3c9"
+      }
+    },
+    {
+      "email": "staff@demo.com",
+      "name": "Staff Member",
+      "outlet": {
+        "name": "Koramangala Main",
+        "id": "cmii72swh000280gzhoyfp3c9"
+      }
+    },
+    {
+      "email": "smoochooberon@gmail.com",
+      "name": "Smoocho Oberon",
+      "outlet": null
+    },
+    {
+      "email": "beloopstore@gmail.com",
+      "name": "smoocho1 Store",
+      "outlet": {
+        "name": "Smoocho Oberon",
+        "id": "cmii7cpeb0008x2pj3m3zgol3"
+      }
+    },
+    {
+      "email": "admin@smoochotreats.com",
+      "name": "Smoocho Treats Admin",
+      "outlet": null
+    },
+    {
+      "email": "manager.mumbai@smoochotreats.com",
+      "name": "Mumbai Manager",
+      "outlet": {
+        "name": "Smoocho Treats - Mumbai",
+        "id": "cmii7e65g0004fua5nldkdm1s"
+      }
+    },
+    {
+      "email": "manager.delhi@smoochotreats.com",
+      "name": "Delhi Manager",
+      "outlet": {
+        "name": "Smoocho Treats - Delhi",
+        "id": "cmii7e8780008fua5cf9fwsu9"
+      }
+    },
+    {
+      "email": "manager.bangalore@smoochotreats.com",
+      "name": "Bangalore Manager",
+      "outlet": {
+        "name": "Smoocho Treats - Bangalore",
+        "id": "cmii7e9fi000cfua5u6afjzwp"
+      }
+    },
+    {
+      "email": "manager.hyderabad@smoochotreats.com",
+      "name": "Hyderabad Manager",
+      "outlet": {
+        "name": "Smoocho Treats - Hyderabad",
+        "id": "cmii7eant000gfua5sjnvvyn0"
+      }
+    },
+    {
+      "email": "manager.chennai@smoochotreats.com",
+      "name": "Chennai Manager",
+      "outlet": {
+        "name": "Smoocho Treats - Chennai",
+        "id": "cmii7ec1l000kfua5tnkexmrh"
+      }
+    }
+  ]
+}
