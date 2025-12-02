@@ -18,11 +18,12 @@ export const PURCHASE_UNITS = {
             { value: "carton", label: "Carton" },
         ]
     },
-    count: {
-        label: "Count",
+    bakery: {
+        label: "Bakery/Custom",
         units: [
-            { value: "pcs", label: "Pieces" },
-            { value: "dozen", label: "Dozen" },
+            { value: "layer", label: "Layer" },
+            { value: "sheet", label: "Sheet" },
+            { value: "slice", label: "Slice" },
         ]
     }
 } as const;
@@ -43,17 +44,28 @@ export const USAGE_UNITS = {
             { value: "L", label: "Liter (L)", baseUnit: "L", factor: 1 },
             { value: "ml", label: "Milliliter (ml)", baseUnit: "L", factor: 0.001 },
         ]
+    },
+    custom: {
+        label: "Custom/Bakery",
+        units: [
+            { value: "scoop", label: "Scoop", baseUnit: "scoop", factor: 1 },
+            { value: "layer", label: "Layer", baseUnit: "layer", factor: 1 },
+            { value: "sheet", label: "Sheet", baseUnit: "sheet", factor: 1 },
+            { value: "slice", label: "Slice", baseUnit: "slice", factor: 1 },
+        ]
     }
 } as const;
 
 export type PurchaseUnitValue =
     | "tub" | "bottle" | "jar" | "can"
     | "bag" | "box" | "packet" | "carton"
-    | "pcs" | "dozen";
+    | "pcs" | "dozen"
+    | "layer" | "sheet" | "slice";
 
 export type UsageUnitValue =
     | "kg" | "g" | "mg"
-    | "L" | "ml";
+    | "L" | "ml"
+    | "scoop" | "layer" | "sheet" | "slice";
 
 export interface UsageUnitInfo {
     value: UsageUnitValue;

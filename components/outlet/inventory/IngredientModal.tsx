@@ -15,6 +15,8 @@ import {
     getConversionFactor
 } from "@/lib/units";
 
+import { cn } from "@/lib/utils";
+
 interface IngredientModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -32,6 +34,7 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
     const [costPerPurchaseUnit, setCostPerPurchaseUnit] = useState("");
     const [stock, setStock] = useState("");
     const [minStock, setMinStock] = useState("");
+    const [conversionMode, setConversionMode] = useState<'standard' | 'inverse'>('standard');
 
     // Calculated values
     const costPerUsage = qtyPerUnit && costPerPurchaseUnit
@@ -158,23 +161,73 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
 
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="qtyPerUnit" className="text-right">Content per {purchaseUnit}</Label>
-                            <div className="col-span-3">
+                            <div className="col-span-3 space-y-3">
+                                {/* Conversion Mode Toggle */}
+                                <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-lg w-fit">
+                                    <button
+                                        type="button"
+                                        onClick={() => setConversionMode('standard')}
+                                        className={cn(
+                                            "px-3 py-1 text-xs font-medium rounded-md transition-all",
+                                            conversionMode === 'standard'
+                                                ? "bg-white text-primary shadow-sm"
+                                                : "text-gray-500 hover:text-gray-900"
+                                        )}
+                                    >
+                                        Standard (1 {purchaseUnit} = X {usageUnit})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setConversionMode('inverse')}
+                                        className={cn(
+                                            "px-3 py-1 text-xs font-medium rounded-md transition-all",
+                                            conversionMode === 'inverse'
+                                                ? "bg-white text-primary shadow-sm"
+                                                : "text-gray-500 hover:text-gray-900"
+                                        )}
+                                    >
+                                        Inverse (1 {usageUnit} = Y {purchaseUnit})
+                                    </button>
+                                </div>
+
                                 <div className="flex gap-2">
                                     <Input
                                         id="qtyPerUnit"
                                         type="number"
                                         step="0.01"
-                                        value={qtyPerUnit}
-                                        onChange={(e) => setQtyPerUnit(e.target.value)}
+                                        value={conversionMode === 'standard' ? qtyPerUnit : (qtyPerUnit ? (1 / parseFloat(qtyPerUnit)).toString() : "")}
+                                        onChange={(e) => {
+                                            const val = parseFloat(e.target.value);
+                                            if (!val) {
+                                                setQtyPerUnit("");
+                                                return;
+                                            }
+                                            if (conversionMode === 'standard') {
+                                                setQtyPerUnit(val.toString());
+                                            } else {
+                                                setQtyPerUnit((1 / val).toString());
+                                            }
+                                        }}
                                         className="flex-1"
-                                        placeholder="e.g., 2.5"
+                                        placeholder={conversionMode === 'standard' ? "e.g., 50 (scoops)" : "e.g., 2 (kg)"}
                                     />
-                                    <span className="flex items-center text-sm text-gray-500">{usageUnit}</span>
+                                    <span className="flex items-center text-sm text-gray-500">
+                                        {conversionMode === 'standard' ? usageUnit : purchaseUnit}
+                                    </span>
                                 </div>
+
                                 {qtyPerUnit && (
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        1 {purchaseUnit} = {qtyPerUnit} {usageUnit}
-                                    </p>
+                                    <div className="p-2 bg-blue-50 text-blue-700 rounded text-xs border border-blue-100">
+                                        <span className="font-semibold">Logic:</span>
+                                        {conversionMode === 'standard'
+                                            ? ` 1 ${purchaseUnit} contains ${qtyPerUnit} ${usageUnit}`
+                                            : ` 1 ${usageUnit} is equal to ${(1 / parseFloat(qtyPerUnit)).toFixed(2)} ${purchaseUnit}`
+                                        }
+                                        <br />
+                                        <span className="opacity-75">
+                                            (System stores: 1 {purchaseUnit} = {parseFloat(qtyPerUnit).toFixed(4)} {usageUnit})
+                                        </span>
+                                    </div>
                                 )}
                             </div>
                         </div>
