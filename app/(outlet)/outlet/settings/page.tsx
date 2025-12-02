@@ -17,9 +17,13 @@ export default function OutletSettingsPage({ params }: { params: { id: string } 
     const [isPosEnabled, setIsPosEnabled] = useState(false);
 
     // Outlet Settings
+    const utils = trpc.useContext();
     const { data: outletSettings, isLoading: isLoadingOutlet } = trpc.outlets.getSettings.useQuery({ outletId: params.id });
     const updateOutletSettings = trpc.outlets.updateSettings.useMutation({
-        onSuccess: () => toast.success('Outlet settings saved successfully!'),
+        onSuccess: () => {
+            toast.success('Outlet settings saved successfully!');
+            utils.outlets.getSettings.invalidate({ outletId: params.id });
+        },
         onError: (error) => toast.error(error.message || 'Failed to save outlet settings'),
     });
 
@@ -157,7 +161,20 @@ export default function OutletSettingsPage({ params }: { params: { id: string } 
                                         id="pos-toggle"
                                         className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
                                         checked={isPosEnabled}
-                                        onChange={(e) => setIsPosEnabled(e.target.checked)}
+                                        onChange={async (e) => {
+                                            const checked = e.target.checked;
+                                            setIsPosEnabled(checked);
+                                            try {
+                                                await updateOutletSettings.mutateAsync({
+                                                    outletId: params.id,
+                                                    googleSheetsUrl: googleSheetsUrl || null,
+                                                    isPosEnabled: checked,
+                                                });
+                                            } catch (error) {
+                                                // Revert on error
+                                                setIsPosEnabled(!checked);
+                                            }
+                                        }}
                                     />
                                     <Label htmlFor="pos-toggle">{isPosEnabled ? 'Enabled' : 'Disabled'}</Label>
                                 </div>
