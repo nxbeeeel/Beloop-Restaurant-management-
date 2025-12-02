@@ -35,7 +35,8 @@ export const productsRouter = router({
             applyToAllOutlets: z.boolean().default(false),
             recipe: z.array(z.object({
                 ingredientId: z.string(),
-                quantity: z.number().min(0)
+                quantity: z.number().min(0),
+                unit: z.string().default("g")
             })).optional(),
         }))
         .mutation(async ({ ctx, input }) => {
@@ -70,7 +71,8 @@ export const productsRouter = router({
                             recipeItems: recipe ? {
                                 create: recipe.map(r => ({
                                     ingredientId: r.ingredientId,
-                                    quantity: r.quantity
+                                    quantity: r.quantity,
+                                    unit: r.unit || "g"
                                 }))
                             } : undefined
                         }
@@ -101,7 +103,8 @@ export const productsRouter = router({
                         recipeItems: recipe ? {
                             create: recipe.map(r => ({
                                 ingredientId: r.ingredientId,
-                                quantity: r.quantity
+                                quantity: r.quantity,
+                                unit: r.unit || "g"
                             }))
                         } : undefined
                     }
@@ -124,7 +127,8 @@ export const productsRouter = router({
             applyToAllOutlets: z.boolean().default(false),
             recipe: z.array(z.object({
                 ingredientId: z.string(),
-                quantity: z.number().min(0)
+                quantity: z.number().min(0),
+                unit: z.string().default("g")
             })).optional(),
         }))
         .mutation(async ({ ctx, input }) => {
@@ -178,7 +182,8 @@ export const productsRouter = router({
                                 data: recipe.map(r => ({
                                     productId: p.id,
                                     ingredientId: r.ingredientId,
-                                    quantity: r.quantity
+                                    quantity: r.quantity,
+                                    unit: r.unit || "g"
                                 }))
                             });
                         }
@@ -203,7 +208,8 @@ export const productsRouter = router({
                             data: recipe.map(r => ({
                                 productId: input.id,
                                 ingredientId: r.ingredientId,
-                                quantity: r.quantity
+                                quantity: r.quantity,
+                                unit: r.unit || "g"
                             }))
                         });
                     }
