@@ -240,28 +240,6 @@ export default function MenuPage() {
                                         placeholder="Brief description..."
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label>Supplier (Optional)</Label>
-                                    <Select
-                                        value={formData.supplierId || ""}
-                                        onValueChange={(val) => setFormData({ ...formData, supplierId: val || undefined })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select supplier..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="none_selection">None</SelectItem>
-                                            {suppliers?.map(s => (
-                                                <SelectItem key={s.id} value={s.id}>
-                                                    {s.name}
-                                                </SelectItem>
-                                            ))}
-                                            {!suppliers?.length && (
-                                                <div className="p-2 text-sm text-gray-500 text-center">No suppliers found</div>
-                                            )}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label>Price (₹)</Label>

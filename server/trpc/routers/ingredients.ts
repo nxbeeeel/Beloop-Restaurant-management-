@@ -27,6 +27,7 @@ export const ingredientsRouter = router({
         .input(z.object({
             outletId: z.string(),
             name: z.string(),
+            supplierId: z.string().optional(),
             purchaseUnit: z.string(),
             qtyPerUnit: z.number(),
             usageUnit: z.string(),
@@ -42,6 +43,7 @@ export const ingredientsRouter = router({
                 data: {
                     outletId: input.outletId,
                     name: input.name,
+                    supplierId: input.supplierId,
                     purchaseUnit: input.purchaseUnit,
                     qtyPerUnit: input.qtyPerUnit,
                     usageUnit: input.usageUnit,
@@ -60,6 +62,7 @@ export const ingredientsRouter = router({
         .input(z.object({
             id: z.string(),
             name: z.string(),
+            supplierId: z.string().optional(),
             purchaseUnit: z.string(),
             qtyPerUnit: z.number(),
             usageUnit: z.string(),
@@ -75,6 +78,7 @@ export const ingredientsRouter = router({
                 where: { id: input.id },
                 data: {
                     name: input.name,
+                    supplierId: input.supplierId,
                     purchaseUnit: input.purchaseUnit,
                     qtyPerUnit: input.qtyPerUnit,
                     usageUnit: input.usageUnit,

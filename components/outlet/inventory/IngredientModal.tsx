@@ -28,6 +28,7 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
     const utils = trpc.useContext();
 
     const [name, setName] = useState("");
+    const [supplierId, setSupplierId] = useState<string>("none_selection");
     const [purchaseUnit, setPurchaseUnit] = useState("tub");
     const [qtyPerUnit, setQtyPerUnit] = useState("");
     const [usageUnit, setUsageUnit] = useState("kg");
@@ -35,6 +36,8 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
     const [stock, setStock] = useState("");
     const [minStock, setMinStock] = useState("");
     const [conversionMode, setConversionMode] = useState<'standard' | 'inverse'>('standard');
+
+    const { data: suppliers } = trpc.suppliers.list.useQuery();
 
     // Calculated values
     const costPerUsage = qtyPerUnit && costPerPurchaseUnit
@@ -48,6 +51,7 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
     useEffect(() => {
         if (ingredient) {
             setName(ingredient.name);
+            setSupplierId(ingredient.supplierId || "none_selection");
             setPurchaseUnit(ingredient.purchaseUnit);
             setQtyPerUnit(ingredient.qtyPerUnit?.toString() || "");
             setUsageUnit(ingredient.usageUnit);
@@ -56,6 +60,7 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
             setMinStock(ingredient.minStock.toString());
         } else {
             setName("");
+            setSupplierId("none_selection");
             setPurchaseUnit("tub");
             setQtyPerUnit("");
             setUsageUnit("kg");
@@ -96,6 +101,7 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
         const data = {
             outletId,
             name,
+            supplierId: supplierId === "none_selection" ? undefined : supplierId,
             purchaseUnit,
             qtyPerUnit: parseFloat(qtyPerUnit),
             usageUnit,
@@ -121,7 +127,7 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
                     <DialogTitle>{ingredient ? "Edit Ingredient" : "Add Ingredient"}</DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                    {/* Name */}
+                    {/* Name & Supplier */}
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="name" className="text-right">Name</Label>
                         <Input
@@ -131,6 +137,22 @@ export function IngredientModal({ isOpen, onClose, ingredient, outletId }: Ingre
                             className="col-span-3"
                             placeholder="e.g., Hazelnut Chocolate"
                         />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="supplier" className="text-right">Supplier</Label>
+                        <Select value={supplierId} onValueChange={setSupplierId}>
+                            <SelectTrigger className="col-span-3">
+                                <SelectValue placeholder="Select supplier (optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none_selection">None</SelectItem>
+                                {suppliers?.map((s) => (
+                                    <SelectItem key={s.id} value={s.id}>
+                                        {s.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {/* Purchase/Stock Unit Section */}
