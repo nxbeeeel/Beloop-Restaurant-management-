@@ -6,9 +6,9 @@ import { convertBetweenUsageUnits } from "@/lib/units";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Loader2, UtensilsCrossed, MoreHorizontal, Pencil, Trash2, Image as ImageIcon, X } from "lucide-react";
+import { Search, Plus, Loader2, UtensilsCrossed, MoreHorizontal, Pencil, Trash2, Image as ImageIcon, X, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -29,6 +29,7 @@ interface Product {
     sku: string;
     unit: string;
     supplierId?: string | null;
+    categoryId?: string | null;
     category?: { id: string; name: string } | null;
     description?: string | null;
     currentStock: number;
@@ -38,12 +39,16 @@ interface Product {
 export default function MenuPage() {
     const [search, setSearch] = useState("");
     const [isAddOpen, setIsAddOpen] = useState(false);
+    const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
     // Form State
     const [formData, setFormData] = useState<Partial<Product> & { recipe: { ingredientId: string; quantity: number; unit: string }[] }>({
-        name: "", unit: "portion", price: 0, sku: "", description: "", recipe: []
+        name: "", unit: "portion", price: 0, sku: "", description: "", categoryId: null, recipe: []
     });
+
+    // Category Form State
+    const [newCategoryName, setNewCategoryName] = useState("");
 
     const { data: user } = trpc.dashboard.getUser.useQuery();
     const outletId = user?.outletId || "";
@@ -54,12 +59,18 @@ export default function MenuPage() {
         { enabled: !!outletId }
     );
 
+    const { data: categories } = trpc.categories.list.useQuery(
+        { outletId },
+        { enabled: !!outletId }
+    );
+
     const { data: ingredients } = trpc.ingredients.list.useQuery(
         { outletId },
         { enabled: !!outletId && isAddOpen }
     );
 
     const { data: suppliers } = trpc.suppliers.list.useQuery();
+
     // Mutations
     const createMutation = trpc.products.create.useMutation({
         onSuccess: () => {
@@ -81,8 +92,25 @@ export default function MenuPage() {
         onError: (err) => toast.error(err.message)
     });
 
+    const createCategoryMutation = trpc.categories.create.useMutation({
+        onSuccess: () => {
+            utils.categories.list.invalidate();
+            setNewCategoryName("");
+            toast.success("Category created");
+        },
+        onError: (err) => toast.error(err.message)
+    });
+
+    const deleteCategoryMutation = trpc.categories.delete.useMutation({
+        onSuccess: () => {
+            utils.categories.list.invalidate();
+            toast.success("Category deleted");
+        },
+        onError: (err) => toast.error(err.message)
+    });
+
     const resetForm = () => {
-        setFormData({ name: "", unit: "portion", price: 0, sku: "", description: "", recipe: [] });
+        setFormData({ name: "", unit: "portion", price: 0, sku: "", description: "", categoryId: null, recipe: [] });
     };
 
     const handleSave = () => {
@@ -98,6 +126,7 @@ export default function MenuPage() {
                 price: formData.price,
                 unit: formData.unit,
                 supplierId: formData.supplierId || null,
+                categoryId: formData.categoryId || null,
                 description: formData.description || undefined,
                 recipe: formData.recipe
             });
@@ -109,12 +138,21 @@ export default function MenuPage() {
                 unit: formData.unit || "portion",
                 minStock: 0,
                 supplierId: formData.supplierId || undefined,
+                categoryId: formData.categoryId || undefined,
                 price: formData.price || 0,
                 description: formData.description || undefined,
                 applyToAllOutlets: false,
                 recipe: formData.recipe
             });
         }
+    };
+
+    const handleCreateCategory = () => {
+        if (!newCategoryName.trim()) return;
+        createCategoryMutation.mutate({
+            outletId,
+            name: newCategoryName
+        });
     };
 
     const openEdit = (product: Product) => {
@@ -125,6 +163,7 @@ export default function MenuPage() {
             price: product.price,
             unit: product.unit,
             supplierId: product.supplierId,
+            categoryId: product.categoryId,
             description: product.description,
             recipe: product.recipeItems?.map(r => ({
                 ingredientId: r.ingredientId,
@@ -203,185 +242,249 @@ export default function MenuPage() {
                     <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Menu Management</h1>
                     <p className="text-sm text-gray-500 mt-1">Manage your products, recipes, and pricing</p>
                 </div>
-                <Dialog open={isAddOpen} onOpenChange={(open) => {
-                    setIsAddOpen(open);
-                    if (!open) {
-                        setEditingProduct(null);
-                        resetForm();
-                    }
-                }}>
-                    <DialogTrigger asChild>
-                        <Button
-                            onClick={() => {
-                                setEditingProduct(null);
-                                resetForm();
-                                setIsAddOpen(true);
-                            }}
-                            className="bg-primary hover:bg-primary/90 shadow-sm transition-all duration-200"
-                        >
-                            <Plus className="w-4 h-4 mr-2" /> Add Item
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>{editingProduct ? "Edit Menu Item" : "Add New Menu Item"}</DialogTitle>
-                            <DialogDescription>
-                                {editingProduct ? "Update the details of your menu item below." : "Fill in the details to create a new menu item."}
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                            {/* Left Column: Product Details */}
-                            <div className="space-y-4">
-                                <h3 className="font-semibold text-gray-900">Product Details</h3>
-                                <div className="space-y-2">
-                                    <Label>Item Name</Label>
+                <div className="flex gap-2">
+                    <Dialog open={isCategoryOpen} onOpenChange={setIsCategoryOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" className="gap-2">
+                                <Settings2 className="w-4 h-4" /> Categories
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Manage Categories</DialogTitle>
+                                <DialogDescription>Create and manage menu categories.</DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 py-4">
+                                <div className="flex gap-2">
                                     <Input
-                                        value={formData.name}
-                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                        placeholder="e.g. Chicken Burger"
+                                        placeholder="New Category Name"
+                                        value={newCategoryName}
+                                        onChange={(e) => setNewCategoryName(e.target.value)}
                                     />
+                                    <Button onClick={handleCreateCategory} disabled={createCategoryMutation.isPending}>
+                                        {createCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                    </Button>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label>SKU / Code</Label>
-                                    <Input
-                                        value={formData.sku}
-                                        onChange={e => setFormData({ ...formData, sku: e.target.value })}
-                                        placeholder="e.g. BURG-001"
-                                        disabled={!!editingProduct}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Description</Label>
-                                    <Input
-                                        value={formData.description || ""}
-                                        onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                        placeholder="Brief description..."
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>Price (₹)</Label>
-                                        <Input
-                                            type="number"
-                                            value={formData.price}
-                                            onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) })}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Unit</Label>
-                                        <Input
-                                            value={formData.unit}
-                                            onChange={e => setFormData({ ...formData, unit: e.target.value })}
-                                            placeholder="e.g. portion"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Right Column: Recipe & Costing */}
-                            <div className="space-y-4 border-l pl-6">
-                                <h3 className="font-semibold text-gray-900">Recipe & Costing</h3>
-
-                                <div className="p-4 bg-gray-50 rounded-lg space-y-2">
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-500">Base Cost:</span>
-                                        <span className="font-medium">₹{baseCost.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-500">Selling Price:</span>
-                                        <span className="font-medium">₹{formData.price?.toFixed(2)}</span>
-                                    </div>
-                                    <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
-                                        <span className="font-semibold text-gray-700">Gross Margin:</span>
-                                        <Badge variant={grossMargin > 50 ? "default" : grossMargin > 20 ? "secondary" : "destructive"}>
-                                            {grossMargin.toFixed(1)}%
-                                        </Badge>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Add Ingredient</Label>
-                                    <Select onValueChange={addIngredientToRecipe} disabled={!ingredients?.length}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder={ingredients?.length ? "Select ingredient..." : "Loading ingredients..."} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {ingredients?.map(ing => (
-                                                <SelectItem key={ing.id} value={ing.id}>
-                                                    {ing.name} ({ing.unit}) - ₹{Number(ing.cost).toFixed(2)}
-                                                </SelectItem>
-                                            ))}
-                                            {!ingredients?.length && (
-                                                <div className="p-2 text-sm text-gray-500 text-center">No ingredients found</div>
-                                            )}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
                                 <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                                    {formData.recipe.map((item, idx) => {
-                                        const ing = ingredients?.find(i => i.id === item.ingredientId);
-                                        return (
-                                            <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border">
-                                                <div className="flex-1 text-sm">
-                                                    <div className="font-medium">{ing?.name || 'Loading...'}</div>
-                                                    <div className="text-xs text-gray-500">₹{Number(ing?.costPerUsageUnit || 0).toFixed(2)} / {ing?.usageUnit || '-'}</div>
-                                                </div>
-                                                <div className="w-20">
-                                                    <Input
-                                                        type="number"
-                                                        step="0.01"
-                                                        className="h-8 text-right"
-                                                        value={item.quantity}
-                                                        onChange={e => updateIngredientQuantity(item.ingredientId, parseFloat(e.target.value))}
-                                                    />
-                                                </div>
-                                                <div className="w-16">
-                                                    <Select value={item.unit} onValueChange={(val) => handleIngredientUnitChange(item.ingredientId, val)}>
-                                                        <SelectTrigger className="h-8">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="g">g</SelectItem>
-                                                            <SelectItem value="kg">kg</SelectItem>
-                                                            <SelectItem value="ml">ml</SelectItem>
-                                                            <SelectItem value="L">L</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                                    onClick={() => removeIngredientFromRecipe(item.ingredientId)}
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </Button>
-                                            </div>
-                                        );
-                                    })}
-                                    {formData.recipe.length === 0 && (
-                                        <div className="text-center py-8 text-gray-400 text-sm border-2 border-dashed rounded-lg">
-                                            No ingredients added
+                                    {categories?.map(category => (
+                                        <div key={category.id} className="flex justify-between items-center p-2 bg-gray-50 rounded border">
+                                            <span className="font-medium">{category.name}</span>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                onClick={() => deleteCategoryMutation.mutate(category.id)}
+                                                disabled={deleteCategoryMutation.isPending}
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
                                         </div>
+                                    ))}
+                                    {categories?.length === 0 && (
+                                        <div className="text-center text-gray-500 text-sm py-4">No categories found</div>
                                     )}
                                 </div>
                             </div>
-                        </div>
+                        </DialogContent>
+                    </Dialog>
 
-                        <div className="flex justify-end pt-4 border-t">
+                    <Dialog open={isAddOpen} onOpenChange={(open) => {
+                        setIsAddOpen(open);
+                        if (!open) {
+                            setEditingProduct(null);
+                            resetForm();
+                        }
+                    }}>
+                        <DialogTrigger asChild>
                             <Button
-                                onClick={handleSave}
-                                disabled={createMutation.isPending || updateMutation.isPending}
-                                className="bg-primary hover:bg-primary/90 min-w-[150px]"
+                                onClick={() => {
+                                    setEditingProduct(null);
+                                    resetForm();
+                                    setIsAddOpen(true);
+                                }}
+                                className="bg-primary hover:bg-primary/90 shadow-sm transition-all duration-200"
                             >
-                                {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                {editingProduct ? "Update Item" : "Create Item"}
+                                <Plus className="w-4 h-4 mr-2" /> Add Item
                             </Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                            <DialogHeader>
+                                <DialogTitle>{editingProduct ? "Edit Menu Item" : "Add New Menu Item"}</DialogTitle>
+                                <DialogDescription>
+                                    {editingProduct ? "Update the details of your menu item below." : "Fill in the details to create a new menu item."}
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                                {/* Left Column: Product Details */}
+                                <div className="space-y-4">
+                                    <h3 className="font-semibold text-gray-900">Product Details</h3>
+                                    <div className="space-y-2">
+                                        <Label>Item Name</Label>
+                                        <Input
+                                            value={formData.name}
+                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                            placeholder="e.g. Chicken Burger"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>SKU / Code</Label>
+                                        <Input
+                                            value={formData.sku}
+                                            onChange={e => setFormData({ ...formData, sku: e.target.value })}
+                                            placeholder="e.g. BURG-001"
+                                            disabled={!!editingProduct}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Category</Label>
+                                        <Select
+                                            value={formData.categoryId || "uncategorized"}
+                                            onValueChange={(val) => setFormData({ ...formData, categoryId: val === "uncategorized" ? null : val })}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select Category" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="uncategorized">Uncategorized</SelectItem>
+                                                {categories?.map(c => (
+                                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Description</Label>
+                                        <Input
+                                            value={formData.description || ""}
+                                            onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                            placeholder="Brief description..."
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Price (₹)</Label>
+                                            <Input
+                                                type="number"
+                                                value={formData.price}
+                                                onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Unit</Label>
+                                            <Input
+                                                value={formData.unit}
+                                                onChange={e => setFormData({ ...formData, unit: e.target.value })}
+                                                placeholder="e.g. portion"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Recipe & Costing */}
+                                <div className="space-y-4 border-l pl-6">
+                                    <h3 className="font-semibold text-gray-900">Recipe & Costing</h3>
+
+                                    <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-500">Base Cost:</span>
+                                            <span className="font-medium">₹{baseCost.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-500">Selling Price:</span>
+                                            <span className="font-medium">₹{formData.price?.toFixed(2)}</span>
+                                        </div>
+                                        <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
+                                            <span className="font-semibold text-gray-700">Gross Margin:</span>
+                                            <Badge variant={grossMargin > 50 ? "default" : grossMargin > 20 ? "secondary" : "destructive"}>
+                                                {grossMargin.toFixed(1)}%
+                                            </Badge>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Add Ingredient</Label>
+                                        <Select onValueChange={addIngredientToRecipe} disabled={!ingredients?.length}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder={ingredients?.length ? "Select ingredient..." : "Loading ingredients..."} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {ingredients?.map(ing => (
+                                                    <SelectItem key={ing.id} value={ing.id}>
+                                                        {ing.name} ({ing.unit}) - ₹{Number(ing.cost).toFixed(2)}
+                                                    </SelectItem>
+                                                ))}
+                                                {!ingredients?.length && (
+                                                    <div className="p-2 text-sm text-gray-500 text-center">No ingredients found</div>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                                        {formData.recipe.map((item, idx) => {
+                                            const ing = ingredients?.find(i => i.id === item.ingredientId);
+                                            return (
+                                                <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border">
+                                                    <div className="flex-1 text-sm">
+                                                        <div className="font-medium">{ing?.name || 'Loading...'}</div>
+                                                        <div className="text-xs text-gray-500">₹{Number(ing?.costPerUsageUnit || 0).toFixed(2)} / {ing?.usageUnit || '-'}</div>
+                                                    </div>
+                                                    <div className="w-20">
+                                                        <Input
+                                                            type="number"
+                                                            step="0.01"
+                                                            className="h-8 text-right"
+                                                            value={item.quantity}
+                                                            onChange={e => updateIngredientQuantity(item.ingredientId, parseFloat(e.target.value))}
+                                                        />
+                                                    </div>
+                                                    <div className="w-16">
+                                                        <Select value={item.unit} onValueChange={(val) => handleIngredientUnitChange(item.ingredientId, val)}>
+                                                            <SelectTrigger className="h-8">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="g">g</SelectItem>
+                                                                <SelectItem value="kg">kg</SelectItem>
+                                                                <SelectItem value="ml">ml</SelectItem>
+                                                                <SelectItem value="L">L</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                        onClick={() => removeIngredientFromRecipe(item.ingredientId)}
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            );
+                                        })}
+                                        {formData.recipe.length === 0 && (
+                                            <div className="text-center py-8 text-gray-400 text-sm border-2 border-dashed rounded-lg">
+                                                No ingredients added
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end pt-4 border-t">
+                                <Button
+                                    onClick={handleSave}
+                                    disabled={createMutation.isPending || updateMutation.isPending}
+                                    className="bg-primary hover:bg-primary/90 min-w-[150px]"
+                                >
+                                    {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                    {editingProduct ? "Update Item" : "Create Item"}
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                </div>
             </div>
 
             {/* Filters & Table */}

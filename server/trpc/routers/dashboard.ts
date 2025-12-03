@@ -55,7 +55,8 @@ export const dashboardRouter = router({
                         date: true,
                         cashSale: true,
                         bankSale: true,
-                        profit: true
+                        profit: true,
+                        totalSale: true
                     }
                 }),
 

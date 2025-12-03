@@ -131,15 +131,11 @@ export const posRouter = router({
 
                     // 2. Handle Redemption (Reset stamps) or Accrual (Add stamp)
                     if (input.redeemedReward) {
-                        // Deduct stamps (reset to 0 or subtract required?)
-                        // User said "buys 6 times... get reward". Usually resets cycle.
-                        // We'll subtract the required amount to allow carry-over if they have excess?
-                        // For simplicity, let's subtract 'visitsRequired'.
                         const required = rule?.visitsRequired || 6;
 
                         await ctx.prisma.loyaltyProgress.upsert({
                             where: { customerId_outletId: { customerId: customer.id, outletId } },
-                            create: { customerId: customer.id, outletId, stamps: 0, totalSpend: input.total }, // Should not happen if redeeming
+                            create: { customerId: customer.id, outletId, stamps: 0, totalSpend: input.total },
                             update: {
                                 stamps: { decrement: required },
                                 totalSpend: { increment: input.total },
@@ -161,29 +157,28 @@ export const posRouter = router({
             }
 
             // Create Order Record
-            // We use upsert to handle potential re-syncs of the same order ID
             const order = await ctx.prisma.order.upsert({
                 where: { id: input.id },
                 update: {
-                    status: input.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING', // Map status
+                    status: input.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
                     totalAmount: input.total,
                     discount: input.discount,
                     paymentMethod: input.paymentMethod,
                 },
                 create: {
-                    id: input.id, // Use POS-generated ID
+                    id: input.id,
                     outletId,
-                    customerId, // Link to customer
+                    customerId,
                     customerName: input.customerName,
                     status: input.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
                     totalAmount: input.total,
                     discount: input.discount,
-                    tax: 0, // Calculate if needed
+                    tax: 0,
                     paymentMethod: input.paymentMethod,
                     createdAt: new Date(input.createdAt),
                     items: {
                         create: input.items.map(item => ({
-                            productId: item.productId, // Ensure this matches Tracker Product ID
+                            productId: item.productId,
                             name: item.name,
                             quantity: item.quantity,
                             price: item.price,
@@ -195,20 +190,82 @@ export const posRouter = router({
             });
 
             // 3. Handle Stock Deduction (Server-Side)
-            // We do this AFTER order creation to ensure order exists.
-            // We iterate through items and deduct stock.
+            for (const item of input.items) {
+                if (item.productId) {
+                    await ctx.prisma.product.update({
+                        where: { id: item.productId },
+                        data: { currentStock: { decrement: item.quantity } }
+                    });
+                }
+            }
 
-            // Import conversion utils dynamically or assume they are available if we move imports to top
-            // Since we can't easily change imports in this tool call without replacing the whole file, 
-            // we will assume we can add the import at the top in a separate call or use a helper function here if possible.
-            // However, for cleaner code, let's assume we will add the import. 
-            // But wait, I can't add import at top AND change this block in one replace_file_content unless I replace the whole file.
-            // I'll do this in two steps: 1. Add imports. 2. Update logic.
-            // Actually, I'll just use the logic inline if it's simple, or better, I'll use a separate tool call to add imports first.
+            // 4. Update Daily Sales (Live Tracking)
+            // We upsert a Sale record so the Dashboard shows live data.
+            const staff = await ctx.prisma.user.findFirst({
+                where: { outletId },
+                select: { id: true }
+            });
 
-            // Let's abort this tool call and do the import first.
-            return { success: true, id: order.id }; // Placeholder to not break flow if I was writing code, but I'm in a tool call.
-            // I will cancel this and do the import first.
+            if (staff) {
+                const today = new Date(input.createdAt);
+                today.setHours(0, 0, 0, 0);
+                const currentMonth = input.createdAt.slice(0, 7); // YYYY-MM
+
+                // A. Update Daily Sale
+                await ctx.prisma.sale.upsert({
+                    where: {
+                        outletId_date: {
+                            outletId,
+                            date: today
+                        }
+                    },
+                    update: {
+                        cashSale: { increment: input.paymentMethod === 'CASH' ? input.total : 0 },
+                        bankSale: { increment: input.paymentMethod !== 'CASH' ? input.total : 0 },
+                        totalSale: { increment: input.total },
+                        profit: { increment: input.total },
+                    },
+                    create: {
+                        outletId,
+                        staffId: staff.id,
+                        date: today,
+                        cashSale: input.paymentMethod === 'CASH' ? input.total : 0,
+                        bankSale: input.paymentMethod !== 'CASH' ? input.total : 0,
+                        totalSale: input.total,
+                        totalExpense: 0,
+                        profit: input.total
+                    }
+                });
+
+                // B. Update Monthly Summary (For Dashboard "Total Revenue" Card)
+                await ctx.prisma.monthlySummary.upsert({
+                    where: {
+                        outletId_month: {
+                            outletId,
+                            month: currentMonth
+                        }
+                    },
+                    update: {
+                        totalSales: { increment: input.total },
+                        cashSales: { increment: input.paymentMethod === 'CASH' ? input.total : 0 },
+                        bankSales: { increment: input.paymentMethod !== 'CASH' ? input.total : 0 },
+                        grossProfit: { increment: input.total },
+                        netProfit: { increment: input.total },
+                        // Note: daysWithSales is harder to increment accurately without checking if day exists, 
+                        // but for live sync we focus on values.
+                    },
+                    create: {
+                        outletId,
+                        month: currentMonth,
+                        totalSales: input.total,
+                        cashSales: input.paymentMethod === 'CASH' ? input.total : 0,
+                        bankSales: input.paymentMethod !== 'CASH' ? input.total : 0,
+                        grossProfit: input.total,
+                        netProfit: input.total,
+                        daysWithSales: 1
+                    }
+                });
+            }
 
             return { success: true, id: order.id };
         }),
@@ -303,30 +360,37 @@ export const posRouter = router({
             });
 
             // ALSO Upsert Sale (Legacy/Main Record for Tracker UI)
-            await ctx.prisma.sale.upsert({
-                where: {
-                    outletId_date: {
-                        outletId,
-                        date: dateObj
-                    }
-                },
-                update: {
-                    cashSale: input.cashSales,
-                    bankSale: input.cardSales + (input.upiSales || 0),
-                    totalSale: input.totalSales,
-                    // We don't overwrite expenses or other fields if they exist
-                },
-                create: {
-                    outletId,
-                    staffId: 'pos-system', // Placeholder
-                    date: dateObj,
-                    cashSale: input.cashSales,
-                    bankSale: input.cardSales + (input.upiSales || 0),
-                    totalSale: input.totalSales,
-                    totalExpense: 0,
-                    profit: input.totalSales
-                }
+            // We need a staffId. We'll try to find one.
+            const staff = await ctx.prisma.user.findFirst({
+                where: { outletId },
+                select: { id: true }
             });
+
+            if (staff) {
+                await ctx.prisma.sale.upsert({
+                    where: {
+                        outletId_date: {
+                            outletId,
+                            date: dateObj
+                        }
+                    },
+                    update: {
+                        cashSale: input.cashSales,
+                        bankSale: input.cardSales + (input.upiSales || 0),
+                        totalSale: input.totalSales,
+                    },
+                    create: {
+                        outletId,
+                        staffId: staff.id,
+                        date: dateObj,
+                        cashSale: input.cashSales,
+                        bankSale: input.cardSales + (input.upiSales || 0),
+                        totalSale: input.totalSales,
+                        totalExpense: 0,
+                        profit: input.totalSales
+                    }
+                });
+            }
 
             return { success: true };
         }),
@@ -347,7 +411,6 @@ export const posRouter = router({
             });
 
             // 2. Check Products Version
-            // We want the MAX version of any product in this outlet
             const result = await ctx.prisma.product.aggregate({
                 where: { outletId },
                 _max: { version: true }
@@ -578,8 +641,6 @@ export const posRouter = router({
             });
 
             if (customer) {
-                // If exists but name was missing/different, maybe update? 
-                // For now, just return existing to avoid duplicates.
                 return customer;
             }
 
