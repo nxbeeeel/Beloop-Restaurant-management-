@@ -7,7 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 export default async function HomePage() {
-  const { userId } = auth();
+  const { userId } = await auth();
 
   // If user is logged in, redirect based on role
   if (userId) {

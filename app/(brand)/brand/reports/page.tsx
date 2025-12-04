@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { MonthlyReportView } from "@/components/reports/MonthlyReportView";
 
 export default async function BrandReportsPage() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) redirect("/login");
 
     const user = await prisma.user.findUnique({

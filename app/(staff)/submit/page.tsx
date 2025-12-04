@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { DailySubmissionForm } from "@/components/forms/DailySubmissionForm";
 
 export default async function SubmitPage() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) return null;
 
     const user = await prisma.user.findUnique({

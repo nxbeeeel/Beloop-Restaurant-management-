@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import PurchaseOrderList from "@/components/procurement/PurchaseOrderList";
 
 export default async function OrdersPage() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) redirect("/");
 
     const user = await prisma.user.findUnique({

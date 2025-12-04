@@ -4,7 +4,7 @@ import { prisma } from "@/server/db";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 export default async function TenantsPage() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) redirect("/login");
 
     const user = await prisma.user.findUnique({

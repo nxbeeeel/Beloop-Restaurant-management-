@@ -9,7 +9,7 @@ import { OutletExportButton } from "@/components/brand/OutletExportButton";
 import { SearchInput } from "@/components/common/SearchInput";
 
 export default async function OutletsPage({ searchParams }: { searchParams: { search?: string } }) {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) return null;
 
     const user = await prisma.user.findUnique({

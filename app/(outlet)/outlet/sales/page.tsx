@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { CalendarDays } from "lucide-react";
 
 export default async function SalesHistoryPage() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) return null;
 
     const user = await prisma.user.findUnique({

@@ -16,7 +16,7 @@ export default async function BrandLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) return null;
 
     // Get user with tenant info

@@ -14,6 +14,16 @@ export const reportsRouter = router({
         .query(async ({ ctx, input }) => {
             // Optimize: Get outlet IDs first to avoid join if querying all
             let outletIds: string[] = [];
+
+            if (!ctx.tenantId) {
+                return {
+                    sales: 0,
+                    orders: 0,
+                    customers: 0,
+                    avgOrderValue: 0,
+                };
+            }
+
             if (input.outletId && input.outletId !== 'ALL') {
                 outletIds = [input.outletId];
             } else {
@@ -82,6 +92,9 @@ export const reportsRouter = router({
         }))
         .query(async ({ ctx, input }) => {
             let outletIds: string[] = [];
+
+            if (!ctx.tenantId) return [];
+
             if (input.outletId && input.outletId !== 'ALL') {
                 outletIds = [input.outletId];
             } else {
@@ -130,6 +143,9 @@ export const reportsRouter = router({
         }))
         .query(async ({ ctx, input }) => {
             let outletIds: string[] = [];
+
+            if (!ctx.tenantId) return [];
+
             if (input.outletId && input.outletId !== 'ALL') {
                 outletIds = [input.outletId];
             } else {
@@ -183,6 +199,9 @@ export const reportsRouter = router({
         }))
         .query(async ({ ctx, input }) => {
             let outletIds: string[] = [];
+
+            if (!ctx.tenantId) return [];
+
             if (input.outletId && input.outletId !== 'ALL') {
                 outletIds = [input.outletId];
             } else {

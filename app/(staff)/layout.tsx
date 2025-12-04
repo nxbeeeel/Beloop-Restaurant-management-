@@ -7,7 +7,7 @@ export default async function StaffLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) redirect("/login");
 
     const user = await prisma.user.findUnique({

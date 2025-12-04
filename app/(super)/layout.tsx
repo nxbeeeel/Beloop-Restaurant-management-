@@ -11,7 +11,7 @@ export default async function SuperLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) redirect("/login");
 
     // TEMPORARY: Comment out role check for debugging

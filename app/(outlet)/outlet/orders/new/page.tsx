@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import CreateOrderForm from "@/components/procurement/CreateOrderForm";
 
 export default async function NewOrderPage() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) redirect("/");
 
     const user = await prisma.user.findUnique({

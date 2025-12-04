@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/server/db";
 
 export async function syncUserMetadata() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) return { success: false, error: "Not authenticated" };
 
     console.log("Syncing metadata for user:", userId);
@@ -27,7 +27,8 @@ export async function syncUserMetadata() {
 
         console.log("Updating Clerk metadata for user:", userId, "Role:", user.role);
         // Update Clerk metadata
-        await clerkClient.users.updateUserMetadata(userId, {
+        const client = await clerkClient();
+        await client.users.updateUserMetadata(userId, {
             publicMetadata: {
                 onboardingComplete: true,
                 role: user.role,
@@ -57,7 +58,7 @@ export async function completeOnboarding(formData: FormData) {
         console.log("Onboarding complete, setting cookie and returning URL:", result.redirectUrl);
 
         // Set a cookie to bypass middleware immediately
-        cookies().set('onboarding_complete', 'true', {
+        (await cookies()).set('onboarding_complete', 'true', {
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
             path: '/',

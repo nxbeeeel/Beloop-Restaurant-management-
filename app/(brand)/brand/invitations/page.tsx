@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import InvitationsManagement from "@/components/invitations/InvitationsManagement";
 
 export default async function InvitationsPage() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) redirect("/");
 
     const user = await prisma.user.findUnique({

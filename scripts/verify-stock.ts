@@ -61,7 +61,7 @@ async function main() {
         price: 50,
         recipe: [{ ingredientId: ingredient.id, quantity: 0.5 }] // Uses 0.5kg flour
     });
-    console.log("Created Product with Recipe:", productWithRecipe.name);
+    console.log("Created Product with Recipe:", productWithRecipe?.name);
 
     // 4. Create Product WITHOUT Recipe
     const productSimple = await caller.products.create({
@@ -73,12 +73,12 @@ async function main() {
     });
     // Add initial stock for simple product
     await caller.products.adjustStock({
-        productId: productSimple.id,
+        productId: productSimple!.id,
         outletId: outlet.id,
         qty: 50,
         type: 'PURCHASE'
     });
-    console.log("Created Simple Product:", productSimple.name, "Stock: 50");
+    console.log("Created Simple Product:", productSimple?.name, "Stock: 50");
 
     // 5. Simulate Sale
     console.log("Simulating Sale...");
@@ -113,8 +113,8 @@ async function main() {
 
     // 6. Verify Stock
     const updatedIngredient = await prisma.ingredient.findUnique({ where: { id: ingredient.id } });
-    const updatedProductSimple = await prisma.product.findUnique({ where: { id: productSimple.id } });
-    const updatedProductRecipe = await prisma.product.findUnique({ where: { id: productWithRecipe.id } });
+    const updatedProductSimple = await prisma.product.findUnique({ where: { id: productSimple!.id } });
+    const updatedProductRecipe = await prisma.product.findUnique({ where: { id: productWithRecipe!.id } });
 
     console.log("--- Verification Results ---");
 

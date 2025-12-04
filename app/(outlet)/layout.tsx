@@ -8,7 +8,7 @@ export default async function OutletLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) redirect("/login");
 
     const user = await prisma.user.findUnique({

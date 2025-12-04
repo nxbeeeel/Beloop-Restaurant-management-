@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import DailyCloseForm from "./DailyCloseForm";
 
 export default async function DailyClosePage() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) redirect("/");
 
     const user = await prisma.user.findUnique({

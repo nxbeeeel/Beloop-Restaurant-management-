@@ -9,7 +9,7 @@ interface Outlet {
 }
 
 export default async function InviteUserPage() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) return null;
 
     const user = await prisma.user.findUnique({

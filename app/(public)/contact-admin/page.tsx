@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Building2, Mail, ArrowLeft } from "lucide-react";
 
 export default async function ContactAdminPage() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (userId) {
         const user = await prisma.user.findUnique({
             where: { clerkId: userId },

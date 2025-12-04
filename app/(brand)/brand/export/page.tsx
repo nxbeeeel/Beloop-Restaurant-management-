@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import GoogleSheetsExport from "@/components/export/GoogleSheetsExport";
 
 export default async function ExportPage() {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) redirect("/login");
 
     const user = await prisma.user.findUnique({

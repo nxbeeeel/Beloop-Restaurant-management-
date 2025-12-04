@@ -8,7 +8,7 @@ import { Plus, Mail, User as UserIcon, Building2, Clock } from "lucide-react";
 import { SearchInput } from "@/components/common/SearchInput";
 
 export default async function StaffPage({ searchParams }: { searchParams: { search?: string } }) {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) return null;
 
     const user = await prisma.user.findUnique({

@@ -8,7 +8,7 @@ interface CreateContextOptions {
 }
 
 export const createContext = async (opts: CreateContextOptions) => {
-    const { userId } = auth();
+    const { userId } = await auth();
 
     // Fetch user details if logged in
     let user = null;

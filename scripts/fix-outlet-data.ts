@@ -17,7 +17,7 @@ async function main() {
         console.log('User or outlet not found.');
     } else {
         // 1. Enable POS
-        console.log(`Enabling POS for outlet: ${user.outlet.name} (${user.outletId})`);
+        console.log(`Enabling POS for outlet: ${user.outlet?.name} (${user.outletId})`);
         await prisma.outlet.update({
             where: { id: user.outletId },
             data: { isPosEnabled: true }
