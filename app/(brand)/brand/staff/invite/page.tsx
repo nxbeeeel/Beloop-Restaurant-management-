@@ -45,6 +45,7 @@ export default async function InviteUserPage() {
                         <select
                             name="role"
                             className="w-full p-2 border rounded-md"
+                            aria-label="Select user role"
                             required
                         >
                             <option value="STAFF">Staff</option>
@@ -58,6 +59,7 @@ export default async function InviteUserPage() {
                         <select
                             name="outletId"
                             className="w-full p-2 border rounded-md"
+                            aria-label="Select outlet"
                         >
                             <option value="">Select Outlet...</option>
                             {outlets.map((outlet: Outlet) => (

@@ -139,6 +139,7 @@ export default function ReportsPage() {
 
                                         return (
                                             <div key={t.date} className="flex flex-col items-center flex-1 group relative">
+                                                {/* eslint-disable-next-line react/forbid-dom-props */}
                                                 <div
                                                     className="w-full bg-primary/10 rounded-t hover:bg-primary/20 transition-all relative group-hover:scale-y-105 origin-bottom h-[var(--height)]"
                                                     style={barStyle}
