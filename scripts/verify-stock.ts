@@ -17,16 +17,20 @@ async function main() {
 
     // Create Tenant & Outlet (Mocking or direct DB creation if needed, but let's assume we can use existing or create new)
     // For simplicity, we'll create them directly via Prisma
-    const tenant = await prisma.tenant.create({ data: { name: "Test Tenant", id: tenantId } });
-    const outlet = await prisma.outlet.create({ data: { name: "Test Outlet", tenantId: tenant.id, id: outletId, address: "Test Address", phone: "123" } });
+    const tenant = await prisma.tenant.create({ data: { name: "Test Tenant", id: tenantId, slug: tenantId } });
+    const outlet = await prisma.outlet.create({ data: { name: "Test Outlet", tenantId: tenant.id, id: outletId, address: "Test Address", phone: "123", code: "TEST-01" } });
 
     // Create User context mock
     const ctx = {
         prisma,
         user: { id: "test-user", tenantId: tenant.id, role: "OWNER", outletId: outlet.id },
         res: null as any,
-        req: null as any
-    };
+        req: null as any,
+        headers: new Headers({
+            'x-tenant-id': tenantId,
+            'x-outlet-id': outletId
+        })
+    } as any;
 
     const caller = appRouter.createCaller(ctx);
 
@@ -36,8 +40,13 @@ async function main() {
     const ingredient = await caller.ingredients.create({
         outletId: outlet.id,
         name: "Test Flour",
-        unit: "kg",
-        cost: 10,
+        purchaseUnit: "kg",
+        qtyPerUnit: 1,
+        usageUnit: "kg",
+        baseUnit: "kg",
+        conversionFactor: 1,
+        costPerPurchaseUnit: 10,
+        costPerUsageUnit: 10,
         stock: 100, // Initial Stock
         minStock: 10
     });
@@ -74,32 +83,32 @@ async function main() {
     // 5. Simulate Sale
     console.log("Simulating Sale...");
     await caller.pos.syncSales({
-        outletId: outlet.id,
-        orders: [{
-            id: "order-1",
-            localId: "order-1",
-            total: 70,
-            subtotal: 70,
-            tax: 0,
-            discount: 0,
-            paymentMethod: "CASH",
-            status: "COMPLETED",
-            createdAt: new Date().toISOString(),
-            items: [
-                {
-                    productId: productWithRecipe.id,
-                    quantity: 2, // Should deduct 2 * 0.5 = 1kg flour
-                    price: 50,
-                    name: productWithRecipe.name
-                },
-                {
-                    productId: productSimple.id,
-                    quantity: 5, // Should deduct 5 cans
-                    price: 20,
-                    name: productSimple.name
-                }
-            ]
-        }]
+        id: "order-1",
+        total: 70,
+        discount: 0,
+        paymentMethod: "CASH",
+        status: "COMPLETED",
+        createdAt: new Date().toISOString(),
+        customerName: "Test Customer",
+        customerPhone: "1234567890",
+        items: [
+            {
+                id: "item-1",
+                productId: productWithRecipe!.id,
+                quantity: 2, // Should deduct 2 * 0.5 = 1kg flour
+                price: 50,
+                totalPrice: 100,
+                name: productWithRecipe!.name
+            },
+            {
+                id: "item-2",
+                productId: productSimple!.id,
+                quantity: 5, // Should deduct 5 cans
+                price: 20,
+                totalPrice: 100,
+                name: productSimple!.name
+            }
+        ]
     });
 
     // 6. Verify Stock
@@ -133,7 +142,7 @@ async function main() {
     }
 
     // Cleanup
-    await prisma.recipeItem.deleteMany({ where: { productId: productWithRecipe.id } });
+    await prisma.recipeItem.deleteMany({ where: { productId: productWithRecipe!.id } });
     await prisma.stockMove.deleteMany({ where: { outletId: outlet.id } });
     await prisma.orderItem.deleteMany({ where: { order: { outletId: outlet.id } } });
     await prisma.order.deleteMany({ where: { outletId: outlet.id } });

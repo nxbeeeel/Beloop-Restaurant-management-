@@ -180,7 +180,7 @@ export default function MenuPage() {
         const ingredient = ingredients?.find(i => i.id === ingredientId);
         setFormData({
             ...formData,
-            recipe: [...formData.recipe, { ingredientId, quantity: 1, unit: ingredient?.unit || 'g' }]
+            recipe: [...formData.recipe, { ingredientId, quantity: 1, unit: ingredient?.usageUnit || 'g' }]
         });
     };
 
@@ -228,7 +228,7 @@ export default function MenuPage() {
         }
     }, 0);
 
-    const grossMargin = formData.price > 0 ? ((formData.price - baseCost) / formData.price) * 100 : 0;
+    const grossMargin = (formData.price || 0) > 0 ? (((formData.price || 0) - baseCost) / (formData.price || 0)) * 100 : 0;
 
     const filteredProducts = products?.filter(p =>
         p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -411,7 +411,7 @@ export default function MenuPage() {
                                             <SelectContent>
                                                 {ingredients?.map(ing => (
                                                     <SelectItem key={ing.id} value={ing.id}>
-                                                        {ing.name} ({ing.unit}) - ₹{Number(ing.cost).toFixed(2)}
+                                                        {ing.name} ({ing.usageUnit}) - ₹{Number(ing.costPerUsageUnit).toFixed(2)}
                                                     </SelectItem>
                                                 ))}
                                                 {!ingredients?.length && (

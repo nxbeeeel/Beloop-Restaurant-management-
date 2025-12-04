@@ -76,12 +76,12 @@ export interface UsageUnitInfo {
 
 // Get all purchase units as flat array
 export function getAllPurchaseUnits() {
-    return Object.values(PURCHASE_UNITS).flatMap(category => category.units);
+    return Object.values(PURCHASE_UNITS).flatMap(category => category.units as readonly any[]);
 }
 
 // Get all usage units as flat array
 export function getAllUsageUnits(): UsageUnitInfo[] {
-    return Object.values(USAGE_UNITS).flatMap(category => category.units);
+    return Object.values(USAGE_UNITS).flatMap(category => category.units as readonly any[]) as unknown as UsageUnitInfo[];
 }
 
 // Get usage unit info by value

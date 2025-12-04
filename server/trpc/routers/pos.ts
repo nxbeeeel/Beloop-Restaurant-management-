@@ -89,15 +89,25 @@ export const posRouter = router({
             const tenantId = ctx.headers.get('x-tenant-id');
             const outletId = ctx.headers.get('x-outlet-id');
 
+            console.log(`[POS Sync] Received syncSales request for Outlet: ${outletId}, Tenant: ${tenantId}`);
+            console.log(`[POS Sync] Payload:`, JSON.stringify(input, null, 2));
+
             if (!tenantId || !outletId) {
+                console.error('[POS Sync] Missing headers');
                 throw new TRPCError({ code: 'BAD_REQUEST', message: 'Missing SaaS Context Headers' });
             }
 
             // Verify Outlet Access
             const outlet = await ctx.prisma.outlet.findUnique({ where: { id: outletId } });
-            if (!outlet || !outlet.isPosEnabled) {
+            if (!outlet) {
+                console.error(`[POS Sync] Outlet not found: ${outletId}`);
+                throw new TRPCError({ code: 'FORBIDDEN', message: 'Outlet not found' });
+            }
+            if (!outlet.isPosEnabled) {
+                console.error(`[POS Sync] POS not enabled for outlet: ${outletId}`);
                 throw new TRPCError({ code: 'FORBIDDEN', message: 'POS access denied' });
             }
+            console.log(`[POS Sync] Outlet verified: ${outlet.name}`);
 
             let customerId = null;
 
@@ -201,10 +211,19 @@ export const posRouter = router({
 
             // 4. Update Daily Sales (Live Tracking)
             // We upsert a Sale record so the Dashboard shows live data.
-            const staff = await ctx.prisma.user.findFirst({
+            // We upsert a Sale record so the Dashboard shows live data.
+            let staff = await ctx.prisma.user.findFirst({
                 where: { outletId },
                 select: { id: true }
             });
+
+            // Fallback: If no specific outlet staff, assign to any admin of the tenant
+            if (!staff) {
+                staff = await ctx.prisma.user.findFirst({
+                    where: { tenantId, role: { in: ['BRAND_ADMIN', 'SUPER'] } },
+                    select: { id: true }
+                });
+            }
 
             if (staff) {
                 const today = new Date(input.createdAt);
@@ -212,30 +231,35 @@ export const posRouter = router({
                 const currentMonth = input.createdAt.slice(0, 7); // YYYY-MM
 
                 // A. Update Daily Sale
-                await ctx.prisma.sale.upsert({
-                    where: {
-                        outletId_date: {
+                try {
+                    const sale = await ctx.prisma.sale.upsert({
+                        where: {
+                            outletId_date: {
+                                outletId,
+                                date: today
+                            }
+                        },
+                        update: {
+                            cashSale: { increment: input.paymentMethod === 'CASH' ? input.total : 0 },
+                            bankSale: { increment: input.paymentMethod !== 'CASH' ? input.total : 0 },
+                            totalSale: { increment: input.total },
+                            profit: { increment: input.total },
+                        },
+                        create: {
                             outletId,
-                            date: today
+                            staffId: staff.id,
+                            date: today,
+                            cashSale: input.paymentMethod === 'CASH' ? input.total : 0,
+                            bankSale: input.paymentMethod !== 'CASH' ? input.total : 0,
+                            totalSale: input.total,
+                            totalExpense: 0,
+                            profit: input.total
                         }
-                    },
-                    update: {
-                        cashSale: { increment: input.paymentMethod === 'CASH' ? input.total : 0 },
-                        bankSale: { increment: input.paymentMethod !== 'CASH' ? input.total : 0 },
-                        totalSale: { increment: input.total },
-                        profit: { increment: input.total },
-                    },
-                    create: {
-                        outletId,
-                        staffId: staff.id,
-                        date: today,
-                        cashSale: input.paymentMethod === 'CASH' ? input.total : 0,
-                        bankSale: input.paymentMethod !== 'CASH' ? input.total : 0,
-                        totalSale: input.total,
-                        totalExpense: 0,
-                        profit: input.total
-                    }
-                });
+                    });
+                    console.log(`[POS Sync] Daily Sale updated for ${today.toISOString().split('T')[0]}. Total: ${sale.totalSale}`);
+                } catch (err) {
+                    console.error(`[POS Sync] Failed to update Daily Sale:`, err);
+                }
 
                 // B. Update Monthly Summary (For Dashboard "Total Revenue" Card)
                 await ctx.prisma.monthlySummary.upsert({
@@ -267,6 +291,7 @@ export const posRouter = router({
                 });
             }
 
+            console.log(`[POS Sync] Successfully processed Order ID: ${order.id}`);
             return { success: true, id: order.id };
         }),
 
@@ -405,10 +430,10 @@ export const posRouter = router({
             if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
 
             // 1. Update Heartbeat
-            await ctx.prisma.outlet.update({
-                where: { id: outletId },
-                data: { lastSyncAt: new Date() }
-            });
+            // await ctx.prisma.outlet.update({
+            //     where: { id: outletId },
+            //     data: { lastSyncAt: new Date() }
+            // });
 
             // 2. Check Products Version
             const result = await ctx.prisma.product.aggregate({

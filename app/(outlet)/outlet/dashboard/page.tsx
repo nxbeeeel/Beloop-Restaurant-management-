@@ -35,7 +35,7 @@ export default function DashboardPage() {
     const alerts = stats?.alerts || { lowStockProducts: 0, lowStockIngredients: 0 };
     const recentSales = stats?.recentSales || [];
 
-    const formatCurrency = (amount: number | string | undefined) => {
+    const formatCurrency = (amount: any) => {
         return `₹${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 

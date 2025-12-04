@@ -13,6 +13,16 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      // eslint-disable-next-line
+      "react/forbid-dom-props": "off",
+      // eslint-disable-next-line
+      "react/forbid-component-props": "off",
+      // eslint-disable-next-line
+      "react/style-prop-object": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -43,10 +43,10 @@ export function ProductsTab({ outletId }: ProductsTabProps) {
         });
     };
 
-    const filteredProducts = products?.map(p => ({
+    const filteredProducts = (products?.map(p => ({
         ...p,
         price: Number(p.price)
-    })).filter(p => {
+    })) || []).filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
             p.sku.toLowerCase().includes(search.toLowerCase());
 

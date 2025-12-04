@@ -139,7 +139,7 @@ export function IngredientsTab({ outletId }: IngredientsTabProps) {
                                     </td>
                                     <td className="p-4">
                                         <div className="font-bold text-gray-900 text-lg">
-                                            {ingredient.stock} <span className="text-gray-400 text-xs font-normal">{ingredient.unit}</span>
+                                            {ingredient.stock} <span className="text-gray-400 text-xs font-normal">{ingredient.purchaseUnit}</span>
                                         </div>
                                         <div className="text-xs text-gray-400">Min: {ingredient.minStock}</div>
                                     </td>
