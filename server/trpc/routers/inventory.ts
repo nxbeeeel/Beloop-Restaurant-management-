@@ -2,20 +2,26 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { enforceTenant } from "../middleware/roleCheck";
 import { TRPCError } from "@trpc/server";
+import { InventoryService } from "../../services/inventory.service";
+import { CacheService } from "../../services/cache.service";
 
 export const inventoryRouter = router({
     getLowStock: protectedProcedure
         .use(enforceTenant)
         .input(z.object({ outletId: z.string() }))
         .query(async ({ ctx, input }) => {
-            const products = await ctx.prisma.product.findMany({
-                where: { outletId: input.outletId },
-                include: { supplier: true }
-            });
-
-            // Filter in memory or use raw query if performance needed
-            // Prisma doesn't support comparing two columns in `where` easily without raw query
-            return products.filter(p => p.currentStock <= p.minStock);
+            return CacheService.getOrSet(
+                CacheService.keys.lowStock(input.outletId),
+                async () => {
+                    const products = await ctx.prisma.product.findMany({
+                        where: { outletId: input.outletId },
+                        include: { supplier: true }
+                    });
+                    // Filter in memory 
+                    return products.filter(p => p.currentStock <= p.minStock);
+                },
+                300 // 5 minutes TTL
+            );
         }),
 
     submitCheck: protectedProcedure
@@ -94,27 +100,12 @@ export const inventoryRouter = router({
             notes: z.string().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
-            return ctx.prisma.$transaction(async (tx) => {
-                const product = await tx.product.update({
-                    where: { id: input.productId },
-                    data: {
-                        currentStock: { increment: input.qty },
-                        version: { increment: 1 }
-                    }
-                });
-
-                await tx.stockMove.create({
-                    data: {
-                        outletId: input.outletId,
-                        productId: input.productId,
-                        qty: input.qty,
-                        type: input.type,
-                        date: new Date(),
-                        notes: input.notes
-                    }
-                });
-
-                return product;
+            return InventoryService.adjustStock(ctx.prisma, {
+                productId: input.productId,
+                outletId: input.outletId,
+                qty: input.qty,
+                type: input.type,
+                notes: input.notes
             });
         })
 });

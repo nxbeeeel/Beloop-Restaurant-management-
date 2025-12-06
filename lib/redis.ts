@@ -15,3 +15,17 @@ const redisClient = () => {
 };
 
 export const redis = redisClient();
+
+export async function cacheGetOrSet<T>(key: string, fetcher: () => Promise<T>, ttlSeconds: number = 3600): Promise<T> {
+    if (!redis) return fetcher();
+    try {
+        const cached = await redis.get<T>(key);
+        if (cached) return cached;
+        const result = await fetcher();
+        if (result) await redis.set(key, result, { ex: ttlSeconds });
+        return result;
+    } catch (err) {
+        console.error(`Redis Error (${key}):`, err);
+        return fetcher();
+    }
+}

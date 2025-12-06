@@ -51,7 +51,7 @@
       "email": null,
       "googleSheetsUrl": null,
       "status": "ACTIVE",
-      "isPosEnabled": false,
+      "isPosEnabled": true,
       "sheetExportUrl": null,
       "spreadsheetId": null,
       "lastSyncAt": null

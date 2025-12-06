@@ -6,7 +6,8 @@ async function aggregateAnalytics() {
     console.log('📊 Starting Analytics Aggregation...');
 
     const outlets = await prisma.outlet.findMany({
-        where: { status: 'ACTIVE' }
+        where: { status: 'ACTIVE' },
+        select: { id: true, tenantId: true, name: true }
     });
 
     console.log(`Found ${outlets.length} active outlets.`);
@@ -50,16 +51,6 @@ async function aggregateAnalytics() {
                 totalExpensesFromSales += Number(sale.totalExpense);
             });
 
-            const avgTicketSize = daysWithSales > 0 ? totalSales / daysWithSales : 0; // Approximation as we don't have transaction count per day yet, using daily avg for now or we need transaction count in Sale model. 
-            // Wait, avgTicketSize is usually Total Sales / Number of Orders. 
-            // We don't have number of orders in Sale model (DailyClosure). 
-            // We might have it in PurchaseOrder or we need to add 'orderCount' to Sale model.
-            // For now, let's use Total Sales / Days as "Avg Daily Sales" or just 0 if we can't calc ticket size.
-            // Actually, let's use 0 for avgTicketSize for now or rename it to avgDailySales in usage.
-            // But the requirement says "Average Ticket Size". 
-            // If we don't have order count, we can't calculate it accurately.
-            // I'll leave it as 0 or mock it for now, but ideally we should add `orderCount` to `Sale` model.
-
             // 2. Expenses Aggregation (Detailed Expenses)
             const expenses = await prisma.expense.findMany({
                 where: {
@@ -81,12 +72,7 @@ async function aggregateAnalytics() {
                 expenseBreakdown[category] = (expenseBreakdown[category] || 0) + amount;
             });
 
-            // Total Expenses = Expenses from Daily Closure (if they are separate) OR Detailed Expenses.
-            // Usually Daily Closure expenses are a summary. Detailed expenses are the breakdown.
-            // We should probably use the Detailed Expenses for the breakdown, but Total Expense might come from Sales if that's the source of truth for cash flow.
-            // Let's use the greater of the two or prefer Detailed if available.
-            // For this system, let's assume Detailed Expenses are the source of truth for the breakdown.
-            const finalTotalExpenses = totalDetailedExpenses; // Or totalExpensesFromSales? Let's stick to detailed for breakdown consistency.
+            const finalTotalExpenses = totalDetailedExpenses;
 
             // 3. Wastage Aggregation
             const wastages = await prisma.wastage.findMany({
@@ -107,12 +93,7 @@ async function aggregateAnalytics() {
             const wastageRatio = totalSales > 0 ? (totalWastage / totalSales) * 100 : 0;
 
             // 4. Profitability
-            // Gross Profit = Sales - COGS. 
-            // We don't have COGS easily. Let's approximate Gross Profit as Sales - Wastage (very rough) or just Sales for now if no COGS.
-            // Or maybe Gross Profit = Sales - (Food Cost). Food Cost is usually ~30%.
-            // Let's use Sales - Wastage for now as a proxy for "Losses".
             const grossProfit = totalSales - totalWastage;
-
             const netProfit = totalSales - finalTotalExpenses;
             const profitMargin = totalSales > 0 ? (netProfit / totalSales) * 100 : 0;
             const expenseRatio = totalSales > 0 ? (finalTotalExpenses / totalSales) * 100 : 0;
@@ -126,10 +107,11 @@ async function aggregateAnalytics() {
                     }
                 },
                 update: {
+                    tenantId: outlet.tenantId, // Ensure tenantId is set
                     totalSales,
                     cashSales,
                     bankSales,
-                    avgTicketSize: 0, // Placeholder
+                    avgTicketSize: 0,
                     daysWithSales,
                     totalExpenses: finalTotalExpenses,
                     expenseBreakdown,
@@ -142,6 +124,7 @@ async function aggregateAnalytics() {
                     lastRefreshed: new Date()
                 },
                 create: {
+                    tenantId: outlet.tenantId || "UNKNOWN",
                     outletId: outlet.id,
                     month: monthKey,
                     totalSales,

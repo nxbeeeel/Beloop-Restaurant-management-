@@ -2,21 +2,28 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { enforceTenant } from "../middleware/roleCheck";
 import { TRPCError } from "@trpc/server";
+import { CacheService } from "../../services/cache.service";
 
 export const productsRouter = router({
     list: protectedProcedure
         .use(enforceTenant)
         .input(z.object({ outletId: z.string() }))
         .query(async ({ ctx, input }) => {
-            return ctx.prisma.product.findMany({
-                where: { outletId: input.outletId },
-                include: {
-                    supplier: true,
-                    category: true,
-                    recipeItems: { include: { ingredient: true } }
+            return CacheService.getOrSet(
+                CacheService.keys.inventoryList(input.outletId),
+                async () => {
+                    return ctx.prisma.product.findMany({
+                        where: { outletId: input.outletId },
+                        include: {
+                            supplier: true,
+                            category: true,
+                            recipeItems: { include: { ingredient: true } }
+                        },
+                        orderBy: { name: 'asc' }
+                    });
                 },
-                orderBy: { name: 'asc' }
-            });
+                300 // 5 minutes TTL
+            );
         }),
 
     create: protectedProcedure
@@ -78,6 +85,15 @@ export const productsRouter = router({
                         }
                     });
                 }));
+
+
+
+                // Invalidate for all affected outlets
+                for (const outlet of outlets) {
+                    await CacheService.invalidate(CacheService.keys.inventoryList(outlet.id));
+                    await CacheService.invalidate(CacheService.keys.fullMenu(outlet.id));
+                    await CacheService.invalidate(CacheService.keys.lowStock(outlet.id));
+                }
 
                 return results.find(r => r !== null) || results[0]; // Return one of them
             } else {
@@ -223,9 +239,17 @@ export const productsRouter = router({
         .use(enforceTenant)
         .input(z.string())
         .mutation(async ({ ctx, input }) => {
-            return ctx.prisma.product.delete({
-                where: { id: input }
-            });
+            const product = await ctx.prisma.product.findUnique({ where: { id: input } });
+            if (!product) throw new TRPCError({ code: 'NOT_FOUND' });
+
+            await ctx.prisma.product.delete({ where: { id: input } });
+
+            // Invalidate Caches
+            await CacheService.invalidate(CacheService.keys.inventoryList(product.outletId));
+            await CacheService.invalidate(CacheService.keys.fullMenu(product.outletId));
+            await CacheService.invalidate(CacheService.keys.menuItem(product.id));
+
+            return { success: true };
         }),
 
     adjustStock: protectedProcedure
@@ -233,36 +257,12 @@ export const productsRouter = router({
         .input(z.object({
             productId: z.string(),
             outletId: z.string(),
-            qty: z.number(), // Positive for add, negative for remove
-            type: z.enum(['PURCHASE', 'SALE', 'WASTE', 'ADJUSTMENT']),
-            notes: z.string().optional(),
-            date: z.date().default(() => new Date()),
+            qty: z.number(),
+            type: z.enum(['PURCHASE', 'ADJUSTMENT', 'WASTE', 'SALE']),
+            notes: z.string().optional()
         }))
         .mutation(async ({ ctx, input }) => {
-            // Transaction to ensure consistency
-            return ctx.prisma.$transaction(async (tx) => {
-                // 1. Update Product Stock
-                const product = await tx.product.update({
-                    where: { id: input.productId },
-                    data: {
-                        currentStock: { increment: input.qty },
-                        version: { increment: 1 }
-                    }
-                });
-
-                // 2. Create Stock Move Record
-                await tx.stockMove.create({
-                    data: {
-                        outletId: input.outletId,
-                        productId: input.productId,
-                        qty: input.qty,
-                        type: input.type,
-                        date: input.date,
-                        notes: input.notes
-                    }
-                });
-
-                return product;
-            });
+            const { InventoryService } = await import("../../services/inventory.service");
+            return InventoryService.adjustStock(ctx.prisma, input);
         })
 });

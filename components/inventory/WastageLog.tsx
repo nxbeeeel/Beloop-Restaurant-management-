@@ -1,48 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
 import { Trash2, AlertTriangle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useWastage } from "./useWastage";
 
 export default function WastageLog({ outletId }: { outletId: string }) {
-    const [productId, setProductId] = useState("");
-    const [qty, setQty] = useState("");
-    const [reason, setReason] = useState("");
-
-    const utils = trpc.useUtils();
-
-    const { data: products } = trpc.products.list.useQuery({ outletId });
-    const { data: wastageHistory } = trpc.wastage.list.useQuery({ outletId });
-
-    const createWastage = trpc.wastage.create.useMutation({
-        onSuccess: () => {
-            toast.success("Wastage recorded successfully");
-            utils.wastage.list.invalidate();
-            utils.inventory.getLowStock.invalidate(); // Stock changed
-            setProductId("");
-            setQty("");
-            setReason("");
-        },
-        onError: (e) => toast.error(e.message)
-    });
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!productId || !qty || !reason) return toast.error("Please fill all fields");
-
-        createWastage.mutate({
-            outletId,
-            productId,
-            qty: parseFloat(qty),
-            reason
-        });
-    };
+    const {
+        productId, setProductId,
+        qty, setQty,
+        reason, setReason,
+        products,
+        wastageHistory,
+        submitWastage,
+        isSubmitting
+    } = useWastage(outletId);
 
     return (
         <div className="space-y-6">
@@ -68,7 +43,7 @@ export default function WastageLog({ outletId }: { outletId: string }) {
                         <CardTitle>Log New Wastage</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                        <form onSubmit={submitWastage} className="space-y-4">
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">Product</label>
                                 <Select value={productId} onValueChange={setProductId}>
@@ -116,9 +91,9 @@ export default function WastageLog({ outletId }: { outletId: string }) {
                                 <Button
                                     type="submit"
                                     className="w-full bg-red-600 hover:bg-red-700"
-                                    disabled={createWastage.isPending}
+                                    disabled={isSubmitting}
                                 >
-                                    {createWastage.isPending ? "Recording..." : "Record Wastage"}
+                                    {isSubmitting ? "Recording..." : "Record Wastage"}
                                 </Button>
                                 <p className="text-xs text-gray-500 mt-2 text-center">
                                     <AlertTriangle className="h-3 w-3 inline mr-1" />

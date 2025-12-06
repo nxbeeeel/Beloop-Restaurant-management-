@@ -45,6 +45,9 @@ model Tenant {
   suppliers           Supplier[]
   users               User[]
   payments            Payment[]
+  sales               Sale[]
+  expenses            Expense[]
+  monthlySummaries    MonthlySummary[]
 
   // Subscription & Billing
   status          TenantStatus @default(ACTIVE)
@@ -77,6 +80,7 @@ model Outlet {
   expenses         Expense[]
   invitations      Invitation[]
   monthlySummaries MonthlySummary[]
+  historicalInventorySummaries HistoricalInventorySummary[]
   tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   products         Product[]
   productSaleLinks ProductSaleLink[]
@@ -160,10 +164,15 @@ model Sale {
   outlet            Outlet    @relation(fields: [outletId], references: [id], onDelete: Cascade)
   staff             User      @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
+  // Optimization for Brand Analytics
+  tenantId          String?
+  tenant            Tenant?   @relation(fields: [tenantId], references: [id])
+
   @@unique([outletId, date])
   @@index([outletId, date])
   @@index([staffId, date])
   @@index([date])
+  @@index([tenantId, date])
 }
 
 model Expense {
@@ -185,10 +194,15 @@ model Expense {
   staff         User           @relation(fields: [staffId], references: [id], onDelete: Cascade)
   purchaseOrder PurchaseOrder?
 
+  // Optimization
+  tenantId      String?
+  tenant        Tenant?        @relation(fields: [tenantId], references: [id])
+
   @@index([outletId, date])
   @@index([staffId, date])
   @@index([category, date])
   @@index([date])
+  @@index([tenantId, date])
 }
 
 model MonthlySummary {
@@ -210,9 +224,37 @@ model MonthlySummary {
   totalWastage     Decimal  @default(0) @db.Decimal(12, 2)
   wastageRatio     Decimal  @default(0) @db.Decimal(5, 2)
   outlet           Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  
+  // Optimization
+  tenantId         String?
+  tenant           Tenant?  @relation(fields: [tenantId], references: [id])
 
   @@unique([outletId, month])
   @@index([outletId, month])
+  @@index([tenantId, month])
+}
+
+model HistoricalInventorySummary {
+  id            String   @id @default(cuid())
+  outletId      String
+  date          DateTime @db.Date
+  
+  // Aggregated values for the day
+  totalPurchase Decimal  @default(0) @db.Decimal(12, 2)
+  totalWaste    Decimal  @default(0) @db.Decimal(12, 2)
+  totalUsage    Decimal  @default(0) @db.Decimal(12, 2) // Sales consumption
+  closingValue  Decimal  @default(0) @db.Decimal(12, 2) // Total stock value at EOD
+  
+  // JSON storage for detailed category breakdown if needed for graphs
+  breakdown     Json?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  outlet        Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, date])
+  @@index([outletId, date])
 }
 
 model Category {
