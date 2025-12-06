@@ -1,30 +1,22 @@
-// Check what's actually in the database
-import { prisma } from "../server/db";
+
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 async function main() {
-    console.log("=== ALL USERS IN DATABASE ===\n");
-
     const users = await prisma.user.findMany({
-        select: {
-            id: true,
-            email: true,
-            clerkId: true,
-            role: true,
-            tenantId: true,
-            name: true
-        },
-        orderBy: { email: 'asc' }
+        include: { outlet: true }
     });
 
-    console.log(JSON.stringify(users, null, 2));
-    console.log(`\nTotal users: ${users.length}`);
+    console.log(`Total Users: ${users.length}`);
+    for (const u of users) {
+        console.log(`Email: ${u.email}`);
+        console.log(`Outlet: ${u.outlet?.name || 'NONE'} (${u.outletId})`);
+        console.log('---');
+    }
 }
 
 main()
-    .catch((e) => {
-        console.error("Error:", e);
-        process.exit(1);
-    })
     .finally(async () => {
         await prisma.$disconnect();
     });

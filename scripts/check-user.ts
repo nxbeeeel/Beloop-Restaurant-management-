@@ -1,45 +1,47 @@
-// Script to check and fix user role
-import { prisma } from "../server/db";
+
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+const PARTIAL_ID = 'user_35vuzcLyGC0xARo'; // From user message
 
 async function main() {
-    const email = "mnabeelca123@gmail.com";
+    console.log('Searching for user starting with:', PARTIAL_ID);
 
-    // Find user by email
-    let user = await prisma.user.findUnique({
-        where: { email },
-        select: { id: true, email: true, clerkId: true, role: true, tenantId: true, name: true }
+    const users = await prisma.user.findMany({
+        where: {
+            clerkId: {
+                contains: PARTIAL_ID
+            }
+        },
+        include: {
+            tenant: true,
+            outlet: true
+        }
     });
 
-    if (!user) {
-        console.log(`❌ No user found with email ${email}`);
-        console.log("Checking all users...");
-        const allUsers = await prisma.user.findMany({
-            select: { id: true, email: true, clerkId: true, role: true, name: true }
-        });
-        console.log("All users:", JSON.stringify(allUsers, null, 2));
+    if (users.length === 0) {
+        console.log('No user found.');
         return;
     }
 
-    console.log("Current user state:", JSON.stringify(user, null, 2));
+    for (const user of users) {
+        console.log(`FOUND USER: ${user.name} (${user.email})`);
+        console.log(`Role: ${user.role}`);
+        console.log(`Tenant: ${user.tenantId}`);
+        console.log(`Outlet: ${user.outletId}`);
 
-    // Update to SUPER role
-    const updated = await prisma.user.update({
-        where: { email },
-        data: {
-            role: "SUPER",
-            tenantId: null, // SUPER users don't need a tenant
-            outletId: null
-        },
-    });
-
-    console.log("✅ Updated user:", JSON.stringify(updated, null, 2));
-    console.log("\n🎉 User upgraded to SUPER role!");
-    console.log("👉 Now log out and log back in to see the changes.");
+        if (user.tenantId === 'cm4bk1u8x0001cpeb0008x2pj') {
+            console.log('✅ Matches Key Tenant');
+        } else {
+            console.log('❌ Does NOT match Key Tenant (cm4bk1u8x0001cpeb0008x2pj)');
+        }
+    }
 }
 
 main()
     .catch((e) => {
-        console.error("Error:", e);
+        console.error(e);
         process.exit(1);
     })
     .finally(async () => {

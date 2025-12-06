@@ -144,6 +144,28 @@ export default function SettingsPage() {
                     </CardContent>
                 </Card>
 
+                {/* Developer Information */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Developer Information</CardTitle>
+                        <CardDescription>System identifiers for API and POS configuration.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid gap-2">
+                            <Label>Tenant ID</Label>
+                            <div className="p-3 bg-gray-100 rounded-md font-mono text-sm break-all">
+                                {outlet?.tenantId}
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Outlet ID</Label>
+                            <div className="p-3 bg-gray-100 rounded-md font-mono text-sm break-all">
+                                {outlet?.id}
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {/* Google Sheets Integration */}
                 <Card>
                     <CardHeader>
