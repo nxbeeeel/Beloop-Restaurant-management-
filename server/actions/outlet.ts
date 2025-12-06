@@ -72,6 +72,7 @@ export async function createOutlet(formData: FormData) {
                 code,
                 address: address || null,
                 phone: phone || null,
+                isPosEnabled: true, // Auto-enable POS for new outlets
             }
         });
 

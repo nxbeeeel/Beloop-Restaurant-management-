@@ -124,6 +124,22 @@ export async function acceptInvitation(token: string) {
         }
     });
 
+    // 3. Sync to Clerk Metadata (CRITICAL for POS Access)
+    try {
+        const client = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+        await client.users.updateUserMetadata(user.id, {
+            publicMetadata: {
+                role: invite.inviteRole,
+                tenantId: invite.tenantId,
+                outletId: invite.outletId,
+                onboardingComplete: true
+            }
+        });
+    } catch (err) {
+        console.error("Failed to sync Clerk metadata:", err);
+        // Don't block flow, but log error
+    }
+
     // Determine redirect path based on role
     let redirectPath = "/";
     switch (invite.inviteRole) {
