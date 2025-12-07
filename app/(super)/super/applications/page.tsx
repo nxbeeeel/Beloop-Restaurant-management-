@@ -27,15 +27,15 @@ export default function ApplicationsPage() {
     const { data: applications, isLoading } = trpc.brandApplication.list.useQuery();
 
     // Approval Success State
-    const [approvedData, setApprovedData] = useState<{ tenant: any, invite: any } | null>(null);
+    const [approvedData, setApprovedData] = useState<{ tenant: any, invite?: any, actionTaken: string } | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     const approveMutation = trpc.brandApplication.approve.useMutation({
-        onSuccess: (data) => {
+        onSuccess: (data: any) => {
             toast.success('Application approved! Tenant created.');
             utils.brandApplication.list.invalidate();
             utils.super.listTenants.invalidate();
-            setApprovedData({ tenant: data.tenant, invite: data.invite });
+            setApprovedData({ tenant: data.tenant, invite: data.invite, actionTaken: data.actionTaken });
             setIsDialogOpen(true);
         },
         onError: (err) => toast.error(err.message)
@@ -61,7 +61,7 @@ export default function ApplicationsPage() {
         }
     };
 
-    const inviteLink = approvedData ? `${window.location.origin}/signup?token=${approvedData.invite.token}` : '';
+    const inviteLink = approvedData?.invite ? `${window.location.origin}/signup?token=${approvedData.invite.token}` : '';
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -149,28 +149,38 @@ export default function ApplicationsPage() {
                         <DialogDescription>
                             The tenant <strong>{approvedData?.tenant.name}</strong> has been created.
                             <br />
-                            Please share the following invitation link with <strong>{approvedData?.invite.email}</strong>.
+                            {approvedData?.actionTaken === 'ASSIGNED' ? (
+                                <span className="text-emerald-500 font-bold mt-2 block">
+                                    User was already registered. They have been automatically assigned as Brand Admin.
+                                </span>
+                            ) : (
+                                <span>Please share the following invitation link with the applicant.</span>
+                            )}
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="p-4 bg-muted rounded-lg border">
-                            <Label className="text-xs text-muted-foreground mb-1 block">Invitation Link</Label>
-                            <div className="flex items-center gap-2">
-                                <code className="flex-1 bg-background p-2 rounded border text-sm overflow-hidden text-ellipsis whitespace-nowrap">
-                                    {inviteLink}
-                                </code>
-                                <Button size="icon" variant="outline" onClick={() => {
-                                    navigator.clipboard.writeText(inviteLink);
-                                    toast.success('Link copied to clipboard!');
-                                }}>
-                                    <Copy className="h-4 w-4" />
-                                </Button>
+
+                    {approvedData?.actionTaken === 'INVITED' && (
+                        <div className="py-4 space-y-4">
+                            <div className="p-4 bg-muted rounded-lg border">
+                                <Label className="text-xs text-muted-foreground mb-1 block">Invitation Link</Label>
+                                <div className="flex items-center gap-2">
+                                    <code className="flex-1 bg-background p-2 rounded border text-sm overflow-hidden text-ellipsis whitespace-nowrap">
+                                        {inviteLink}
+                                    </code>
+                                    <Button size="icon" variant="outline" onClick={() => {
+                                        navigator.clipboard.writeText(inviteLink);
+                                        toast.success('Link copied to clipboard!');
+                                    }}>
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                                <p><strong>Note:</strong> Since we don't have an email service configured, you must send this link manually.</p>
                             </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                            <p><strong>Note:</strong> Since we don't have an email service configured, you must send this link manually.</p>
-                        </div>
-                    </div>
+                    )}
+
                     <DialogFooter>
                         <Button onClick={() => setIsDialogOpen(false)}>Done</Button>
                     </DialogFooter>

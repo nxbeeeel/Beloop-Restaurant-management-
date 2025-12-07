@@ -46,20 +46,9 @@ export const brandApplicationRouter = router({
                 throw new TRPCError({ code: 'BAD_REQUEST', message: 'Application is not pending' });
             }
 
-            // Check if email already used (basic check, though User model has unique email)
-            const existingUser = await prisma.user.findUnique({ where: { email: application.email } });
-            if (existingUser) {
-                // Handle edge case or just error. 
-                // For MVP, if user exists, maybe we just add them to the tenant? 
-                // But here we are creating a BRAND, so it's a new tenant.
-                // Let's error for now.
-                throw new TRPCError({ code: 'CONFLICT', message: 'User with this email already exists' });
-            }
-
             // 1. Create Tenant
             // Slug generation: simple cleanup
             let slug = application.brandName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-            // Ensure uniqueness (simple retry or random suffix could be added, keeping it simple for now)
             const existingTenant = await prisma.tenant.findUnique({ where: { slug } });
             if (existingTenant) {
                 slug = `${slug}-${Date.now()}`;
@@ -74,19 +63,37 @@ export const brandApplicationRouter = router({
                 },
             });
 
-            // 2. Create Invite for the user
-            const invite = await prisma.invitation.create({
-                data: {
-                    token: crypto.randomUUID(),
-                    email: application.email,
-                    tenantId: tenant.id,
-                    inviteRole: 'BRAND_ADMIN',
-                    status: 'PENDING',
-                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-                    createdById: 'system', // or ctx.user.id
-                    createdByRole: 'SUPER',
-                },
-            });
+            // 2. Handle User (Existing vs New)
+            const existingUser = await prisma.user.findUnique({ where: { email: application.email } });
+            let invite = null;
+            let actionTaken = 'INVITED'; // or 'ASSIGNED'
+
+            if (existingUser) {
+                // User exists: Direct assignment
+                await prisma.user.update({
+                    where: { id: existingUser.id },
+                    data: {
+                        role: 'BRAND_ADMIN',
+                        tenantId: tenant.id,
+                        isActive: true
+                    }
+                });
+                actionTaken = 'ASSIGNED';
+            } else {
+                // User does not exist: Create Invitation
+                invite = await prisma.invitation.create({
+                    data: {
+                        token: crypto.randomUUID(),
+                        email: application.email,
+                        tenantId: tenant.id,
+                        inviteRole: 'BRAND_ADMIN',
+                        status: 'PENDING',
+                        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+                        createdById: 'system', // or ctx.user.id
+                        createdByRole: 'SUPER',
+                    },
+                });
+            }
 
             // 3. Update Application Status
             await prisma.brandApplication.update({
@@ -94,7 +101,7 @@ export const brandApplicationRouter = router({
                 data: { status: 'APPROVED' },
             });
 
-            return { tenant, invite };
+            return { tenant, invite, actionTaken };
         }),
 
     reject: requireSuper
