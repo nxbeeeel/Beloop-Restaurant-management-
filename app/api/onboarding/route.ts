@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
             },
         });
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             success: true,
             tenant: {
                 id: tenant.id,
@@ -88,6 +88,16 @@ export async function POST(req: NextRequest) {
                 primaryColor: tenant.primaryColor,
             },
         });
+
+        // Set cookie to allow immediate access to dashboard while Clerk claims refresh
+        response.cookies.set('onboarding_complete', 'true', {
+            path: '/',
+            maxAge: 60 * 60 * 24 * 30, // 30 days
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production'
+        });
+
+        return response;
     } catch (error) {
         console.error('Onboarding error:', error);
         return NextResponse.json(

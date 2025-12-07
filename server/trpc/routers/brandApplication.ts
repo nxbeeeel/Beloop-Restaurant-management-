@@ -114,4 +114,27 @@ export const brandApplicationRouter = router({
                 data: { status: 'REJECTED' },
             });
         }),
+
+    getInvite: requireSuper
+        .input(z.object({
+            id: z.string()
+        }))
+        .query(async ({ input }) => {
+            const app = await prisma.brandApplication.findUnique({
+                where: { id: input.id },
+                select: { email: true }
+            });
+
+            if (!app) return null;
+
+            const invite = await prisma.invitation.findFirst({
+                where: {
+                    email: app.email,
+                    status: 'PENDING'
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            return invite;
+        }),
 });
