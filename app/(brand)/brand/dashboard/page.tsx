@@ -2,6 +2,7 @@ import { prisma } from "@/server/db";
 import { auth } from "@clerk/nextjs/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, CreditCard, Users, Store } from "lucide-react";
+import { LogoutButton } from "@/components/auth/LogoutButton"; // Import moved to top
 
 interface OutletWithStats {
     id: string;
