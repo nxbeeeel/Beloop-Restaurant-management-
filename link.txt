@@ -1,0 +1,1 @@
+http://localhost:3000/signup?token=0ffd9bda-5487-4d89-bb63-54580da7ae1e

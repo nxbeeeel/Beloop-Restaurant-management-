@@ -423,4 +423,43 @@ export const superRouter = router({
 
             return { tenant, invite };
         }),
+    // Generic Invite User (Super Admin capable of inviting anyone)
+    inviteUser: requireSuper
+        .input(z.object({
+            email: z.string().email(),
+            name: z.string().min(1),
+            role: z.enum(['SUPER', 'BRAND_ADMIN', 'OUTLET_MANAGER', 'STAFF']),
+            tenantId: z.string().optional(), // Required if not SUPER
+            outletId: z.string().optional(), // Optional, for specific outlet assignment
+        }))
+        .mutation(async ({ ctx, input }) => {
+            // 1. Validation
+            const existingUser = await ctx.prisma.user.findUnique({ where: { email: input.email } });
+            if (existingUser) {
+                throw new TRPCError({ code: 'CONFLICT', message: 'User already exists' });
+            }
+
+            if (input.role !== 'SUPER' && !input.tenantId) {
+                // If not creating a super admin, must attach to a tenant
+                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Tenant ID is required for non-super roles' });
+            }
+
+            // 2. Create Invitation
+            const invite = await ctx.prisma.invitation.create({
+                data: {
+                    token: crypto.randomUUID(),
+                    email: input.email,
+                    inviteRole: input.role,
+                    tenantId: input.tenantId, // Can be null if SUPER
+                    outletId: input.outletId,
+                    status: 'PENDING',
+                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                    createdById: ctx.user.id,
+                    createdByRole: 'SUPER',
+                    metadata: { name: input.name }
+                },
+            });
+
+            return invite;
+        }),
 });

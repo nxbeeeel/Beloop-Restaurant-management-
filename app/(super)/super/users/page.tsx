@@ -11,9 +11,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from 'react';
 
+import { InviteUserDialog } from "@/components/super/InviteUserDialog";
+import { UserActions } from "@/components/super/UserActions";
+
 export default function UserManagementPage() {
     const [search, setSearch] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('ALL');
+    const [isInviteOpen, setIsInviteOpen] = useState(false);
 
     const { data: users, isLoading } = trpc.super.listAllUsers.useQuery({
         search: search,
@@ -28,11 +32,14 @@ export default function UserManagementPage() {
                     <h2 className="text-3xl font-bold tracking-tight text-white">Users</h2>
                     <p className="text-stone-400">Manage system-wide user access and roles.</p>
                 </div>
-                {/* Future: Add Invite User Modal Trigger Here */}
-                <Button className="bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-500/20">
+                <Button
+                    onClick={() => setIsInviteOpen(true)}
+                    className="bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-500/20"
+                >
                     <Mail className="w-4 h-4 mr-2" />
                     Invite User
                 </Button>
+                <InviteUserDialog open={isInviteOpen} onOpenChange={setIsInviteOpen} />
             </div>
 
             {/* Filter Bar */}
@@ -99,13 +106,14 @@ export default function UserManagementPage() {
                                         {user.role.replace('_', ' ')}
                                     </Badge>
 
-                                    <Badge variant="outline" className="border-emerald-500/20 bg-emerald-500/10 text-emerald-500">
-                                        Active
+                                    <Badge variant="outline" className={`
+                                        bg-opacity-10 
+                                        ${user.isActive ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500' : 'border-red-500/20 bg-red-500/10 text-red-500'}
+                                    `}>
+                                        {user.isActive ? 'Active' : 'Suspended'}
                                     </Badge>
 
-                                    <Button variant="ghost" size="icon" className="text-stone-400 hover:text-white hover:bg-stone-800">
-                                        <MoreHorizontal className="w-5 h-5" />
-                                    </Button>
+                                    <UserActions user={user} />
                                 </div>
                             </div>
                         </Card>
