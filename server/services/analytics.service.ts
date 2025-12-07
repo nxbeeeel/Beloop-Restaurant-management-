@@ -69,7 +69,7 @@ export class AnalyticsService {
                 growthRate,
                 newTenantsThisMonth: last30Days,
             };
-        }, 3600); // 1 hour
+        }, 60); // 60s cache
     }
 
     static async getRevenueTrend(prisma: PrismaClient, days: number = 30) {
@@ -156,272 +156,263 @@ export class AnalyticsService {
                 if (tenant._count.outlets === 0) healthScore -= 25;
                 if (monthlyRevenue === 0) healthScore -= 20;
 
-                return {
-                    id: tenant.id,
-                    name: tenant.name,
-                    status: 'ACTIVE', // TODO: Add status field to Tenant model
-                    outlets: tenant._count.outlets,
-                    users: tenant._count.users,
-                    monthlyRevenue,
-                    lastActivity,
-                    healthScore: Math.max(0, healthScore),
-                };
-            });
-        }, 3600);
-    }
-
-    static async getRecentActivity(prisma: PrismaClient, limit: number = 20) {
-        const [recentTenants, recentUsers, recentSales] = await Promise.all([
-            // Recent tenant signups
-            prisma.tenant.findMany({
-                take: 5,
-                orderBy: { createdAt: 'desc' },
-                select: {
-                    id: true,
-                    name: true,
-                    createdAt: true,
-                },
-            }),
-            // Recent user registrations
-            prisma.user.findMany({
-                take: 5,
-                orderBy: { createdAt: 'desc' },
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    role: true,
-                    createdAt: true,
-                    tenant: {
-                        select: { name: true },
-                    },
-                },
-            }),
-            // Recent high-value sales
-            prisma.sale.findMany({
-                take: 5,
-                where: {
-                    totalSale: {
-                        gte: 10000, // High-value threshold
-                    },
-                },
-                orderBy: { createdAt: 'desc' },
-                select: {
-                    id: true,
-                    totalSale: true,
-                    createdAt: true,
-                    outlet: {
-                        select: {
-                            name: true,
-                            tenant: {
-                                select: { name: true },
-                            },
-                        },
-                    },
-                },
-            }),
-        ]);
-
-        // Combine and sort all activities
-        const activities = [
-            ...recentTenants.map(t => ({
-                id: t.id,
-                type: 'TENANT_CREATED' as const,
-                description: `New tenant: ${t.name}`,
-                timestamp: t.createdAt,
-                metadata: { tenantName: t.name },
-            })),
-            ...recentUsers.map(u => ({
-                id: u.id,
-                type: 'USER_REGISTERED' as const,
-                description: `New ${u.role} user: ${u.name} (${u.tenant?.name || 'No tenant'})`,
-                timestamp: u.createdAt,
-                metadata: { userName: u.name, role: u.role, tenantName: u.tenant?.name },
-            })),
-            ...recentSales.map(s => ({
-                id: s.id,
-                type: 'HIGH_VALUE_SALE' as const,
-                description: `High-value sale: ₹${s.totalSale} at ${s.outlet.name}`,
-                timestamp: s.createdAt,
-                metadata: {
-                    amount: Number(s.totalSale),
-                    outletName: s.outlet.name,
-                    tenantName: s.outlet.tenant.name,
-                },
-            })),
-        ];
-
-        return activities
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-            .slice(0, limit);
-    }
-
-    static async getTopTenants(prisma: PrismaClient, metric: 'revenue' | 'users' | 'growth' = 'revenue', limit: number = 10) {
-        const tenants = await prisma.tenant.findMany({
-            include: {
-                _count: {
-                    select: { users: true, outlets: true },
-                },
-                outlets: {
-                    include: {
-                        sales: {
-                            where: {
-                                createdAt: {
-                                    gte: subDays(new Date(), 30),
-                                },
-                            },
-                            select: {
-                                totalSale: true,
-                            },
-                        },
-                    },
-                },
-            },
-        });
-
-        const tenantsWithMetrics = tenants.map(tenant => {
-            const revenue = tenant.outlets.reduce((total, outlet) => {
-                return total + outlet.sales.reduce((sum, sale) => sum + Number(sale.totalSale || 0), 0);
-            }, 0);
-
-            return {
-                id: tenant.id,
-                name: tenant.name,
-                revenue,
-                users: tenant._count.users,
-                outlets: tenant._count.outlets,
             };
         });
+    }, 60); // Reduced to 60s for development
+}
 
-        // Sort based on metric
-        const sorted = tenantsWithMetrics.sort((a, b) => {
-            if (metric === 'revenue') return b.revenue - a.revenue;
-            if (metric === 'users') return b.users - a.users;
-            return 0; // growth metric would need historical data
-        });
-
-        return sorted.slice(0, limit);
-    }
-
-    static async getUserGrowth(prisma: PrismaClient, days: number = 30) {
-        const startDate = subDays(new Date(), days);
-
-        const users = await prisma.user.groupBy({
-            by: ['createdAt'],
-            where: {
-                createdAt: {
-                    gte: startDate,
+    static async getRecentActivity(prisma: PrismaClient, limit: number = 20) {
+    const [recentTenants, recentUsers, recentSales] = await Promise.all([
+        // Recent tenant signups
+        prisma.tenant.findMany({
+            take: 5,
+            orderBy: { createdAt: 'desc' },
+            select: {
+                id: true,
+                name: true,
+                createdAt: true,
+            },
+        }),
+        // Recent user registrations
+        prisma.user.findMany({
+            take: 5,
+            orderBy: { createdAt: 'desc' },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                createdAt: true,
+                tenant: {
+                    select: { name: true },
                 },
             },
-            _count: true,
-        });
-
-        // Group by date
-        const dailyCounts: Record<string, number> = {};
-        users.forEach(user => {
-            const date = format(new Date(user.createdAt), 'MMM dd');
-            dailyCounts[date] = (dailyCounts[date] || 0) + user._count;
-        });
-
-        return Object.entries(dailyCounts).map(([date, count]) => ({
-            date,
-            users: count,
-        }));
-    }
-
-    static async getReportStats(prisma: PrismaClient, params: {
-        outletId: string;
-        startDate: Date;
-        endDate: Date;
-    }) {
-        const { outletId, startDate, endDate } = params;
-        const orderWhere: any = {
-            outletId,
-            createdAt: {
-                gte: startDate,
-                lte: endDate,
+        }),
+        // Recent high-value sales
+        prisma.sale.findMany({
+            take: 5,
+            where: {
+                totalSale: {
+                    gte: 10000, // High-value threshold
+                },
             },
-            status: 'COMPLETED',
-        };
-
-        const orders = await prisma.order.findMany({
-            where: orderWhere,
+            orderBy: { createdAt: 'desc' },
             select: {
-                totalAmount: true,
-                customerId: true,
-            }
-        });
+                id: true,
+                totalSale: true,
+                createdAt: true,
+                outlet: {
+                    select: {
+                        name: true,
+                        tenant: {
+                            select: { name: true },
+                        },
+                    },
+                },
+            },
+        }),
+    ]);
 
-        const orderCount = orders.length;
-        const uniqueCustomers = new Set(orders.map(o => o.customerId).filter(Boolean)).size;
-        const orderSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+    // Combine and sort all activities
+    const activities = [
+        ...recentTenants.map(t => ({
+            id: t.id,
+            type: 'TENANT_CREATED' as const,
+            description: `New tenant: ${t.name}`,
+            timestamp: t.createdAt,
+            metadata: { tenantName: t.name },
+        })),
+        ...recentUsers.map(u => ({
+            id: u.id,
+            type: 'USER_REGISTERED' as const,
+            description: `New ${u.role} user: ${u.name} (${u.tenant?.name || 'No tenant'})`,
+            timestamp: u.createdAt,
+            metadata: { userName: u.name, role: u.role, tenantName: u.tenant?.name },
+        })),
+        ...recentSales.map(s => ({
+            id: s.id,
+            type: 'HIGH_VALUE_SALE' as const,
+            description: `High-value sale: ₹${s.totalSale} at ${s.outlet.name}`,
+            timestamp: s.createdAt,
+            metadata: {
+                amount: Number(s.totalSale),
+                outletName: s.outlet.name,
+                tenantName: s.outlet.tenant.name,
+            },
+        })),
+    ];
+
+    return activities
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, limit);
+}
+
+    static async getTopTenants(prisma: PrismaClient, metric: 'revenue' | 'users' | 'growth' = 'revenue', limit: number = 10) {
+    const tenants = await prisma.tenant.findMany({
+        include: {
+            _count: {
+                select: { users: true, outlets: true },
+            },
+            outlets: {
+                include: {
+                    sales: {
+                        where: {
+                            createdAt: {
+                                gte: subDays(new Date(), 30),
+                            },
+                        },
+                        select: {
+                            totalSale: true,
+                        },
+                    },
+                },
+            },
+        },
+    });
+
+    const tenantsWithMetrics = tenants.map(tenant => {
+        const revenue = tenant.outlets.reduce((total, outlet) => {
+            return total + outlet.sales.reduce((sum, sale) => sum + Number(sale.totalSale || 0), 0);
+        }, 0);
 
         return {
-            sales: orderSales,
-            orders: orderCount,
-            customers: uniqueCustomers,
-            avgOrderValue: orderCount > 0 ? orderSales / orderCount : 0,
+            id: tenant.id,
+            name: tenant.name,
+            revenue,
+            users: tenant._count.users,
+            outlets: tenant._count.outlets,
         };
-    }
+    });
+
+    // Sort based on metric
+    const sorted = tenantsWithMetrics.sort((a, b) => {
+        if (metric === 'revenue') return b.revenue - a.revenue;
+        if (metric === 'users') return b.users - a.users;
+        return 0; // growth metric would need historical data
+    });
+
+    return sorted.slice(0, limit);
+}
+
+    static async getUserGrowth(prisma: PrismaClient, days: number = 30) {
+    const startDate = subDays(new Date(), days);
+
+    const users = await prisma.user.groupBy({
+        by: ['createdAt'],
+        where: {
+            createdAt: {
+                gte: startDate,
+            },
+        },
+        _count: true,
+    });
+
+    // Group by date
+    const dailyCounts: Record<string, number> = {};
+    users.forEach(user => {
+        const date = format(new Date(user.createdAt), 'MMM dd');
+        dailyCounts[date] = (dailyCounts[date] || 0) + user._count;
+    });
+
+    return Object.entries(dailyCounts).map(([date, count]) => ({
+        date,
+        users: count,
+    }));
+}
+
+    static async getReportStats(prisma: PrismaClient, params: {
+    outletId: string;
+    startDate: Date;
+    endDate: Date;
+}) {
+    const { outletId, startDate, endDate } = params;
+    const orderWhere: any = {
+        outletId,
+        createdAt: {
+            gte: startDate,
+            lte: endDate,
+        },
+        status: 'COMPLETED',
+    };
+
+    const orders = await prisma.order.findMany({
+        where: orderWhere,
+        select: {
+            totalAmount: true,
+            customerId: true,
+        }
+    });
+
+    const orderCount = orders.length;
+    const uniqueCustomers = new Set(orders.map(o => o.customerId).filter(Boolean)).size;
+    const orderSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+
+    return {
+        sales: orderSales,
+        orders: orderCount,
+        customers: uniqueCustomers,
+        avgOrderValue: orderCount > 0 ? orderSales / orderCount : 0,
+    };
+}
 
     static async getReportSalesTrend(prisma: PrismaClient, params: {
-        outletId: string;
-        startDate: Date;
-        endDate: Date;
-    }) {
-        const { outletId, startDate, endDate } = params;
-        const orders = await prisma.order.findMany({
-            where: {
+    outletId: string;
+    startDate: Date;
+    endDate: Date;
+}) {
+    const { outletId, startDate, endDate } = params;
+    const orders = await prisma.order.findMany({
+        where: {
+            outletId,
+            createdAt: { gte: startDate, lte: endDate },
+            status: 'COMPLETED',
+        },
+        orderBy: { createdAt: 'asc' },
+        select: {
+            createdAt: true,
+            totalAmount: true,
+        }
+    });
+
+    const aggregated: Record<string, number> = {};
+    orders.forEach(o => {
+        const d = o.createdAt.toISOString().split('T')[0];
+        aggregated[d] = (aggregated[d] || 0) + Number(o.totalAmount);
+    });
+
+    return Object.entries(aggregated).map(([date, amount]) => ({ date, amount }));
+}
+
+    static async getReportTopItems(prisma: PrismaClient, params: {
+    outletId: string;
+    startDate: Date;
+    endDate: Date;
+    limit: number;
+}) {
+    const { outletId, startDate, endDate, limit } = params;
+    const items = await prisma.orderItem.groupBy({
+        by: ['name'],
+        where: {
+            order: {
                 outletId,
                 createdAt: { gte: startDate, lte: endDate },
                 status: 'COMPLETED',
-            },
-            orderBy: { createdAt: 'asc' },
-            select: {
-                createdAt: true,
-                totalAmount: true,
             }
-        });
+        },
+        _sum: {
+            quantity: true,
+            total: true,
+        },
+        orderBy: {
+            _sum: { total: 'desc' }
+        },
+        take: limit,
+    });
 
-        const aggregated: Record<string, number> = {};
-        orders.forEach(o => {
-            const d = o.createdAt.toISOString().split('T')[0];
-            aggregated[d] = (aggregated[d] || 0) + Number(o.totalAmount);
-        });
-
-        return Object.entries(aggregated).map(([date, amount]) => ({ date, amount }));
-    }
-
-    static async getReportTopItems(prisma: PrismaClient, params: {
-        outletId: string;
-        startDate: Date;
-        endDate: Date;
-        limit: number;
-    }) {
-        const { outletId, startDate, endDate, limit } = params;
-        const items = await prisma.orderItem.groupBy({
-            by: ['name'],
-            where: {
-                order: {
-                    outletId,
-                    createdAt: { gte: startDate, lte: endDate },
-                    status: 'COMPLETED',
-                }
-            },
-            _sum: {
-                quantity: true,
-                total: true,
-            },
-            orderBy: {
-                _sum: { total: 'desc' }
-            },
-            take: limit,
-        });
-
-        return items.map(i => ({
-            name: i.name,
-            orders: i._sum.quantity || 0,
-            revenue: Number(i._sum.total || 0),
-        }));
-    }
+    return items.map(i => ({
+        name: i.name,
+        orders: i._sum.quantity || 0,
+        revenue: Number(i._sum.total || 0),
+    }));
+}
 }

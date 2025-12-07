@@ -10,7 +10,8 @@ import {
     Activity,
     ArrowUpRight,
     ArrowDownRight,
-    MoreHorizontal
+    MoreHorizontal,
+    RefreshCw
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RevenueChart } from "@/components/admin/RevenueChart";
 
 export default function SuperDashboardPage() {
+    const utils = trpc.useContext();
     const { data: stats } = trpc.superAnalytics.getPlatformStats.useQuery();
     const { data: revenueTrend } = trpc.superAnalytics.getRevenueTrend.useQuery({ days: 30 });
     const { data: activities } = trpc.superAnalytics.getRecentActivity.useQuery({ limit: 5 });
@@ -27,11 +29,25 @@ export default function SuperDashboardPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-stone-900 dark:text-white">Dashboard</h2>
-                    <p className="text-stone-500 dark:text-stone-400">Overview of platform performance and health.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-white">Dashboard</h2>
+                    <p className="text-stone-400">Overview of platform performance and health.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" className="bg-white dark:bg-stone-900">
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="bg-stone-900 border-stone-800 hover:bg-stone-800 text-stone-400 hover:text-white"
+                        onClick={() => {
+                            utils.superAnalytics.getPlatformStats.invalidate();
+                            utils.superAnalytics.getTenantHealth.invalidate();
+                            utils.superAnalytics.getRevenueTrend.invalidate();
+                            utils.superAnalytics.getRecentActivity.invalidate();
+                            // toast.success("Refreshed dashboard data"); // Assuming toast is imported or can be added
+                        }}
+                    >
+                        <RefreshCw className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" className="bg-stone-900 border-stone-800 hover:bg-stone-800 text-white">
                         Download Report
                     </Button>
                     <Button className="bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-500/20">

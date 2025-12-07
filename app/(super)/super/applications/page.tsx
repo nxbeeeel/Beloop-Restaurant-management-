@@ -43,58 +43,58 @@ export default function ApplicationsPage() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Brand Applications</h2>
-                    <p className="text-muted-foreground">Review and manage incoming brand partnership requests.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-white">Brand Applications</h2>
+                    <p className="text-stone-400">Review and manage incoming brand partnership requests.</p>
                 </div>
             </div>
 
-            <Card>
+            <Card className="bg-stone-900 border-stone-800">
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <FileText className="h-5 w-5" />
+                    <CardTitle className="flex items-center gap-2 text-white">
+                        <FileText className="h-5 w-5 text-rose-500" />
                         Applications List
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Table>
                         <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Brand Name</TableHead>
-                                <TableHead>Contact</TableHead>
-                                <TableHead>Est. Outlets</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
+                            <TableRow className="border-stone-800 hover:bg-transparent">
+                                <TableHead className="text-stone-400">Date</TableHead>
+                                <TableHead className="text-stone-400">Brand Name</TableHead>
+                                <TableHead className="text-stone-400">Contact</TableHead>
+                                <TableHead className="text-stone-400">Est. Outlets</TableHead>
+                                <TableHead className="text-stone-400">Status</TableHead>
+                                <TableHead className="text-right text-stone-400">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-8">Loading...</TableCell>
+                                <TableRow className="border-stone-800">
+                                    <TableCell colSpan={6} className="text-center py-8 text-stone-500">Loading...</TableCell>
                                 </TableRow>
                             ) : applications?.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No applications found.</TableCell>
+                                <TableRow className="border-stone-800">
+                                    <TableCell colSpan={6} className="text-center py-8 text-stone-500">No applications found.</TableCell>
                                 </TableRow>
                             ) : (
                                 applications?.map((app) => (
-                                    <TableRow key={app.id}>
-                                        <TableCell>{new Date(app.createdAt).toLocaleDateString()}</TableCell>
-                                        <TableCell className="font-medium">{app.brandName}</TableCell>
+                                    <TableRow key={app.id} className="border-stone-800 hover:bg-stone-800/50">
+                                        <TableCell className="text-stone-300">{new Date(app.createdAt).toLocaleDateString()}</TableCell>
+                                        <TableCell className="font-medium text-white">{app.brandName}</TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <span>{app.contactName}</span>
-                                                <span className="text-xs text-muted-foreground">{app.email}</span>
-                                                <span className="text-xs text-muted-foreground">{app.phone}</span>
+                                                <span className="text-stone-300">{app.contactName}</span>
+                                                <span className="text-xs text-stone-500">{app.email}</span>
+                                                <span className="text-xs text-stone-500">{app.phone}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell>{app.estimatedOutlets}</TableCell>
+                                        <TableCell className="text-stone-300">{app.estimatedOutlets}</TableCell>
                                         <TableCell>
                                             <Badge variant={app.status === 'PENDING' ? 'outline' : app.status === 'APPROVED' ? 'default' : 'destructive'}
-                                                className={app.status === 'APPROVED' ? 'bg-green-600' : ''}>
+                                                className={app.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : app.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}>
                                                 {app.status}
                                             </Badge>
                                         </TableCell>
