@@ -165,6 +165,44 @@ export default async function OnboardingPage() {
     }
   }
 
+  // ---------------------------------------------------------
+  // CHECK FOR PENDING BRAND INVITATIONS (ACID WORKFLOW)
+  // ---------------------------------------------------------
+  const brandInvite = await prisma.brandInvitation.findFirst({
+        where: {
+            email: email,
+            status: 'PENDING'
+        }
+  });
+
+  if (brandInvite) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-stone-50 p-4">
+                <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-6 border border-rose-100">
+                    <div className="flex items-center gap-3 mb-4 text-rose-600">
+                         <div className="p-2 bg-rose-50 rounded-full">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                         </div>
+                         <h2 className="text-xl font-bold">Action Required</h2>
+                    </div>
+                    <p className="text-stone-600 mb-6">
+                        You have a pending Brand Setup invitation for <strong>{brandInvite.brandName}</strong>.
+                        <br/><br/>
+                        Please check your messages for the activation link or contact an administrator.
+                        <br/>
+                        <span className="text-xs text-stone-400 mt-2 block">Ref: {brandInvite.token.slice(0, 8)}...</span>
+                    </p>
+                    <div className="bg-stone-50 p-3 rounded text-xs text-stone-500 border border-stone-200">
+                        To ensure data integrity, you cannot create a new brand manually while this invitation is pending.
+                    </div>
+                    <div className="mt-6">
+                        <SignOutWrapper />
+                    </div>
+                </div>
+            </div>
+        );
+  }
+
   // User has no tenant and no invite - allow them to create a brand
   return (
     <div className="relative">

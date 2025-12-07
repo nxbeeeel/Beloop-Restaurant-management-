@@ -31,6 +31,20 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Brand slug already taken' }, { status: 400 });
         }
 
+        // Check for pending BrandInvitation to prevent dual creation
+        const pendingInvite = await prisma.brandInvitation.findFirst({
+            where: {
+                email: user.emailAddresses[0].emailAddress,
+                status: 'PENDING'
+            }
+        });
+
+        if (pendingInvite) {
+            return NextResponse.json({
+                error: `You already have a pending invitation for "${pendingInvite.brandName}". Please use the link provided by the administrator.`
+            }, { status: 409 });
+        }
+
         // Create tenant (brand)
         const tenant = await prisma.tenant.create({
             data: {
