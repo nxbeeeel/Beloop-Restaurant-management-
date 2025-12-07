@@ -61,7 +61,7 @@ export default function ApplicationsPage() {
         }
     };
 
-    const inviteLink = approvedData?.invite ? `${window.location.origin}/signup?token=${approvedData.invite.token}` : '';
+    const inviteLink = approvedData?.invite ? `${window.location.origin}/invite/brand?token=${approvedData.invite.token}` : '';
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">

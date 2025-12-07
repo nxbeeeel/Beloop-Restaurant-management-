@@ -100,7 +100,7 @@ export const brandApplicationRouter = router({
 
             if (!app) return null;
 
-            const invite = await prisma.invitation.findFirst({
+            const invite = await prisma.brandInvitation.findFirst({
                 where: {
                     email: app.email,
                     status: 'PENDING'
@@ -108,6 +108,11 @@ export const brandApplicationRouter = router({
                 orderBy: { createdAt: 'desc' }
             });
 
-            return invite;
+            if (!invite) return null;
+
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+            const link = `${baseUrl}/invite/brand?token=${invite.token}`;
+
+            return { token: invite.token, link };
         }),
 });
