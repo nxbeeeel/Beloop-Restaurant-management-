@@ -1,10 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
-import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-
-import { MobileSidebar } from "@/components/admin/MobileSidebar";
-import { LogoutButton } from "@/components/auth/LogoutButton";
+import { SuperSidebar } from "@/components/admin/SuperSidebar";
+import { MobileSidebar } from "@/components/admin/MobileSidebar"; // Keep mobile sidebar if improved later
 
 export default async function SuperLayout({
     children,
@@ -14,71 +11,24 @@ export default async function SuperLayout({
     const { userId } = await auth();
     if (!userId) redirect("/login");
 
-    // TEMPORARY: Comment out role check for debugging
-    // const user = await prisma.user.findUnique({
-    //     where: { clerkId: userId },
-    // });
-    // if (!user || user.role !== "SUPER") {
-    //     redirect("/");
-    // }
-
     return (
-        <div className="flex min-h-screen bg-gray-100 flex-col md:flex-row">
-            {/* Mobile Sidebar */}
-            <div className="md:hidden p-4 bg-white border-b flex justify-between items-center sticky top-0 z-40 shadow-sm">
-                <h2 className="text-lg font-bold">🔧 Platform Admin</h2>
+        <div className="flex min-h-screen bg-stone-50 dark:bg-stone-950">
+            {/* Desktop Sidebar (Fixed) */}
+            <div className="hidden md:block fixed inset-y-0 left-0 z-50">
+                <SuperSidebar />
+            </div>
+
+            {/* Mobile Header (Visible only on small screens) */}
+            <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b z-40 flex items-center justify-between px-4">
+                <span className="font-bold text-lg">Beloop Admin</span>
                 <MobileSidebar />
             </div>
 
-            {/* Desktop Sidebar */}
-            <aside className="hidden md:block w-64 bg-gray-900 text-white p-6 min-h-screen sticky top-0 h-screen overflow-y-auto">
-                <h2 className="text-xl font-bold mb-8">🔧 Platform Admin</h2>
-                <nav className="flex flex-col space-y-4 text-sm font-medium">
-                    <Link
-                        href="/super/dashboard"
-                        className="transition-colors hover:text-blue-400 text-white"
-                    >
-                        Dashboard
-                    </Link>
-                    <Link
-                        href="/super/tenants"
-                        className="transition-colors hover:text-blue-400 text-gray-300"
-                    >
-                        Tenants
-                    </Link>
-                    <Link
-                        href="/super/users"
-                        className="transition-colors hover:text-blue-400 text-gray-300"
-                    >
-                        Users
-                    </Link>
-                    <Link
-                        href="/super/payments"
-                        className="transition-colors hover:text-blue-400 text-gray-300"
-                    >
-                        Payments
-                    </Link>
-                    <Link
-                        href="/super/support"
-                        className="transition-colors hover:text-blue-400 text-gray-300"
-                    >
-                        Support
-                    </Link>
-                    <Link
-                        href="/super/health"
-                        className="transition-colors hover:text-blue-400 text-gray-300"
-                    >
-                        System Health
-                    </Link>
-                </nav>
-
-                {/* Logout Button */}
-                <div className="absolute bottom-0 left-0 w-full p-6 border-t border-gray-800">
-                    <LogoutButton variant="ghost" className="w-full justify-start text-gray-300 hover:text-white hover:bg-gray-800" />
+            {/* Main Content Area */}
+            <main className="flex-1 md:pl-72 w-full min-h-screen transition-all duration-300">
+                <div className="p-4 md:p-8 pt-20 md:pt-8 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {children}
                 </div>
-            </aside>
-            <main className="flex-1 p-4 md:p-8 overflow-x-hidden">
-                {children}
             </main>
         </div>
     );

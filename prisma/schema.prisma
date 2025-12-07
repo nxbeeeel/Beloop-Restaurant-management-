@@ -51,7 +51,7 @@ model Tenant {
 
   // Subscription & Billing
   status          TenantStatus @default(ACTIVE)
-  pricePerOutlet  Float        @default(500)
+  pricePerOutlet  Float        @default(250)
   currency        String       @default("INR")
   billingCycle    String       @default("MONTHLY")
   nextBillingDate DateTime?
@@ -863,4 +863,22 @@ model LoyaltyRule {
   isActive          Boolean  @default(true)
 
   outlet            Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+}
+
+model BrandApplication {
+  id               String            @id @default(cuid())
+  brandName        String
+  contactName      String
+  email            String
+  phone            String
+  estimatedOutlets Int
+  status           ApplicationStatus @default(PENDING)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
