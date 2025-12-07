@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useClerk } from "@clerk/nextjs";
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
@@ -34,6 +35,7 @@ const sidebarItems = [
 export function SuperSidebar() {
     const pathname = usePathname();
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const { openUserProfile } = useClerk();
 
     return (
         <aside
@@ -118,13 +120,16 @@ export function SuperSidebar() {
                 <div className={cn("flex flex-col gap-3", isCollapsed ? "items-center" : "items-stretch")}>
 
                     {!isCollapsed && (
-                        <div className="flex items-center gap-3 mb-2 px-2">
+                        <div
+                            className="flex items-center gap-3 mb-2 px-2 cursor-pointer hover:bg-stone-900 rounded-lg py-2 transition-colors"
+                            onClick={() => openUserProfile()}
+                        >
                             <div className="w-8 h-8 rounded-full bg-stone-800 flex items-center justify-center text-stone-400">
                                 SA
                             </div>
                             <div className="flex-1 overflow-hidden">
                                 <p className="text-sm font-medium text-white truncate">Super Admin</p>
-                                <p className="text-xs text-stone-500 truncate">mnabeelca123...</p>
+                                <p className="text-xs text-stone-500 truncate">Manage Profile</p>
                             </div>
                         </div>
                     )}

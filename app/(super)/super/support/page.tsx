@@ -35,20 +35,20 @@ export default function SuperSupportPage() {
     });
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Support Tickets</h1>
-                    <p className="text-muted-foreground">Manage and resolve support requests</p>
+                    <h1 className="text-3xl font-bold tracking-tight text-white">Support Tickets</h1>
+                    <p className="text-stone-400">Manage and resolve support requests</p>
                 </div>
             </div>
 
-            <div className="flex gap-4 items-center">
+            <div className="flex gap-4 items-center bg-stone-900 p-4 rounded-xl border border-stone-800">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-[180px] bg-stone-950 border-stone-800 text-white">
                         <SelectValue placeholder="Filter by Status" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-stone-900 border-stone-800 text-white">
                         <SelectItem value="ALL">All Statuses</SelectItem>
                         <SelectItem value="OPEN">Open</SelectItem>
                         <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
@@ -58,10 +58,10 @@ export default function SuperSupportPage() {
                 </Select>
 
                 <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-[180px] bg-stone-950 border-stone-800 text-white">
                         <SelectValue placeholder="Filter by Priority" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-stone-900 border-stone-800 text-white">
                         <SelectItem value="ALL">All Priorities</SelectItem>
                         <SelectItem value="LOW">Low</SelectItem>
                         <SelectItem value="MEDIUM">Medium</SelectItem>
@@ -71,80 +71,80 @@ export default function SuperSupportPage() {
                 </Select>
             </div>
 
-            <Card>
+            <Card className="bg-stone-900 border-stone-800">
                 <CardHeader>
-                    <CardTitle>All Tickets</CardTitle>
+                    <CardTitle className="text-white">All Tickets</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
                         <div className="flex justify-center py-8">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <Loader2 className="h-8 w-8 animate-spin text-rose-600" />
                         </div>
                     ) : (
                         <Table>
                             <TableHeader>
-                                <TableRow>
-                                    <TableHead>Subject</TableHead>
-                                    <TableHead>Tenant</TableHead>
-                                    <TableHead>User</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Priority</TableHead>
-                                    <TableHead>Created</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
+                                <TableRow className="border-stone-800 hover:bg-transparent">
+                                    <TableHead className="text-stone-400">Subject</TableHead>
+                                    <TableHead className="text-stone-400">Tenant</TableHead>
+                                    <TableHead className="text-stone-400">User</TableHead>
+                                    <TableHead className="text-stone-400">Status</TableHead>
+                                    <TableHead className="text-stone-400">Priority</TableHead>
+                                    <TableHead className="text-stone-400">Created</TableHead>
+                                    <TableHead className="text-right text-stone-400">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {data?.items.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                                    <TableRow className="border-stone-800">
+                                        <TableCell colSpan={7} className="text-center py-8 text-stone-500">
                                             No tickets found
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     data?.items.map((ticket) => (
-                                        <TableRow key={ticket.id}>
+                                        <TableRow key={ticket.id} className="border-stone-800 hover:bg-stone-800/50">
                                             <TableCell className="font-medium">
-                                                <Link href={`/super/support/${ticket.id}`} className="hover:underline">
+                                                <Link href={`/super/support/${ticket.id}`} className="hover:underline text-rose-400">
                                                     {ticket.subject}
                                                 </Link>
-                                                <div className="text-xs text-muted-foreground mt-1">
+                                                <div className="text-xs text-stone-500 mt-1">
                                                     {ticket._count.comments} comments
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <Link href={`/super/tenants/${ticket.tenantId}`} className="hover:underline text-blue-600">
+                                                <Link href={`/super/tenants/${ticket.tenantId}`} className="hover:underline text-blue-400">
                                                     {ticket.tenant.name}
                                                 </Link>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col">
-                                                    <span>{ticket.user.name}</span>
-                                                    <span className="text-xs text-muted-foreground">{ticket.user.email}</span>
+                                                    <span className="text-white">{ticket.user.name}</span>
+                                                    <span className="text-xs text-stone-500">{ticket.user.email}</span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant={
-                                                    ticket.status === 'OPEN' ? 'destructive' :
-                                                        ticket.status === 'IN_PROGRESS' ? 'default' :
-                                                            ticket.status === 'RESOLVED' ? 'secondary' : 'outline'
+                                                <Badge variant="outline" className={
+                                                    ticket.status === 'OPEN' ? 'border-red-500/50 text-red-400 bg-red-500/10' :
+                                                        ticket.status === 'IN_PROGRESS' ? 'border-blue-500/50 text-blue-400 bg-blue-500/10' :
+                                                            ticket.status === 'RESOLVED' ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' : 'border-stone-700 text-stone-400'
                                                 }>
                                                     {ticket.status.replace('_', ' ')}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant={
-                                                    ticket.priority === 'CRITICAL' ? 'destructive' :
-                                                        ticket.priority === 'HIGH' ? 'destructive' :
-                                                            ticket.priority === 'MEDIUM' ? 'default' : 'secondary'
-                                                } className={ticket.priority === 'HIGH' ? 'bg-orange-500' : ''}>
+                                                <Badge variant="outline" className={
+                                                    ticket.priority === 'CRITICAL' ? 'border-red-500 text-red-500 bg-red-950' :
+                                                        ticket.priority === 'HIGH' ? 'border-orange-500 text-orange-500 bg-orange-950' :
+                                                            ticket.priority === 'MEDIUM' ? 'border-yellow-500 text-yellow-500 bg-yellow-950' : 'border-stone-700 text-stone-400'
+                                                }>
                                                     {ticket.priority}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="text-stone-400">
                                                 {format(new Date(ticket.createdAt), 'MMM d, yyyy')}
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <Button variant="ghost" size="sm" asChild>
+                                                <Button variant="ghost" size="sm" asChild className="text-stone-400 hover:text-white hover:bg-stone-800">
                                                     <Link href={`/super/support/${ticket.id}`}>View</Link>
                                                 </Button>
                                             </TableCell>

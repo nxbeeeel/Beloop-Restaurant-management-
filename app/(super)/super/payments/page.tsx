@@ -62,30 +62,30 @@ export default function PaymentsPage() {
     const overdueTenants = billingOverview?.filter(t => t.isOverdue) || [];
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Payments & Billing</h2>
-                    <p className="text-muted-foreground">Manage tenant fees, due dates, and record payments.</p>
+                    <h2 className="text-3xl font-bold tracking-tight text-white">Payments & Billing</h2>
+                    <p className="text-stone-400">Manage tenant fees, due dates, and record payments.</p>
                 </div>
                 <Dialog open={isAddPaymentOpen} onOpenChange={setIsAddPaymentOpen}>
                     <DialogTrigger asChild>
-                        <Button>
+                        <Button className="bg-rose-600 hover:bg-rose-700 text-white">
                             <Plus className="mr-2 h-4 w-4" /> Record Payment
                         </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="bg-stone-900 border-stone-800 text-white">
                         <DialogHeader>
                             <DialogTitle>Record Manual Payment</DialogTitle>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
                             <div className="grid gap-2">
-                                <Label>Tenant</Label>
+                                <Label className="text-stone-400">Tenant</Label>
                                 <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="bg-stone-950 border-stone-800 text-white">
                                         <SelectValue placeholder="Select Tenant" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="bg-stone-900 border-stone-800 text-white">
                                         {billingOverview?.map((tenant) => (
                                             <SelectItem key={tenant.id} value={tenant.id}>
                                                 {tenant.name}
@@ -95,21 +95,22 @@ export default function PaymentsPage() {
                                 </Select>
                             </div>
                             <div className="grid gap-2">
-                                <Label>Amount</Label>
+                                <Label className="text-stone-400">Amount</Label>
                                 <Input
                                     type="number"
                                     value={amount}
                                     onChange={(e) => setAmount(e.target.value)}
                                     placeholder="0.00"
+                                    className="bg-stone-950 border-stone-800 text-white"
                                 />
                             </div>
                             <div className="grid gap-2">
-                                <Label>Payment Method</Label>
+                                <Label className="text-stone-400">Payment Method</Label>
                                 <Select value={method} onValueChange={setMethod}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="bg-stone-950 border-stone-800 text-white">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="bg-stone-900 border-stone-800 text-white">
                                         <SelectItem value="CASH">Cash</SelectItem>
                                         <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
                                         <SelectItem value="UPI">UPI</SelectItem>
@@ -117,17 +118,18 @@ export default function PaymentsPage() {
                                 </Select>
                             </div>
                             <div className="grid gap-2">
-                                <Label>Notes</Label>
+                                <Label className="text-stone-400">Notes</Label>
                                 <Input
                                     value={notes}
                                     onChange={(e) => setNotes(e.target.value)}
                                     placeholder="Transaction ID, Reference, etc."
+                                    className="bg-stone-950 border-stone-800 text-white"
                                 />
                             </div>
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsAddPaymentOpen(false)}>Cancel</Button>
-                            <Button onClick={handleRecordPayment} disabled={recordPaymentMutation.isPending}>
+                            <Button variant="outline" onClick={() => setIsAddPaymentOpen(false)} className="border-stone-800 text-stone-300 hover:bg-stone-800 hover:text-white">Cancel</Button>
+                            <Button onClick={handleRecordPayment} disabled={recordPaymentMutation.isPending} className="bg-rose-600 hover:bg-rose-700 text-white">
                                 {recordPaymentMutation.isPending ? "Recording..." : "Record Payment"}
                             </Button>
                         </DialogFooter>
@@ -139,9 +141,9 @@ export default function PaymentsPage() {
             <div className="grid grid-cols-1 gap-6">
                 {/* Overdue Alerts */}
                 {overdueTenants.length > 0 && (
-                    <Card className="border-red-200 bg-red-50">
+                    <Card className="border-red-900/50 bg-red-950/20">
                         <CardHeader>
-                            <CardTitle className="text-red-700 flex items-center">
+                            <CardTitle className="text-red-400 flex items-center">
                                 <AlertCircle className="mr-2 h-5 w-5" />
                                 Overdue Payments ({overdueTenants.length})
                             </CardTitle>
@@ -149,25 +151,25 @@ export default function PaymentsPage() {
                         <CardContent>
                             <Table>
                                 <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Tenant</TableHead>
-                                        <TableHead>Outlets</TableHead>
-                                        <TableHead>Due Date</TableHead>
-                                        <TableHead>Days Overdue</TableHead>
-                                        <TableHead>Calc. Amount</TableHead>
-                                        <TableHead className="text-right">Action</TableHead>
+                                    <TableRow className="border-red-900/30 hover:bg-transparent">
+                                        <TableHead className="text-red-300">Tenant</TableHead>
+                                        <TableHead className="text-red-300">Outlets</TableHead>
+                                        <TableHead className="text-red-300">Due Date</TableHead>
+                                        <TableHead className="text-red-300">Days Overdue</TableHead>
+                                        <TableHead className="text-red-300">Calc. Amount</TableHead>
+                                        <TableHead className="text-right text-red-300">Action</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {overdueTenants.map((tenant) => (
-                                        <TableRow key={tenant.id}>
-                                            <TableCell className="font-medium">{tenant.name}</TableCell>
-                                            <TableCell>{tenant.outletCount}</TableCell>
-                                            <TableCell>{tenant.nextBillingDate ? new Date(tenant.nextBillingDate).toLocaleDateString() : 'N/A'}</TableCell>
-                                            <TableCell className="text-red-600 font-bold">{tenant.daysOverdue}</TableCell>
-                                            <TableCell>₹{tenant.monthlyFee.toLocaleString()}</TableCell>
+                                        <TableRow key={tenant.id} className="border-red-900/30 hover:bg-red-900/10">
+                                            <TableCell className="font-medium text-red-200">{tenant.name}</TableCell>
+                                            <TableCell className="text-red-200">{tenant.outletCount}</TableCell>
+                                            <TableCell className="text-red-200">{tenant.nextBillingDate ? new Date(tenant.nextBillingDate).toLocaleDateString() : 'N/A'}</TableCell>
+                                            <TableCell className="text-red-500 font-bold">{tenant.daysOverdue}</TableCell>
+                                            <TableCell className="text-red-200">₹{tenant.monthlyFee.toLocaleString()}</TableCell>
                                             <TableCell className="text-right">
-                                                <Button size="sm" onClick={() => handleConfirmOverduePayment(tenant.id, tenant.monthlyFee)}>
+                                                <Button size="sm" variant="destructive" onClick={() => handleConfirmOverduePayment(tenant.id, tenant.monthlyFee)}>
                                                     Collect Payment
                                                 </Button>
                                             </TableCell>
@@ -180,38 +182,38 @@ export default function PaymentsPage() {
                 )}
 
                 {/* All Tenants Billing Overview */}
-                <Card>
+                <Card className="bg-stone-900 border-stone-800">
                     <CardHeader>
-                        <CardTitle>Billing Overview</CardTitle>
+                        <CardTitle className="text-white">Billing Overview</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
-                                <TableRow>
-                                    <TableHead>Tenant</TableHead>
-                                    <TableHead>Outlets</TableHead>
-                                    <TableHead>Rate/Outlet</TableHead>
-                                    <TableHead>Monthly Fee</TableHead>
-                                    <TableHead>Next Bill</TableHead>
-                                    <TableHead>Last Payment</TableHead>
+                                <TableRow className="border-stone-800 hover:bg-transparent">
+                                    <TableHead className="text-stone-400">Tenant</TableHead>
+                                    <TableHead className="text-stone-400">Outlets</TableHead>
+                                    <TableHead className="text-stone-400">Rate/Outlet</TableHead>
+                                    <TableHead className="text-stone-400">Monthly Fee</TableHead>
+                                    <TableHead className="text-stone-400">Next Bill</TableHead>
+                                    <TableHead className="text-stone-400">Last Payment</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {isLoadingBilling ? (
-                                    <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                                    <TableRow className="border-stone-800"><TableCell colSpan={6} className="text-center text-stone-500">Loading...</TableCell></TableRow>
                                 ) : (
                                     billingOverview?.map((tenant) => (
-                                        <TableRow key={tenant.id}>
-                                            <TableCell className="font-medium">{tenant.name}</TableCell>
-                                            <TableCell>{tenant.outletCount}</TableCell>
-                                            <TableCell>₹{tenant.pricePerOutlet}</TableCell>
-                                            <TableCell>₹{tenant.monthlyFee.toLocaleString()}</TableCell>
+                                        <TableRow key={tenant.id} className="border-stone-800 hover:bg-stone-800/50">
+                                            <TableCell className="font-medium text-white">{tenant.name}</TableCell>
+                                            <TableCell className="text-stone-300">{tenant.outletCount}</TableCell>
+                                            <TableCell className="text-stone-300">₹{tenant.pricePerOutlet}</TableCell>
+                                            <TableCell className="text-stone-300">₹{tenant.monthlyFee.toLocaleString()}</TableCell>
                                             <TableCell>
-                                                <span className={tenant.isOverdue ? "text-red-500 font-bold" : ""}>
+                                                <span className={tenant.isOverdue ? "text-red-400 font-bold" : "text-stone-300"}>
                                                     {tenant.nextBillingDate ? new Date(tenant.nextBillingDate).toLocaleDateString() : '-'}
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="text-muted-foreground text-sm">
+                                            <TableCell className="text-stone-500 text-sm">
                                                 {tenant.lastPayment ? `₹${tenant.lastPayment.amount} on ${new Date(tenant.lastPayment.createdAt).toLocaleDateString()}` : 'None'}
                                             </TableCell>
                                         </TableRow>
@@ -223,40 +225,40 @@ export default function PaymentsPage() {
                 </Card>
 
                 {/* Recent Payments Log */}
-                <Card>
+                <Card className="bg-stone-900 border-stone-800">
                     <CardHeader>
-                        <CardTitle>Recent Payments Log</CardTitle>
+                        <CardTitle className="text-white">Recent Payments Log</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Tenant</TableHead>
-                                    <TableHead>Amount</TableHead>
-                                    <TableHead>Method</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Notes</TableHead>
+                                <TableRow className="border-stone-800 hover:bg-transparent">
+                                    <TableHead className="text-stone-400">Date</TableHead>
+                                    <TableHead className="text-stone-400">Tenant</TableHead>
+                                    <TableHead className="text-stone-400">Amount</TableHead>
+                                    <TableHead className="text-stone-400">Method</TableHead>
+                                    <TableHead className="text-stone-400">Status</TableHead>
+                                    <TableHead className="text-stone-400">Notes</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {isLoadingPayments ? (
-                                    <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                                    <TableRow className="border-stone-800"><TableCell colSpan={6} className="text-center text-stone-500">Loading...</TableCell></TableRow>
                                 ) : payments?.length === 0 ? (
-                                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No recent payments.</TableCell></TableRow>
+                                    <TableRow className="border-stone-800"><TableCell colSpan={6} className="text-center text-stone-500">No recent payments.</TableCell></TableRow>
                                 ) : (
                                     payments?.map((payment) => (
-                                        <TableRow key={payment.id}>
-                                            <TableCell>{new Date(payment.createdAt).toLocaleDateString()}</TableCell>
-                                            <TableCell className="font-medium">{payment.tenant.name}</TableCell>
-                                            <TableCell>₹{payment.amount.toLocaleString()}</TableCell>
-                                            <TableCell>{payment.method}</TableCell>
+                                        <TableRow key={payment.id} className="border-stone-800 hover:bg-stone-800/50">
+                                            <TableCell className="text-stone-300">{new Date(payment.createdAt).toLocaleDateString()}</TableCell>
+                                            <TableCell className="font-medium text-white">{payment.tenant.name}</TableCell>
+                                            <TableCell className="text-stone-300">₹{payment.amount.toLocaleString()}</TableCell>
+                                            <TableCell className="text-stone-300">{payment.method}</TableCell>
                                             <TableCell>
-                                                <span className="inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                                                <span className="inline-flex items-center rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 text-xs font-medium text-emerald-500">
                                                     {payment.status}
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="text-muted-foreground text-xs">{payment.notes || '-'}</TableCell>
+                                            <TableCell className="text-stone-500 text-xs">{payment.notes || '-'}</TableCell>
                                         </TableRow>
                                     ))
                                 )}
