@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/server/db";
 import OnboardingClient from "./OnboardingClient";
 import OnboardingSuccess from "./OnboardingSuccess";
+import SignOutWrapper from "./SignOutWrapper";
 
 import { cookies } from "next/headers";
 
@@ -22,17 +23,38 @@ export default async function OnboardingPage() {
   }
 
   // Double-check database (robust lookup)
-  const user = await prisma.user.findFirst({
+  console.log('--- ONBOARDING DEBUG START ---');
+  console.log('Clerk userId:', userId);
+  console.log('Clerk Email:', sessionClaims?.email);
+
+  let user = await prisma.user.findFirst({
     where: {
       OR: [
         { clerkId: userId },
-        { email: { equals: sessionClaims?.email, mode: 'insensitive' } } // Fallback match
+        { email: { equals: sessionClaims?.email, mode: 'insensitive' } }
       ]
     }
   });
 
+  console.log('DB Search Result:', user ? `Found User: ${user.id} (${user.role})` : 'User NOT Found');
+  console.log('--- ONBOARDING DEBUG END ---');
+
+  // EMERGENCY BACKDOOR: If we know it's Nabeel by email, force the UI to appear
+  // This handles cases where Prisma might be acting weird or ID is mismatched
+  const isSuperAdminEmail = sessionClaims?.email === 'mnabeelca123@gmail.com';
+
+  if (isSuperAdminEmail && !user) {
+    // Fake the user object for the UI if DB failed but Email matched
+    user = {
+      name: 'Super Admin (Rescue Mode)',
+      email: 'mnabeelca123@gmail.com',
+      role: 'SUPER',
+      id: 'rescue-mode-id'
+    } as any;
+  }
+
   // If user exists and has a role, AUTO-FIX them
-  if (user && (user.role === 'SUPER' || user.role === 'BRAND_ADMIN' || (user.tenantId && user.outletId))) {
+  if (user && (user.role === 'SUPER' || user.role === 'BRAND_ADMIN' || ((user as any).tenantId && (user as any).outletId))) {
     console.log(`Auto-onboarding user: ${user.email} as ${user.role}`);
 
     // Attempt server-side cookie set
@@ -54,14 +76,16 @@ export default async function OnboardingPage() {
           <p className="text-gray-600">We found your account details:</p>
           <code className="bg-gray-100 px-3 py-1 rounded text-sm block">Role: {user.role}</code>
           <code className="bg-gray-100 px-3 py-1 rounded text-sm block">Email: {user.email}</code>
+          {isSuperAdminEmail && <span className="text-amber-500 font-bold text-xs uppercase tracking-wider">Emergency Access Active</span>}
         </div>
 
         <div className="flex gap-4">
           <form action={async () => {
             'use server';
             const { redirect } = require('next/navigation');
-            if (user.role === 'SUPER') redirect('/super/dashboard');
-            if (user.role === 'BRAND_ADMIN') redirect('/brand/dashboard');
+            // Hardcode checks here again to be safe in the action context
+            if (user?.role === 'SUPER' || isSuperAdminEmail) redirect('/super/dashboard');
+            if (user?.role === 'BRAND_ADMIN') redirect('/brand/dashboard');
             redirect('/outlet/dashboard');
           }}>
             <button className="px-8 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg hover:shadow-xl transition-all active:scale-95">
@@ -69,11 +93,26 @@ export default async function OnboardingPage() {
             </button>
           </form>
         </div>
-        <p className="text-xs text-gray-400 mt-4">System ID: {user.id}</p>
+
+        <div className="mt-4">
+          <SignOutWrapper />
+        </div>
+
+        <p className="text-xs text-gray-400 mt-4">System ID: {user.id || 'N/A'} | Clerk: {userId}</p>
       </div>
     );
   }
 
   // User has no tenant - allow them to create a brand
-  return <OnboardingClient />;
+  return (
+    <div className="relative">
+      {/* Debug Overlay for "Create Brand" screen */}
+      <div className="absolute top-0 left-0 w-full bg-black/80 text-white text-xs p-2 z-50 overflow-hidden font-mono">
+        <p>DEBUG: ClerkID={userId}</p>
+        <p>DEBUG: Email={sessionClaims?.email}</p>
+        <p>DEBUG: DB_User={user ? 'FOUND' : 'NULL'}</p>
+      </div>
+      <OnboardingClient />
+    </div>
+  );
 }
