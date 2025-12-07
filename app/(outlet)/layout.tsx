@@ -16,7 +16,8 @@ export default async function OutletLayout({
         include: { outlet: true },
     });
 
-    if (!user || (user.role !== "OUTLET_MANAGER" && user.role !== "STAFF")) {
+    const allowedRoles = ["OUTLET_MANAGER", "STAFF", "BRAND_ADMIN", "SUPER"];
+    if (!user || !user.role || !allowedRoles.includes(user.role)) {
         redirect("/");
     }
 

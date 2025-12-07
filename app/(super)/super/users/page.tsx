@@ -8,17 +8,17 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState } from 'react';
 
 export default function UserManagementPage() {
-    // For now, using a mocked query or reusing recent activity as we don't have a full listing procedure yet
-    // I will use recent activity and filter unique users for the visual demo
-    const { data: activities, isLoading } = trpc.superAnalytics.getRecentActivity.useQuery({ limit: 50 });
+    const [search, setSearch] = useState('');
+    const [roleFilter, setRoleFilter] = useState<string>('ALL');
 
-    // Mock users for UI
-    const users = [
-        { id: '1', name: 'Nabeel C A', email: 'mnabeelca123@gmail.com', role: 'SUPER', status: 'Active' },
-        { id: '2', name: 'Demo Admin', email: 'admin@beloop.demo', role: 'BRAND_ADMIN', status: 'Active' },
-    ];
+    const { data: users, isLoading } = trpc.super.listAllUsers.useQuery({
+        search: search,
+        role: roleFilter === 'ALL' ? undefined : (roleFilter as any)
+    });
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -28,6 +28,7 @@ export default function UserManagementPage() {
                     <h2 className="text-3xl font-bold tracking-tight text-white">Users</h2>
                     <p className="text-stone-400">Manage system-wide user access and roles.</p>
                 </div>
+                {/* Future: Add Invite User Modal Trigger Here */}
                 <Button className="bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-500/20">
                     <Mail className="w-4 h-4 mr-2" />
                     Invite User
@@ -41,11 +42,23 @@ export default function UserManagementPage() {
                     <Input
                         placeholder="Search users by name or email..."
                         className="pl-9 bg-stone-950 border-stone-800 text-white placeholder:text-stone-600 focus-visible:ring-rose-500"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <Button variant="outline" className="border-stone-800 text-stone-300 hover:bg-stone-800 hover:text-white">
-                    Filter Role
-                </Button>
+
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                    <SelectTrigger className="w-[180px] bg-stone-950 border-stone-800 text-white">
+                        <SelectValue placeholder="Filter Role" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-stone-900 border-stone-800 text-white">
+                        <SelectItem value="ALL">All Roles</SelectItem>
+                        <SelectItem value="SUPER">Super Admin</SelectItem>
+                        <SelectItem value="BRAND_ADMIN">Brand Admin</SelectItem>
+                        <SelectItem value="OUTLET_MANAGER">Outlet Manager</SelectItem>
+                        <SelectItem value="STAFF">Staff</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
 
             {/* User List */}
@@ -57,14 +70,14 @@ export default function UserManagementPage() {
                         ))}
                     </div>
                 ) : (
-                    users.map((user) => (
+                    users?.map((user) => (
                         <Card key={user.id} className="bg-stone-900 border-stone-800 hover:bg-stone-800/50 transition-colors group">
                             <div className="p-6 flex items-center justify-between">
                                 <div className="flex items-center gap-4">
                                     <Avatar className="h-10 w-10 border border-stone-700">
                                         <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} />
                                         <AvatarFallback className="bg-stone-800 text-stone-400">
-                                            {user.name.charAt(0)}
+                                            {user.name?.charAt(0) || 'U'}
                                         </AvatarFallback>
                                     </Avatar>
                                     <div>
@@ -74,12 +87,20 @@ export default function UserManagementPage() {
                                 </div>
 
                                 <div className="flex items-center gap-6">
+                                    {/* Tenant Info if applicable */}
+                                    {user.tenant && (
+                                        <div className="hidden md:block text-right">
+                                            <p className="text-sm font-medium text-stone-300">{user.tenant.name}</p>
+                                            <p className="text-xs text-stone-500">Tenant</p>
+                                        </div>
+                                    )}
+
                                     <Badge variant={user.role === 'SUPER' ? 'default' : 'secondary'} className={user.role === 'SUPER' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' : 'bg-stone-800 text-stone-400 border-stone-700'}>
-                                        {user.role}
+                                        {user.role.replace('_', ' ')}
                                     </Badge>
 
                                     <Badge variant="outline" className="border-emerald-500/20 bg-emerald-500/10 text-emerald-500">
-                                        {user.status}
+                                        Active
                                     </Badge>
 
                                     <Button variant="ghost" size="icon" className="text-stone-400 hover:text-white hover:bg-stone-800">
@@ -89,6 +110,14 @@ export default function UserManagementPage() {
                             </div>
                         </Card>
                     ))
+                )}
+
+                {(!isLoading && (!users || users.length === 0)) && (
+                    <div className="text-center py-20 bg-stone-900 rounded-xl border border-stone-800 border-dashed">
+                        <User className="w-12 h-12 text-stone-600 mx-auto mb-4" />
+                        <h3 className="text-xl font-bold text-white mb-2">No Users Found</h3>
+                        <p className="text-stone-500">Try adjusting your filters.</p>
+                    </div>
                 )}
             </div>
         </div>

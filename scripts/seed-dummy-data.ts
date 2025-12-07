@@ -58,16 +58,14 @@ async function seed() {
                 data: {
                     tenantId: tenant.id,
                     outletId: outlet.id,
-                    totalAmount: amount,
-                    paymentMethod: Math.random() > 0.5 ? 'CARD' : 'CASH',
-                    status: 'COMPLETED',
-                    createdAt: date,
-                    items: {
-                        create: [
-                            { productId: p1.id, quantity: 1, unitPrice: p1.price, totalPrice: p1.price, productName: p1.name },
-                            { productId: p2.id, quantity: 2, unitPrice: p2.price, totalPrice: p2.price * 2, productName: p2.name }
-                        ]
-                    }
+                    totalSale: amount, // Keeping it simple for seed
+                    cashSale: Math.random() > 0.5 ? amount : 0,
+                    bankSale: Math.random() > 0.5 ? 0 : amount,
+                    profit: amount * 0.4, // 40% profit margin
+                    totalExpense: amount * 0.6,
+                    date: date, // Assuming date is a Date object or string as per schema
+
+                    // Add items if needed, or simplified
                 }
             });
         }
