@@ -69,94 +69,99 @@ export default function SuperDashboardPage() {
                     <p className="text-stone-400">Overview of platform performance and health.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    System Health
-                </Button>
+                    <Button variant="outline" size="sm" onClick={() => {
+                        utils.superAnalytics.getPlatformStats.invalidate();
+                        toast.success("Refreshed data");
+                    }}>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Refresh Data
+                    </Button>
+                </div>
             </div>
-        </div>
 
-            {/* KPI Grid */ }
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-            title="Total Revenue"
-            value={`₹${stats?.totalRevenue.toLocaleString() ?? '0'}`}
-            trend="+12.5%"
-            icon={CreditCard}
-            color="text-emerald-600"
-        />
-        <KpiCard
-            title="Active Tenants"
-            value={stats?.activeTenants.toString() ?? '0'}
-            subValue={`/ ${stats?.totalTenants ?? 0} total`}
-            trend="+2 new"
-            icon={Building2}
-            color="text-blue-600"
-        />
-        <KpiCard
-            title="Total Users"
-            value={stats?.totalUsers.toString() ?? '0'}
-            trend="+5.2%"
-            icon={Users}
-            color="text-violet-600"
-        />
-        <KpiCard
-            title="Platform Health"
-            value="99.9%"
-            trend="Stable"
-            icon={Activity}
-            color="text-rose-600"
-        />
-    </div>
+            {/* KPI Grid */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <KpiCard
+                    title="Total Revenue"
+                    value={`₹${stats?.totalRevenue.toLocaleString() ?? '0'}`}
+                    trend="+12.5%"
+                    icon={CreditCard}
+                    color="text-emerald-600"
+                />
+                <KpiCard
+                    title="Active Tenants"
+                    value={stats?.activeTenants.toString() ?? '0'}
+                    subValue={`/ ${stats?.totalTenants ?? 0} total`}
+                    trend="+2 new"
+                    icon={Building2}
+                    color="text-blue-600"
+                />
+                <KpiCard
+                    title="Total Users"
+                    value={stats?.totalUsers.toString() ?? '0'}
+                    trend="+5.2%"
+                    icon={Users}
+                    color="text-violet-600"
+                />
+                <KpiCard
+                    title="Platform Health"
+                    value="99.9%"
+                    trend="Stable"
+                    icon={Activity}
+                    color="text-rose-600"
+                />
+            </div>
 
-    {/* Main Content Split */ }
-    <div className="grid gap-4 md:grid-cols-7">
+            {/* Main Content Split */}
+            <div className="grid gap-4 md:grid-cols-7">
 
-        {/* Chart Section (Bigger) */}
-        <Card className="col-span-4 bg-white dark:bg-stone-900/50 backdrop-blur-sm border-stone-200 dark:border-stone-800 shadow-sm">
-            <CardHeader>
-                <CardTitle>Revenue Overview</CardTitle>
-                <CardDescription>Platform-wide revenue performance over last 30 days.</CardDescription>
-            </CardHeader>
-            <CardContent className="pl-2">
-                <div className="h-[350px] w-full">
-                    <RevenueChart data={revenueTrend} title="" description="" />
-                </div>
-            </CardContent>
-        </Card>
-
-        {/* Activity Feed (Smaller) */}
-        <Card className="col-span-3 bg-white dark:bg-stone-900/50 backdrop-blur-sm border-stone-200 dark:border-stone-800 shadow-sm">
-            <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Latest actions across the platform.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="space-y-8">
-                    {activities?.map((activity, i) => (
-                        <div key={i} className="flex items-center">
-                            <div className="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center border border-stone-200 dark:border-stone-700">
-                                <span className="text-xs font-bold text-stone-600 dark:text-stone-300">
-                                    {activity.type === 'TENANT_CREATED' ? 'T' : 'U'}
-                                </span>
-                            </div>
-                            <div className="ml-4 space-y-1">
-                                <p className="text-sm font-medium leading-none text-stone-900 dark:text-stone-100">
-                                    {activity.description}
-                                </p>
-                                <p className="text-xs text-stone-500">
-                                    {new Date(activity.createdAt).toLocaleDateString()}
-                                </p>
-                            </div>
-                            <div className="ml-auto font-medium text-xs text-stone-500">
-                                Just now
-                            </div>
+                {/* Chart Section (Bigger) */}
+                <Card className="col-span-4 bg-white dark:bg-stone-900/50 backdrop-blur-sm border-stone-200 dark:border-stone-800 shadow-sm">
+                    <CardHeader>
+                        <CardTitle>Revenue Overview</CardTitle>
+                        <CardDescription>Platform-wide revenue performance over last 30 days.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pl-2">
+                        <div className="h-[350px] w-full">
+                            <RevenueChart data={revenueTrend} title="" description="" />
                         </div>
-                    )) ?? (
-                            <p className="text-sm text-stone-500">No recent activity.</p>
-                        )}
-                </div>
-            </CardContent>
-        </Card>
-    </div>
+                    </CardContent>
+                </Card>
+
+                {/* Activity Feed (Smaller) */}
+                <Card className="col-span-3 bg-white dark:bg-stone-900/50 backdrop-blur-sm border-stone-200 dark:border-stone-800 shadow-sm">
+                    <CardHeader>
+                        <CardTitle>Recent Activity</CardTitle>
+                        <CardDescription>Latest actions across the platform.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-8">
+                            {activities?.map((activity, i) => (
+                                <div key={i} className="flex items-center">
+                                    <div className="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center border border-stone-200 dark:border-stone-700">
+                                        <span className="text-xs font-bold text-stone-600 dark:text-stone-300">
+                                            {activity.type === 'TENANT_CREATED' ? 'T' : 'U'}
+                                        </span>
+                                    </div>
+                                    <div className="ml-4 space-y-1">
+                                        <p className="text-sm font-medium leading-none text-stone-900 dark:text-stone-100">
+                                            {activity.description}
+                                        </p>
+                                        <p className="text-xs text-stone-500">
+                                            {new Date(activity.createdAt).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                    <div className="ml-auto font-medium text-xs text-stone-500">
+                                        Just now
+                                    </div>
+                                </div>
+                            )) ?? (
+                                    <p className="text-sm text-stone-500">No recent activity.</p>
+                                )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </div >
     );
 }
