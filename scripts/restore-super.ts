@@ -19,12 +19,16 @@ async function restoreSuperAdmin() {
         return;
     }
 
-    // 2. Update DB Role
+    // 2. Update DB Role - AND REMOVE TENANT ID (Force Detach)
     await prisma.user.update({
         where: { id: user.id },
-        data: { role: 'SUPER' }
+        data: {
+            role: 'SUPER',
+            tenantId: null,
+            outletId: null
+        }
     });
-    console.log(`✅ Database: Role set to SUPER for ${user.id}`);
+    console.log(`✅ Database: Role set to SUPER, Tenant cleared for ${user.id}`);
 
     // 3. Update Clerk Metadata
     try {
@@ -35,14 +39,16 @@ async function restoreSuperAdmin() {
 
         if (clerkUserList.data.length > 0) {
             const clerkUser = clerkUserList.data[0];
+            // Force null for tenantId in metadata too
             await clerk.users.updateUser(clerkUser.id, {
                 publicMetadata: {
                     role: 'SUPER',
                     onboardingComplete: true,
-                    // usage: 'super-admin' // Optional tag
+                    tenantId: null,
+                    outletId: null
                 }
             });
-            console.log(`✅ Clerk: Metadata updated for ${clerkUser.id}`);
+            console.log(`✅ Clerk: Metadata updated (SUPER, No Tenant) for ${clerkUser.id}`);
         } else {
             console.warn('⚠️ Clerk user not found by email.');
         }

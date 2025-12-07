@@ -28,11 +28,17 @@ export default async function BrandLayout({
                     name: true,
                     logoUrl: true,
                     primaryColor: true,
-                    // isPaymentDue: true,
                 }
             }
         }
     });
+
+    // 🛡️ Security Check: If user has no tenant, they shouldn't be here.
+    // They are likely a Super Admin or Unassigned user.
+    // Send them to root '/' where the main router will send them to the right place.
+    if (!user?.tenantId) {
+        redirect('/');
+    }
 
     const brandName = (user as any)?.tenant?.name || "Beloop";
     const brandLogo = (user as any)?.tenant?.logoUrl;
