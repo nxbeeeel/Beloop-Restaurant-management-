@@ -2,14 +2,7 @@
 'use client';
 
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { trpc } from '@/lib/trpc';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-'use client';
-
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, Suspense } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,8 +11,6 @@ import { Loader2, CheckCircle2, AlertCircle, Upload, Palette } from 'lucide-reac
 import { useClerk, useUser } from '@clerk/nextjs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-import { Suspense } from 'react';
 
 function BrandInviteContent() {
     const searchParams = useSearchParams();
@@ -37,14 +28,14 @@ function BrandInviteContent() {
 
     // Mutation to activate
     const activateMutation = trpc.public.activateBrand.useMutation({
-        onSuccess: (data) => {
+        onSuccess: (data: any) => {
             toast.success("Brand Activated Successfully! 🎉");
             // Redirect to dashboard
             setTimeout(() => {
                 router.push('/brand/dashboard');
             }, 1500);
         },
-        onError: (err) => {
+        onError: (err: any) => {
             toast.error(err.message || "Failed to activate brand");
             setIsActivating(false);
         }
