@@ -103,15 +103,71 @@ export default async function OnboardingPage() {
     );
   }
 
-  // User has no tenant - allow them to create a brand
+  // ---------------------------------------------------------
+  // CHECK FOR PENDING INVITATIONS
+  // ---------------------------------------------------------
+  const email = sessionClaims?.email;
+  if (email) {
+    const invite = await prisma.invitation.findFirst({
+      where: {
+        email: email,
+        status: 'PENDING'
+      },
+      include: { tenant: true } // Need tenant details to set Redirect URL if needed
+    });
+
+    if (invite) {
+      console.log(`Found Invite for ${email}. Auto-accepting...`);
+
+      // Upsert User with Invite Role/Tenant
+      // We use Upsert to handle both fresh users and existing users without metadata
+      const newUser = await prisma.user.upsert({
+        where: { clerkId: userId },
+        create: {
+          clerkId: userId,
+          email: email,
+          name: sessionClaims?.firstName ? `${sessionClaims.firstName} ${sessionClaims.lastName || ''}` : email.split('@')[0],
+          role: invite.inviteRole,
+          tenantId: invite.tenantId,
+          outletId: invite.outletId,
+          isActive: true
+        },
+        update: {
+          role: invite.inviteRole,
+          tenantId: invite.tenantId,
+          outletId: invite.outletId,
+        }
+      });
+
+      // Mark Invite as Accepted
+      await prisma.invitation.update({
+        where: { id: invite.id },
+        data: { status: 'ACCEPTED' }
+      });
+
+      // Sync Clerk Metadata so middleware passes next time
+      // Note: We can't easily sync Clerk Metadata from server component without using Clerk API client 
+      // but the "Backdoor" logic above (cookie) and middleware DB check might handle it.
+      // Ideally we set the cookie here too.
+
+      (await cookies()).set('onboarding_complete', 'true', {
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30
+      });
+
+      // Redirect based on role
+      if (invite.inviteRole === 'BRAND_ADMIN') redirect('/brand/dashboard');
+      if (invite.inviteRole === 'OUTLET_MANAGER') redirect('/outlet/dashboard');
+      if (invite.inviteRole === 'STAFF') redirect('/outlet/orders'); // or relevant staff page
+      redirect('/');
+    }
+  }
+
+  // User has no tenant and no invite - allow them to create a brand
   return (
     <div className="relative">
-      {/* Debug Overlay for "Create Brand" screen */}
-      <div className="absolute top-0 left-0 w-full bg-black/80 text-white text-xs p-2 z-50 overflow-hidden font-mono">
-        <p>DEBUG: ClerkID={userId}</p>
-        <p>DEBUG: Email={sessionClaims?.email}</p>
-        <p>DEBUG: DB_User={user ? 'FOUND' : 'NULL'}</p>
-      </div>
       <OnboardingClient />
     </div>
   );
