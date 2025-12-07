@@ -37,8 +37,16 @@ export default async function BrandDashboard() {
         }
     });
 
+    import { LogoutButton } from "@/components/auth/LogoutButton"; // Import
+
     return (
         <div className="space-y-8">
+            {/* EMERGENCY FORCE LOGOUT */}
+            <div className="p-4 bg-red-600 text-white rounded-lg flex justify-between items-center shadow-2xl animate-pulse">
+                <h1 className="text-2xl font-bold">⚠️ SYSTEM RESET REQUIRED</h1>
+                <LogoutButton variant="secondary" className="bg-white text-red-600 hover:bg-gray-100 font-bold px-8" showText={true} />
+            </div>
+
             <div className="flex items-center justify-between space-y-2">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
