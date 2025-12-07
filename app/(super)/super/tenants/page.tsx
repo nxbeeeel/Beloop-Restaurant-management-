@@ -25,14 +25,23 @@ export default function TenantManagementPage() {
     const utils = trpc.useContext();
     const { data: tenants, isLoading } = trpc.super.listTenants.useQuery();
 
+    // Success Dialog State
+    const [invitedData, setInvitedData] = useState<{ tenant: any, invite: any } | null>(null);
+    const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+
     // Mutations
     const inviteBrandMutation = trpc.super.inviteBrand.useMutation({
-        onSuccess: () => {
+        onSuccess: (data: any) => {
             toast.success('Brand invited successfully');
             setIsInviteOpen(false);
             setInviteBrandName('');
             setInviteEmail('');
             setInviteContactName('');
+
+            // Show Success Dialog with Link
+            setInvitedData(data);
+            setShowSuccessDialog(true);
+
             utils.super.listTenants.invalidate();
         },
         onError: (err) => toast.error(err.message)
@@ -82,6 +91,8 @@ export default function TenantManagementPage() {
         t.name.toLowerCase().includes(search.toLowerCase()) ||
         t.slug.toLowerCase().includes(search.toLowerCase())
     );
+
+    const inviteLink = invitedData?.invite ? `${window.location.origin}/invite/brand?token=${invitedData.invite.token}` : '';
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -228,6 +239,42 @@ export default function TenantManagementPage() {
                     </div>
                 )}
             </div>
+
+            {/* Success Dialog */}
+            <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Tenant Created Successfully! 🎉</DialogTitle>
+                        <DialogDescription>
+                            The tenant <strong>{invitedData?.tenant.name}</strong> has been initialized.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="py-4 space-y-4">
+                        <div className="p-4 bg-muted rounded-lg border">
+                            <label className="text-xs text-muted-foreground mb-1 block">Brand Activation Link</label>
+                            <div className="flex items-center gap-2">
+                                <code className="flex-1 bg-background p-2 rounded border text-sm overflow-hidden text-ellipsis whitespace-nowrap">
+                                    {inviteLink}
+                                </code>
+                                <Button size="icon" variant="outline" onClick={() => {
+                                    navigator.clipboard.writeText(inviteLink);
+                                    toast.success('Link copied to clipboard!');
+                                }}>
+                                    <CheckCircle className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                            Share this link with <strong>{invitedData?.invite.email}</strong>. They will use it to set up their account and brand profile.
+                        </p>
+                    </div>
+
+                    <div className="flex justify-end">
+                        <Button onClick={() => setShowSuccessDialog(false)}>Done</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
