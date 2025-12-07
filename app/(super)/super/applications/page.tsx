@@ -133,14 +133,17 @@ export default function ApplicationsPage() {
                                                 </>
                                             )}
                                             {app.status === 'APPROVED' && (
-                                                <ViewInviteAction appId={app.id} onInviteFound={(invite) => {
-                                                    setApprovedData({
-                                                        tenant: { name: app.brandName }, // Mock tenant name for display
-                                                        invite: invite,
-                                                        actionTaken: 'INVITED'
-                                                    });
-                                                    setIsDialogOpen(true);
-                                                }} />
+                                                <>
+                                                    <ViewInviteAction appId={app.id} onInviteFound={(invite) => {
+                                                        setApprovedData({
+                                                            tenant: { name: app.brandName }, // Mock tenant name for display
+                                                            invite: invite,
+                                                            actionTaken: 'INVITED'
+                                                        });
+                                                        setIsDialogOpen(true);
+                                                    }} />
+                                                    <RevokeAction appId={app.id} onRevoked={() => utils.brandApplication.list.invalidate()} />
+                                                </>
                                             )}
                                         </TableCell>
                                     </TableRow>
@@ -224,6 +227,28 @@ function ViewInviteAction({ appId, onInviteFound }: { appId: string, onInviteFou
     return (
         <Button size="icon" variant="ghost" title="Get Invite Link" onClick={() => setEnabled(true)} disabled={isFetching}>
             {isFetching ? <Loader2 className="h-4 w-4 animate-spin text-stone-400" /> : <Copy className="h-4 w-4 text-stone-400" />}
+        </Button>
+    );
+}
+
+function RevokeAction({ appId, onRevoked }: { appId: string, onRevoked: () => void }) {
+    const revokeMutation = trpc.brandApplication.revoke.useMutation({
+        onSuccess: () => {
+            toast.success('Application revoked and invitation cancelled.');
+            onRevoked();
+        },
+        onError: (err) => toast.error(err.message)
+    });
+
+    const handleRevoke = () => {
+        if (confirm('Are you sure? This will cancel the invitation and reject the application. The user will not be able to sign up with the old link.')) {
+            revokeMutation.mutate({ id: appId });
+        }
+    };
+
+    return (
+        <Button size="icon" variant="ghost" title="Revoke Application" onClick={handleRevoke} disabled={revokeMutation.isPending} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+            {revokeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
         </Button>
     );
 }

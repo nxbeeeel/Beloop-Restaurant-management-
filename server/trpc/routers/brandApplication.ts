@@ -115,4 +115,34 @@ export const brandApplicationRouter = router({
 
             return { token: invite.token, link };
         }),
+
+    revoke: requireSuper
+        .input(z.object({
+            id: z.string()
+        }))
+        .mutation(async ({ input }) => {
+            const app = await prisma.brandApplication.findUnique({
+                where: { id: input.id },
+            });
+
+            if (!app) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Application not found' });
+            }
+
+            // 1. Revoke/Delete Brand Invitations
+            await prisma.brandInvitation.deleteMany({
+                where: {
+                    email: app.email,
+                    status: 'PENDING'
+                }
+            });
+
+            // 2. Reject Application
+            const updated = await prisma.brandApplication.update({
+                where: { id: input.id },
+                data: { status: 'REJECTED' },
+            });
+
+            return updated;
+        }),
 });
