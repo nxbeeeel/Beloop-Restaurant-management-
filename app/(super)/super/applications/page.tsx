@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Check, X, FileText } from 'lucide-react';
+import { Check, X, FileText, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 import {
@@ -132,6 +132,16 @@ export default function ApplicationsPage() {
                                                     </Button>
                                                 </>
                                             )}
+                                            {app.status === 'APPROVED' && (
+                                                <ViewInviteAction appId={app.id} onInviteFound={(invite) => {
+                                                    setApprovedData({
+                                                        tenant: { name: app.brandName }, // Mock tenant name for display
+                                                        invite: invite,
+                                                        actionTaken: 'INVITED'
+                                                    });
+                                                    setIsDialogOpen(true);
+                                                }} />
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 ))
@@ -187,5 +197,30 @@ export default function ApplicationsPage() {
                 </DialogContent>
             </Dialog>
         </div>
+    );
+}
+
+function ViewInviteAction({ appId, onInviteFound }: { appId: string, onInviteFound: (invite: any) => void }) {
+    const [enabled, setEnabled] = useState(false);
+    const { data: invite, isFetching } = trpc.brandApplication.getInvite.useQuery({ id: appId }, {
+        enabled: enabled,
+        retry: false
+    });
+
+    if (enabled && invite) {
+        onInviteFound(invite);
+        setEnabled(false); // Reset
+    }
+
+    // If enabled and finished fetching but no invite
+    if (enabled && !isFetching && !invite && invite !== undefined) {
+        toast.error('No pending invite found for this application.');
+        setEnabled(false);
+    }
+
+    return (
+        <Button size="icon" variant="ghost" title="Get Invite Link" onClick={() => setEnabled(true)} disabled={isFetching}>
+            {isFetching ? <Loader2 className="h-4 w-4 animate-spin text-stone-400" /> : <Copy className="h-4 w-4 text-stone-400" />}
+        </Button>
     );
 }
