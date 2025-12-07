@@ -64,19 +64,10 @@ async function main() {
     console.log('   Price Per Outlet:', myTenantBilling.pricePerOutlet);
 
     // 5. Record Payment
+    // 5. Recording Payment
     console.log('\n5. Recording Payment...');
     const paymentAmount = myTenantBilling.monthlyFee;
-    const payment = await caller.billing.recordPayment({ // Wait, did I add recordPayment to billing or keep in super?
-        // I think I kept it in super or didn't move it? 
-        // Ah, I see `recordPayment` in `super.ts` was used in `payments/page.tsx`.
-        // Let's check where it is. I referenced `trpc.super.recordPayment` in page.tsx.
-        // So caller.super.recordPayment.
-        tenantId: approvedResult.tenant.id,
-        amount: paymentAmount,
-        method: 'CASH',
-        date: new Date(),
-        notes: 'Verification Script Payment'
-    } as any); // Type assertion if needed due to router structure not perfectly matching manual call
+
 
     // Actually I need to call it from super router
     const paymentResult = await caller.super.recordPayment({

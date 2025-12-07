@@ -43,16 +43,18 @@ export function SuperSidebar() {
             )}
         >
             {/* Header / Logo */}
-            <div className="h-20 flex items-center px-6 border-b border-stone-800">
+            <div className="h-24 flex items-center px-6 border-b border-stone-800 bg-stone-950">
                 {!isCollapsed ? (
                     <div className="flex items-center gap-3">
-                        {/* Placeholder Logo if image fails, simple styling */}
+                        {/* Logo Icon */}
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg shadow-rose-900/20">
                             <LayoutDashboard className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                            <h1 className="font-bold text-lg tracking-tight text-white">Beloop</h1>
-                            <p className="text-xs text-stone-400 font-medium">Super Admin</p>
+                            <h1 className="text-2xl font-bold text-white tracking-tight leading-none flex items-baseline">
+                                Beloop<span className="text-rose-600 text-4xl leading-none">.</span>
+                            </h1>
+                            <p className="text-[10px] font-bold text-stone-500 tracking-[0.2em] uppercase mt-0.5">Super Admin</p>
                         </div>
                     </div>
                 ) : (

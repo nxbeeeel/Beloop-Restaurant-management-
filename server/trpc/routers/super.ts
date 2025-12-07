@@ -368,4 +368,59 @@ export const superRouter = router({
 
             return payment;
         }),
+
+    // Invite Brand manually
+    inviteBrand: requireSuper
+        .input(z.object({
+            brandName: z.string().min(1),
+            email: z.string().email(),
+            contactName: z.string().optional(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            // Check if user exists
+            const existingUser = await ctx.prisma.user.findUnique({ where: { email: input.email } });
+            if (existingUser) {
+                throw new TRPCError({ code: 'CONFLICT', message: 'User with this email already exists' });
+            }
+
+            // Slug generation
+            let slug = input.brandName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            const existingTenant = await ctx.prisma.tenant.findUnique({ where: { slug } });
+            if (existingTenant) {
+                slug = `${slug}-${Date.now()}`;
+            }
+
+            // Create Tenant
+            const tenant = await ctx.prisma.tenant.create({
+                data: {
+                    name: input.brandName,
+                    slug: slug,
+                    pricePerOutlet: 250,
+                    status: 'ACTIVE',
+                    subscriptionStatus: 'TRIAL', // give them a trial initially or ACTIVE? Let's say TRIAL or waiting for payment. ACTIVE is fine for now as per prompt "setup payment plan" implied but "keep one shop fees 250".
+                    // Prompt said "super admin invite brand with like setup payment plan".
+                    // We'll set them as ACTIVE and maybe nextBillingDate as now + 1 month (free month?) or now (due immediately)?
+                    // Let's set nextBillingDate to NOW so they appear as Due if we want, or month + 1. 
+                    // Let's go with month + 1 trial.
+                    nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                },
+            });
+
+            // Create Invitation
+            const invite = await ctx.prisma.invitation.create({
+                data: {
+                    token: crypto.randomUUID(),
+                    email: input.email,
+                    tenantId: tenant.id,
+                    inviteRole: 'BRAND_ADMIN',
+                    status: 'PENDING',
+                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                    createdById: ctx.user.id,
+                    createdByRole: 'SUPER',
+                    metadata: { contactName: input.contactName }
+                },
+            });
+
+            return { tenant, invite };
+        }),
 });

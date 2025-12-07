@@ -12,7 +12,7 @@ export default async function SuperLayout({
     if (!userId) redirect("/login");
 
     return (
-        <div className="flex min-h-screen bg-stone-50 dark:bg-stone-950">
+        <div className="flex min-h-screen bg-stone-950 text-white">
             {/* Desktop Sidebar (Fixed) */}
             <div className="hidden md:block fixed inset-y-0 left-0 z-50">
                 <SuperSidebar />
