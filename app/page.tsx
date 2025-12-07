@@ -13,10 +13,15 @@ export default async function HomePage() {
   if (userId) {
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true, tenantId: true }
+      select: { role: true, tenantId: true, email: true }
     });
 
     if (user) {
+      // 🚨 FORCE SUPER ADMIN FOR SPECIFIC EMAIL 🚨
+      if (user.email === 'mnabeelca123@gmail.com') {
+        redirect('/super/dashboard');
+      }
+
       // Redirect based on role
       if (user.role === 'SUPER') {
         redirect('/super/dashboard');
