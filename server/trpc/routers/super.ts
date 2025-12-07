@@ -462,4 +462,32 @@ export const superRouter = router({
 
             return invite;
         }),
+
+    // New ACID Brand Invitation (Phase 1)
+    createBrandInvitation: requireSuper
+        .input(z.object({
+            brandName: z.string().min(1),
+            email: z.string().email(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            // 1. Generate Token
+            const token = crypto.randomUUID();
+
+            // 2. Persist to DB
+            await ctx.prisma.brandInvitation.create({
+                data: {
+                    token,
+                    brandName: input.brandName,
+                    email: input.email,
+                    expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000), // 48 Hours
+                },
+            });
+
+            // 3. Return Link
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+            return {
+                link: `${baseUrl}/invite/brand?token=${token}`,
+                token
+            };
+        }),
 });

@@ -169,16 +169,18 @@ export default function ApplicationsPage() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    {approvedData?.actionTaken === 'INVITED' && (
+                    {approvedData?.actionTaken === 'INVITED' || approvedData?.actionTaken === 'INVITE_GENERATED' && (
                         <div className="py-4 space-y-4">
                             <div className="p-4 bg-muted rounded-lg border">
-                                <Label className="text-xs text-muted-foreground mb-1 block">Invitation Link</Label>
+                                <Label className="text-xs text-muted-foreground mb-1 block">
+                                    {approvedData?.actionTaken === 'INVITE_GENERATED' ? 'Brand Activation Link' : 'Invitation Link'}
+                                </Label>
                                 <div className="flex items-center gap-2">
                                     <code className="flex-1 bg-background p-2 rounded border text-sm overflow-hidden text-ellipsis whitespace-nowrap">
-                                        {inviteLink}
+                                        {inviteLink || approvedData?.invite?.link}
                                     </code>
                                     <Button size="icon" variant="outline" onClick={() => {
-                                        navigator.clipboard.writeText(inviteLink);
+                                        navigator.clipboard.writeText(inviteLink || approvedData?.invite?.link);
                                         toast.success('Link copied to clipboard!');
                                     }}>
                                         <Copy className="h-4 w-4" />
@@ -186,10 +188,11 @@ export default function ApplicationsPage() {
                                 </div>
                             </div>
                             <div className="text-sm text-muted-foreground">
-                                <p><strong>Note:</strong> Since we don't have an email service configured, you must send this link manually.</p>
+                                <p><strong>Note:</strong> Share this link with the applicant. They will use it to activate their brand.</p>
                             </div>
                         </div>
                     )}
+
 
                     <DialogFooter>
                         <Button onClick={() => setIsDialogOpen(false)}>Done</Button>

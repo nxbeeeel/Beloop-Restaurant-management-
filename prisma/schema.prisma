@@ -798,6 +798,20 @@ model Order {
   @@index([customerId])
 }
 
+model BrandInvitation {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  brandName   String   // Proposed name for the new Tenant
+  email       String   // Target Admin Email
+  status      String   @default("PENDING") // PENDING, USED, EXPIRED
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([token])
+  @@index([email])
+}
+
 model OrderItem {
   id        String  @id @default(cuid())
   orderId   String

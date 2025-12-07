@@ -46,62 +46,35 @@ export const brandApplicationRouter = router({
                 throw new TRPCError({ code: 'BAD_REQUEST', message: 'Application is not pending' });
             }
 
-            // 1. Create Tenant
-            // Slug generation: simple cleanup
-            let slug = application.brandName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-            const existingTenant = await prisma.tenant.findUnique({ where: { slug } });
-            if (existingTenant) {
-                slug = `${slug}-${Date.now()}`;
-            }
+            // 1. Create Brand Invitation (Phase 1 of ACID Flow)
+            const token = crypto.randomUUID();
 
-            const tenant = await prisma.tenant.create({
+            await prisma.brandInvitation.create({
                 data: {
-                    name: application.brandName,
-                    slug: slug,
-                    pricePerOutlet: 250,
-                    status: 'ACTIVE',
-                },
+                    token,
+                    brandName: application.brandName,
+                    email: application.email,
+                    expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000), // 48 Hours
+                }
             });
 
-            // 2. Handle User (Existing vs New)
-            const existingUser = await prisma.user.findUnique({ where: { email: application.email } });
-            let invite = null;
-            let actionTaken = 'INVITED'; // or 'ASSIGNED'
-
-            if (existingUser) {
-                // User exists: Direct assignment
-                await prisma.user.update({
-                    where: { id: existingUser.id },
-                    data: {
-                        role: 'BRAND_ADMIN',
-                        tenantId: tenant.id,
-                        isActive: true
-                    }
-                });
-                actionTaken = 'ASSIGNED';
-            } else {
-                // User does not exist: Create Invitation
-                invite = await prisma.invitation.create({
-                    data: {
-                        token: crypto.randomUUID(),
-                        email: application.email,
-                        tenantId: tenant.id,
-                        inviteRole: 'BRAND_ADMIN',
-                        status: 'PENDING',
-                        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-                        createdById: 'system', // or ctx.user.id
-                        createdByRole: 'SUPER',
-                    },
-                });
-            }
-
-            // 3. Update Application Status
+            // 2. Update Application Status
             await prisma.brandApplication.update({
                 where: { id: input.id },
                 data: { status: 'APPROVED' },
             });
 
-            return { tenant, invite, actionTaken };
+            // 3. Return Link for Display
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+            const link = `${baseUrl}/invite/brand?token=${token}`;
+
+            return {
+                actionTaken: 'INVITE_GENERATED',
+                invite: { token, link },
+                // Mock tenant object for frontend compatibility showing "Tenant Created" message, 
+                // though strictly it's "Tenant Reserved" now.
+                tenant: { name: application.brandName }
+            };
         }),
 
     reject: requireSuper
