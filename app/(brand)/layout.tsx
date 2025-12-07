@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/server/db";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { PageTransition } from "@/components/ui/animations";
 import type { Metadata } from "next";
