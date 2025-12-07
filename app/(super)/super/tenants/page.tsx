@@ -1,320 +1,103 @@
 'use client';
 
-import { useState } from 'react';
-import { trpc } from '@/lib/trpc';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Building2, Users, Store, TrendingUp, Search, Loader2, CheckCircle, Ban, PlayCircle, Trash2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
+import { Suspense } from 'react';
+import { trpc } from "@/lib/trpc";
+import { Plus, Search, Building2, MoreHorizontal } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export default function SuperTenantsPage() {
-    const [search, setSearch] = useState('');
-    const [filterStatus, setFilterStatus] = useState<string>('ALL');
-    const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
-
-    const utils = trpc.useContext();
-    const { data: stats, isLoading: statsLoading } = trpc.super.getStats.useQuery();
-    const { data: tenants, isLoading } = trpc.super.listTenants.useQuery();
-    const { data: tenantDetails } = trpc.super.getTenantDetails.useQuery(
-        { tenantId: selectedTenantId! },
-        { enabled: !!selectedTenantId }
-    );
-
-    const updateStatusMutation = trpc.super.updateTenantStatus.useMutation({
-        onSuccess: () => {
-            toast.success('Tenant status updated successfully');
-            utils.super.listTenants.invalidate();
-        },
-        onError: (error) => {
-            toast.error(`Failed to update status: ${error.message}`);
-        }
-    });
-
-    const deleteTenantMutation = trpc.super.deleteTenant.useMutation({
-        onSuccess: () => {
-            toast.success('Tenant deleted successfully');
-            utils.super.listTenants.invalidate();
-        },
-        onError: (error) => {
-            toast.error(`Failed to delete tenant: ${error.message}`);
-        }
-    });
-
-    const requestPaymentMutation = trpc.super.requestPayment.useMutation({
-        onSuccess: () => {
-            toast.success('Payment requested successfully');
-            utils.super.listTenants.invalidate();
-        },
-        onError: (error) => {
-            toast.error(`Failed to request payment: ${error.message}`);
-        }
-    });
-
-    const handleStatusUpdate = async (tenantId: string, newStatus: 'ACTIVE' | 'SUSPENDED' | 'PAUSED' | 'TRIAL') => {
-        await updateStatusMutation.mutateAsync({ tenantId, status: newStatus });
-    };
-
-    const handleDelete = async (tenantId: string) => {
-        if (confirm('Are you sure you want to delete this tenant? This action cannot be undone and will delete all associated data.')) {
-            await deleteTenantMutation.mutateAsync({ tenantId });
-        }
-    };
-
-    const handleRequestPayment = async (tenantId: string) => {
-        await requestPaymentMutation.mutateAsync({ tenantId });
-    };
-
-    const filteredTenants = tenants?.filter((tenant: any) => {
-        const matchesSearch = tenant.name.toLowerCase().includes(search.toLowerCase());
-        const matchesStatus = filterStatus === 'ALL' || tenant.status === filterStatus;
-        return matchesSearch && matchesStatus;
-    });
-
-    const getStatusBadgeVariant = (status: string) => {
-        switch (status) {
-            case 'ACTIVE': return 'default'; // primary/black
-            case 'PENDING': return 'secondary'; // gray
-            case 'SUSPENDED': return 'destructive'; // red
-            case 'TRIAL': return 'outline';
-            default: return 'secondary';
-        }
-    };
-
-    if (statsLoading || isLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
-    }
+export default function TenantManagementPage() {
+    const { data: tenants, isLoading } = trpc.superAnalytics.getTenantHealth.useQuery();
 
     return (
-        <div className="container mx-auto py-8 px-4">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold">Tenant Management</h1>
-                <p className="text-muted-foreground mt-2">Manage all brands and their outlets</p>
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight text-white">Tenants</h2>
+                    <p className="text-stone-400">Manage all registered brands and restaurant chains.</p>
+                </div>
+                <Button className="bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-500/20">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create New Tenant
+                </Button>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Tenants</CardTitle>
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats?.totalTenants || 0}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Outlets</CardTitle>
-                        <Store className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats?.totalOutlets || 0}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats?.totalSales || 0}</div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Filters */}
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
+            {/* Filter Bar */}
+            <div className="flex items-center gap-4 bg-stone-900 p-4 rounded-xl border border-stone-800">
                 <div className="relative flex-1">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
                     <Input
                         placeholder="Search tenants..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-10"
+                        className="pl-9 bg-stone-950 border-stone-800 text-white placeholder:text-stone-600 focus-visible:ring-rose-500"
                     />
                 </div>
-                <div className="w-[200px]">
-                    <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Filter by Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="ALL">All Statuses</SelectItem>
-                            <SelectItem value="ACTIVE">Active</SelectItem>
-                            <SelectItem value="PENDING">Pending</SelectItem>
-                            <SelectItem value="SUSPENDED">Suspended</SelectItem>
-                            <SelectItem value="TRIAL">Trial</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
+                <Button variant="outline" className="border-stone-800 text-stone-300 hover:bg-stone-800 hover:text-white">
+                    Filter Status
+                </Button>
             </div>
 
-            {/* Tenants Table */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>All Tenants</CardTitle>
-                    <CardDescription>Click on a tenant to view details</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Outlets</TableHead>
-                                <TableHead>Users</TableHead>
-                                <TableHead>Created</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredTenants?.map((tenant: any) => (
-                                <TableRow key={tenant.id} className="hover:bg-muted/50">
-                                    <TableCell className="font-medium cursor-pointer" onClick={() => setSelectedTenantId(tenant.id)}>
-                                        {tenant.name}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant={getStatusBadgeVariant(tenant.status)}>
-                                            {tenant.status}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant="secondary">{tenant._count.outlets}</Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant="secondary">{tenant._count.users}</Badge>
-                                    </TableCell>
-                                    <TableCell>{new Date(tenant.createdAt).toLocaleDateString()}</TableCell>
-                                    <TableCell className="text-right space-x-2">
-                                        {tenant.status === 'PENDING' && (
-                                            <Button
-                                                size="sm"
-                                                className="bg-green-600 hover:bg-green-700 text-white"
-                                                onClick={() => handleStatusUpdate(tenant.id, 'ACTIVE')}
-                                            >
-                                                <CheckCircle className="h-4 w-4 mr-1" /> Approve
-                                            </Button>
+            {/* Tenant List */}
+            <div className="grid gap-4">
+                {isLoading ? (
+                    <div className="space-y-4">
+                        {[1, 2, 3].map((i) => (
+                            <Skeleton key={i} className="h-20 w-full bg-stone-900 rounded-xl" />
+                        ))}
+                    </div>
+                ) : (
+                    tenants?.map((tenant: any) => (
+                        <Card key={tenant.id} className="bg-stone-900 border-stone-800 hover:bg-stone-800/50 transition-colors group">
+                            <div className="p-6 flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-stone-800 border border-stone-700 flex items-center justify-center">
+                                        {tenant.logoUrl ? (
+                                            <img src={tenant.logoUrl} alt={tenant.name} className="w-8 h-8 object-contain" />
+                                        ) : (
+                                            <Building2 className="w-6 h-6 text-stone-500" />
                                         )}
-                                        {tenant.status === 'ACTIVE' && (
-                                            <Button
-                                                size="sm"
-                                                variant="destructive"
-                                                onClick={() => handleStatusUpdate(tenant.id, 'SUSPENDED')}
-                                            >
-                                                <Ban className="h-4 w-4 mr-1" /> Suspend
-                                            </Button>
-                                        )}
-                                        {tenant.status === 'SUSPENDED' && (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="text-green-600 border-green-600 hover:bg-green-50"
-                                                onClick={() => handleStatusUpdate(tenant.id, 'ACTIVE')}
-                                            >
-                                                <PlayCircle className="h-4 w-4 mr-1" /> Activate
-                                            </Button>
-                                        )}
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                            onClick={() => handleDelete(tenant.id)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleRequestPayment(tenant.id)}
-                                            disabled={tenant.isPaymentDue}
-                                        >
-                                            {tenant.isPaymentDue ? 'Payment Requested' : 'Request Payment'}
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-lg text-white group-hover:text-rose-400 transition-colors">{tenant.name}</h3>
+                                        <div className="flex items-center gap-2 text-sm text-stone-500">
+                                            <span>{tenant.id}</span>
+                                            <span>•</span>
+                                            <span>{tenant.userCount ?? 0} Users</span>
+                                        </div>
+                                    </div>
+                                </div>
 
-            {/* Tenant Details Dialog */}
-            <Dialog open={!!selectedTenantId} onOpenChange={() => setSelectedTenantId(null)}>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>{tenantDetails?.name}</DialogTitle>
-                        <DialogDescription>Tenant details and statistics</DialogDescription>
-                    </DialogHeader>
-                    {tenantDetails && (
-                        <div className="space-y-6">
-                            {/* Outlets */}
-                            <div>
-                                <h3 className="font-semibold mb-3">Outlets ({tenantDetails.outlets.length})</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {tenantDetails.outlets.map((outlet: any) => (
-                                        <Card key={outlet.id}>
-                                            <CardHeader>
-                                                <CardTitle className="text-base">{outlet.name}</CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="text-sm space-y-1">
-                                                <p><strong>Address:</strong> {outlet.address}</p>
-                                                <p><strong>Phone:</strong> {outlet.phone}</p>
-                                                <p><strong>Sales:</strong> {outlet._count.sales}</p>
-                                                <p><strong>Expenses:</strong> {outlet._count.expenses}</p>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
+                                <div className="flex items-center gap-6">
+                                    <div className="text-right hidden md:block">
+                                        <p className="text-sm font-medium text-stone-300">₹{tenant.monthlyRevenue?.toLocaleString() ?? 0}</p>
+                                        <p className="text-xs text-stone-500">Monthly Revenue</p>
+                                    </div>
+
+                                    <Badge variant="outline" className="border-emerald-500/20 bg-emerald-500/10 text-emerald-500">
+                                        Active
+                                    </Badge>
+
+                                    <Button variant="ghost" size="icon" className="text-stone-400 hover:text-white hover:bg-stone-800">
+                                        <MoreHorizontal className="w-5 h-5" />
+                                    </Button>
                                 </div>
                             </div>
+                        </Card>
+                    ))
+                )}
 
-                            {/* Users */}
-                            <div>
-                                <h3 className="font-semibold mb-3">Users ({tenantDetails.users.length})</h3>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Name</TableHead>
-                                            <TableHead>Email</TableHead>
-                                            <TableHead>Role</TableHead>
-                                            <TableHead>Joined</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {tenantDetails.users.map((user: any) => (
-                                            <TableRow key={user.id}>
-                                                <TableCell>{user.name}</TableCell>
-                                                <TableCell>{user.email}</TableCell>
-                                                <TableCell>
-                                                    <Badge>{user.role}</Badge>
-                                                </TableCell>
-                                                <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
+                {(!isLoading && (!tenants || tenants.length === 0)) && (
+                    <div className="text-center py-20 bg-stone-900 rounded-xl border border-stone-800 border-dashed">
+                        <Building2 className="w-12 h-12 text-stone-600 mx-auto mb-4" />
+                        <h3 className="text-xl font-bold text-white mb-2">No Tenants Found</h3>
+                        <p className="text-stone-500 max-w-sm mx-auto mb-6">Start by creating your first brand manually or invite a brand owner.</p>
+                        <Button className="bg-rose-600 hover:bg-rose-700 text-white">Create Tenant</Button>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

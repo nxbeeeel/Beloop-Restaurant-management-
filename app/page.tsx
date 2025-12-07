@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Building2, TrendingUp, Users, BarChart3, Shield, ArrowRight, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { BrandApplicationForm } from "@/components/forms/BrandApplicationForm";
 
 export default async function HomePage() {
   const { userId } = await auth();
@@ -68,7 +69,7 @@ export default async function HomePage() {
             <Link href="/login">
               <Button variant="ghost" className="text-gray-600 hover:text-rose-600 hover:bg-rose-50">Login</Button>
             </Link>
-            <Link href="/signup">
+            <Link href="#apply">
               <Button className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 shadow-lg shadow-rose-500/20 rounded-full px-6">
                 Get Started
               </Button>
@@ -101,7 +102,7 @@ export default async function HomePage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
-            <Link href="/signup">
+            <Link href="#apply">
               <Button size="lg" className="h-14 px-8 text-lg bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 shadow-xl shadow-rose-500/20 rounded-full transition-transform hover:scale-105">
                 Start Free Trial <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
@@ -160,21 +161,48 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="container mx-auto px-6 py-20">
-        <div className="relative rounded-[2.5rem] overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-rose-600 to-pink-600" />
+      {/* CTA / Application Section */}
+      <section className="container mx-auto px-6 py-20" id="apply">
+        <div className="relative rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl">
           <div className="absolute inset-0 bg-[url('/noise.png')] opacity-10 mix-blend-overlay" />
-          <div className="relative p-16 md:p-24 text-center text-white">
-            <h3 className="text-4xl md:text-5xl font-bold mb-6">Ready to Transform Your Business?</h3>
-            <p className="text-xl mb-10 text-rose-100 max-w-2xl mx-auto">
-              Join hundreds of restaurant owners who have taken control of their finances with Beloop.
-            </p>
-            <Link href="/signup">
-              <Button size="lg" variant="secondary" className="h-16 px-10 text-lg rounded-full shadow-2xl hover:shadow-white/20 transition-all hover:scale-105 text-rose-600 font-bold">
-                Create Free Account
-              </Button>
-            </Link>
+
+          <div className="relative grid md:grid-cols-2 gap-12 items-center p-8 md:p-16">
+
+            {/* Left Side: Text */}
+            <div className="space-y-6 text-white">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-rose-500/20 text-rose-300 rounded-full text-xs font-semibold uppercase tracking-wider border border-rose-500/30">
+                <TrendingUp className="w-3 h-3" /> Growth Partner
+              </div>
+              <h3 className="text-4xl md:text-5xl font-bold leading-tight">
+                Ready to Transform <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-pink-400">Your Business?</span>
+              </h3>
+              <p className="text-lg text-slate-300 leading-relaxed max-w-md">
+                Join hundreds of restaurant owners who have mastered their multi-outlet finances with Beloop.
+                Apply now to get exclusive access.
+              </p>
+
+              <div className="flex flex-col gap-4 text-slate-400 text-sm pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-rose-400 font-bold">1</div>
+                  <span>Fill out the application form</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-rose-400 font-bold">2</div>
+                  <span>Our team reviews your details (24h)</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-rose-400 font-bold">3</div>
+                  <span>Get your private workspace login</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side: Form */}
+            <div className="bg-white rounded-3xl p-2 shadow-2xl shadow-black/20">
+              <BrandApplicationForm />
+            </div>
+
           </div>
         </div>
       </section>

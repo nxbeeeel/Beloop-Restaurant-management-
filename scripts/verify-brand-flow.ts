@@ -84,6 +84,17 @@ async function main() {
     const updatedTenant = await prisma.tenant.findUnique({ where: { id: approvedResult.tenant.id } });
     console.log('   New Next Billing Date:', updatedTenant?.nextBillingDate);
 
+    // 7. Verify Manual Invite (inviteBrand)
+    console.log('\n7. Testing Manual Invite (inviteBrand)...');
+    const manualBrandName = `Manual Brand ${Date.now()}`;
+    const manualInviteResult = await caller.super.inviteBrand({
+        brandName: manualBrandName,
+        email: `manual${Date.now()}@test.com`,
+        contactName: 'Mr Manual'
+    });
+    console.log('   Manual Invite Created. Tenant ID:', manualInviteResult.tenant.id);
+    if (manualInviteResult.tenant.status !== 'ACTIVE') throw new Error('Manual tenant should be ACTIVE');
+
     console.log('\n--- Verification SUCCESS ---');
 }
 
