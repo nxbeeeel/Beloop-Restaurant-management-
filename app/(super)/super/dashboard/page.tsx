@@ -20,9 +20,44 @@ import { RevenueChart } from "@/components/admin/RevenueChart";
 
 export default function SuperDashboardPage() {
     const utils = trpc.useContext();
-    const { data: stats } = trpc.superAnalytics.getPlatformStats.useQuery();
-    const { data: revenueTrend } = trpc.superAnalytics.getRevenueTrend.useQuery({ days: 30 });
-    const { data: activities } = trpc.superAnalytics.getRecentActivity.useQuery({ limit: 5 });
+    const { data: stats, isLoading: statsLoading } = trpc.superAnalytics.getPlatformStats.useQuery();
+    const { data: revenueTrend, isLoading: trendsLoading } = trpc.superAnalytics.getRevenueTrend.useQuery({ days: 30 });
+    const { data: activities, isLoading: activitiesLoading } = trpc.superAnalytics.getRecentActivity.useQuery({ limit: 5 });
+
+    const isLoading = statsLoading || trendsLoading || activitiesLoading;
+
+    // Premium Skeleton Loader
+    if (isLoading) {
+        return (
+            <div className="space-y-8 animate-pulse">
+                {/* Header Skeleton */}
+                <div className="flex flex-col md:flex-row justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="h-8 w-48 bg-stone-800 rounded-lg"></div>
+                        <div className="h-4 w-64 bg-stone-800/60 rounded"></div>
+                    </div>
+                    <div className="flex gap-2">
+                        <div className="h-10 w-10 bg-stone-800 rounded-lg"></div>
+                        <div className="h-10 w-32 bg-stone-800 rounded-lg"></div>
+                        <div className="h-10 w-40 bg-stone-800 rounded-lg"></div>
+                    </div>
+                </div>
+
+                {/* KPI Grid Skeleton */}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="h-32 bg-stone-800 rounded-xl border border-stone-800/50"></div>
+                    ))}
+                </div>
+
+                {/* Main Content Skeleton */}
+                <div className="grid gap-4 md:grid-cols-7">
+                    <div className="col-span-4 h-[400px] bg-stone-800 rounded-xl border border-stone-800/50"></div>
+                    <div className="col-span-3 h-[400px] bg-stone-800 rounded-xl border border-stone-800/50"></div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -42,7 +77,6 @@ export default function SuperDashboardPage() {
                             utils.superAnalytics.getTenantHealth.invalidate();
                             utils.superAnalytics.getRevenueTrend.invalidate();
                             utils.superAnalytics.getRecentActivity.invalidate();
-                            // toast.success("Refreshed dashboard data"); // Assuming toast is imported or can be added
                         }}
                     >
                         <RefreshCw className="h-4 w-4" />
@@ -101,14 +135,7 @@ export default function SuperDashboardPage() {
                     </CardHeader>
                     <CardContent className="pl-2">
                         <div className="h-[350px] w-full">
-                            {/* Reusing existing chart component but wrapped nicely */}
-                            {revenueTrend ? (
-                                <RevenueChart data={revenueTrend} title="" description="" />
-                            ) : (
-                                <div className="h-full w-full flex items-center justify-center">
-                                    <Skeleton className="h-[300px] w-full rounded-xl" />
-                                </div>
-                            )}
+                            <RevenueChart data={revenueTrend} title="" description="" />
                         </div>
                     </CardContent>
                 </Card>
@@ -124,7 +151,6 @@ export default function SuperDashboardPage() {
                             {activities?.map((activity, i) => (
                                 <div key={i} className="flex items-center">
                                     <div className="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center border border-stone-200 dark:border-stone-700">
-                                        {/* Simple initial based on type */}
                                         <span className="text-xs font-bold text-stone-600 dark:text-stone-300">
                                             {activity.type === 'TENANT_CREATED' ? 'T' : 'U'}
                                         </span>
