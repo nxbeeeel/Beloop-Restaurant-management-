@@ -14,7 +14,8 @@ import {
     Settings,
     ChevronLeft,
     Menu,
-    LogOut
+    LogOut,
+    FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LogoutButton } from '@/components/auth/LogoutButton';
@@ -24,6 +25,7 @@ const sidebarItems = [
     { icon: LayoutDashboard, label: 'Overview', href: '/super/dashboard' },
     { icon: Building2, label: 'Tenants', href: '/super/tenants' },
     { icon: Users, label: 'Users', href: '/super/users' },
+    { icon: FileText, label: 'Applications', href: '/super/applications' },
     { icon: CreditCard, label: 'Payments', href: '/super/payments' },
     { icon: Activity, label: 'System Health', href: '/super/health' },
     { icon: LifeBuoy, label: 'Support', href: '/super/support' },

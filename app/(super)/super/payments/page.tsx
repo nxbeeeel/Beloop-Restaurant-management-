@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, CheckCircle, AlertCircle, Search } from "lucide-react";
+import { Plus, AlertCircle } from "lucide-react";
 
 export default function PaymentsPage() {
     const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false);
@@ -21,8 +21,7 @@ export default function PaymentsPage() {
 
     const utils = trpc.useContext();
     const { data: payments, isLoading: isLoadingPayments } = trpc.super.listPayments.useQuery();
-    const { data: overdueTenants, isLoading: isLoadingOverdue } = trpc.super.getOverdueTenants.useQuery();
-    const { data: tenants } = trpc.super.listTenants.useQuery(); // For manual payment selection
+    const { data: billingOverview, isLoading: isLoadingBilling } = trpc.billing.getBillingOverview.useQuery();
 
     const recordPaymentMutation = trpc.super.recordPayment.useMutation({
         onSuccess: () => {
@@ -32,8 +31,7 @@ export default function PaymentsPage() {
             setNotes("");
             setSelectedTenantId("");
             utils.super.listPayments.invalidate();
-            utils.super.getOverdueTenants.invalidate();
-            utils.super.listTenants.invalidate();
+            utils.billing.getBillingOverview.invalidate();
         },
         onError: (error) => {
             toast.error(error.message);
@@ -55,18 +53,20 @@ export default function PaymentsPage() {
         });
     };
 
-    const handleConfirmOverduePayment = (tenantId: string, price: number) => {
+    const handleConfirmOverduePayment = (tenantId: string, dueAmount: number) => {
         setSelectedTenantId(tenantId);
-        setAmount(price.toString());
+        setAmount(dueAmount.toString());
         setIsAddPaymentOpen(true);
     };
+
+    const overdueTenants = billingOverview?.filter(t => t.isOverdue) || [];
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Payments</h2>
-                    <p className="text-muted-foreground">Manage tenant payments and subscriptions.</p>
+                    <h2 className="text-3xl font-bold tracking-tight">Payments & Billing</h2>
+                    <p className="text-muted-foreground">Manage tenant fees, due dates, and record payments.</p>
                 </div>
                 <Dialog open={isAddPaymentOpen} onOpenChange={setIsAddPaymentOpen}>
                     <DialogTrigger asChild>
@@ -86,7 +86,7 @@ export default function PaymentsPage() {
                                         <SelectValue placeholder="Select Tenant" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {tenants?.map((tenant) => (
+                                        {billingOverview?.map((tenant) => (
                                             <SelectItem key={tenant.id} value={tenant.id}>
                                                 {tenant.name}
                                             </SelectItem>
@@ -135,101 +135,136 @@ export default function PaymentsPage() {
                 </Dialog>
             </div>
 
-            {/* Overdue Tenants Section */}
-            {overdueTenants && overdueTenants.length > 0 && (
-                <Card className="border-red-200 bg-red-50">
+            {/* Billing Status / Overdue Section */}
+            <div className="grid grid-cols-1 gap-6">
+                {/* Overdue Alerts */}
+                {overdueTenants.length > 0 && (
+                    <Card className="border-red-200 bg-red-50">
+                        <CardHeader>
+                            <CardTitle className="text-red-700 flex items-center">
+                                <AlertCircle className="mr-2 h-5 w-5" />
+                                Overdue Payments ({overdueTenants.length})
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Tenant</TableHead>
+                                        <TableHead>Outlets</TableHead>
+                                        <TableHead>Due Date</TableHead>
+                                        <TableHead>Days Overdue</TableHead>
+                                        <TableHead>Calc. Amount</TableHead>
+                                        <TableHead className="text-right">Action</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {overdueTenants.map((tenant) => (
+                                        <TableRow key={tenant.id}>
+                                            <TableCell className="font-medium">{tenant.name}</TableCell>
+                                            <TableCell>{tenant.outletCount}</TableCell>
+                                            <TableCell>{tenant.nextBillingDate ? new Date(tenant.nextBillingDate).toLocaleDateString() : 'N/A'}</TableCell>
+                                            <TableCell className="text-red-600 font-bold">{tenant.daysOverdue}</TableCell>
+                                            <TableCell>₹{tenant.monthlyFee.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right">
+                                                <Button size="sm" onClick={() => handleConfirmOverduePayment(tenant.id, tenant.monthlyFee)}>
+                                                    Collect Payment
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* All Tenants Billing Overview */}
+                <Card>
                     <CardHeader>
-                        <CardTitle className="text-red-700 flex items-center">
-                            <AlertCircle className="mr-2 h-5 w-5" />
-                            Overdue Payments
-                        </CardTitle>
+                        <CardTitle>Billing Overview</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Tenant</TableHead>
-                                    <TableHead>Due Date</TableHead>
-                                    <TableHead>Amount Due</TableHead>
-                                    <TableHead>Contact</TableHead>
-                                    <TableHead className="text-right">Action</TableHead>
+                                    <TableHead>Outlets</TableHead>
+                                    <TableHead>Rate/Outlet</TableHead>
+                                    <TableHead>Monthly Fee</TableHead>
+                                    <TableHead>Next Bill</TableHead>
+                                    <TableHead>Last Payment</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {overdueTenants.map((tenant) => (
-                                    <TableRow key={tenant.id}>
-                                        <TableCell className="font-medium">{tenant.name}</TableCell>
-                                        <TableCell>{tenant.nextBillingDate ? new Date(tenant.nextBillingDate).toLocaleDateString() : 'N/A'}</TableCell>
-                                        <TableCell>₹{tenant.pricePerOutlet}</TableCell>
-                                        <TableCell>
-                                            {tenant.outlets[0]?.users[0]?.email || 'No contact'}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleConfirmOverduePayment(tenant.id, tenant.pricePerOutlet)}
-                                            >
-                                                Confirm Payment
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                {isLoadingBilling ? (
+                                    <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                                ) : (
+                                    billingOverview?.map((tenant) => (
+                                        <TableRow key={tenant.id}>
+                                            <TableCell className="font-medium">{tenant.name}</TableCell>
+                                            <TableCell>{tenant.outletCount}</TableCell>
+                                            <TableCell>₹{tenant.pricePerOutlet}</TableCell>
+                                            <TableCell>₹{tenant.monthlyFee.toLocaleString()}</TableCell>
+                                            <TableCell>
+                                                <span className={tenant.isOverdue ? "text-red-500 font-bold" : ""}>
+                                                    {tenant.nextBillingDate ? new Date(tenant.nextBillingDate).toLocaleDateString() : '-'}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-muted-foreground text-sm">
+                                                {tenant.lastPayment ? `₹${tenant.lastPayment.amount} on ${new Date(tenant.lastPayment.createdAt).toLocaleDateString()}` : 'None'}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
                             </TableBody>
                         </Table>
                     </CardContent>
                 </Card>
-            )}
 
-            {/* Payment History */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Payment History</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Tenant</TableHead>
-                                <TableHead>Amount</TableHead>
-                                <TableHead>Method</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Recorded By</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoadingPayments ? (
+                {/* Recent Payments Log */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Recent Payments Log</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-8">Loading...</TableCell>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Tenant</TableHead>
+                                    <TableHead>Amount</TableHead>
+                                    <TableHead>Method</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Notes</TableHead>
                                 </TableRow>
-                            ) : payments?.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No payments recorded yet.</TableCell>
-                                </TableRow>
-                            ) : (
-                                payments?.map((payment) => (
-                                    <TableRow key={payment.id}>
-                                        <TableCell>{new Date(payment.createdAt).toLocaleDateString()}</TableCell>
-                                        <TableCell className="font-medium">{payment.tenant.name}</TableCell>
-                                        <TableCell>₹{payment.amount.toLocaleString()}</TableCell>
-                                        <TableCell>
-                                            <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
-                                                {payment.method}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-                                                {payment.status}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="text-muted-foreground text-xs">{payment.notes || '-'}</TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoadingPayments ? (
+                                    <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                                ) : payments?.length === 0 ? (
+                                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No recent payments.</TableCell></TableRow>
+                                ) : (
+                                    payments?.map((payment) => (
+                                        <TableRow key={payment.id}>
+                                            <TableCell>{new Date(payment.createdAt).toLocaleDateString()}</TableCell>
+                                            <TableCell className="font-medium">{payment.tenant.name}</TableCell>
+                                            <TableCell>₹{payment.amount.toLocaleString()}</TableCell>
+                                            <TableCell>{payment.method}</TableCell>
+                                            <TableCell>
+                                                <span className="inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                                                    {payment.status}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-muted-foreground text-xs">{payment.notes || '-'}</TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }

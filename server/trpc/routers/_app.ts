@@ -24,6 +24,8 @@ import { categoriesRouter } from "./categories";
 import { customersRouter } from "./customers";
 import { ingredientsRouter } from "./ingredients";
 import { stockVerificationRouter } from "./stockVerification";
+import { brandApplicationRouter } from "./brandApplication";
+import { billingRouter } from "./billing";
 
 export const appRouter = router({
     health: publicProcedure.query(() => ({ status: "ok" })),
@@ -52,6 +54,8 @@ export const appRouter = router({
     ingredients: ingredientsRouter,
     stockVerification: stockVerificationRouter,
     payments: paymentsRouter,
+    brandApplication: brandApplicationRouter,
+    billing: billingRouter,
 });
 
 export type AppRouter = typeof appRouter;
