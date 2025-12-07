@@ -9,15 +9,34 @@ import { toast } from 'sonner';
 import { Check, X, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Copy } from "lucide-react";
+import { useState } from 'react';
+
 export default function ApplicationsPage() {
     const utils = trpc.useContext();
     const { data: applications, isLoading } = trpc.brandApplication.list.useQuery();
 
+    // Approval Success State
+    const [approvedData, setApprovedData] = useState<{ tenant: any, invite: any } | null>(null);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+
     const approveMutation = trpc.brandApplication.approve.useMutation({
-        onSuccess: () => {
-            toast.success('Application approved! Tenant and Invite created.');
+        onSuccess: (data) => {
+            toast.success('Application approved! Tenant created.');
             utils.brandApplication.list.invalidate();
             utils.super.listTenants.invalidate();
+            setApprovedData({ tenant: data.tenant, invite: data.invite });
+            setIsDialogOpen(true);
         },
         onError: (err) => toast.error(err.message)
     });
@@ -41,6 +60,8 @@ export default function ApplicationsPage() {
             rejectMutation.mutate({ id });
         }
     };
+
+    const inviteLink = approvedData ? `${window.location.origin}/signup?token=${approvedData.invite.token}` : '';
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -119,6 +140,42 @@ export default function ApplicationsPage() {
                     </Table>
                 </CardContent>
             </Card>
+
+            {/* Approval Success Dialog */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Application Approved! 🎉</DialogTitle>
+                        <DialogDescription>
+                            The tenant <strong>{approvedData?.tenant.name}</strong> has been created.
+                            <br />
+                            Please share the following invitation link with <strong>{approvedData?.invite.email}</strong>.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="p-4 bg-muted rounded-lg border">
+                            <Label className="text-xs text-muted-foreground mb-1 block">Invitation Link</Label>
+                            <div className="flex items-center gap-2">
+                                <code className="flex-1 bg-background p-2 rounded border text-sm overflow-hidden text-ellipsis whitespace-nowrap">
+                                    {inviteLink}
+                                </code>
+                                <Button size="icon" variant="outline" onClick={() => {
+                                    navigator.clipboard.writeText(inviteLink);
+                                    toast.success('Link copied to clipboard!');
+                                }}>
+                                    <Copy className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                            <p><strong>Note:</strong> Since we don't have an email service configured, you must send this link manually.</p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button onClick={() => setIsDialogOpen(false)}>Done</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
