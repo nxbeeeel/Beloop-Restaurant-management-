@@ -3,6 +3,8 @@ import { auth } from "@clerk/nextjs/server";
 import { SuperSidebar } from "@/components/admin/SuperSidebar";
 import { MobileSidebar } from "@/components/admin/MobileSidebar"; // Keep mobile sidebar if improved later
 
+export const dynamic = 'force-dynamic';
+
 export default async function SuperLayout({
     children,
 }: {
