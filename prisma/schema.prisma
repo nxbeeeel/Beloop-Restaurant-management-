@@ -414,6 +414,7 @@ model Invitation {
   @@index([status, expiresAt])
   @@index([tenantId])
   @@index([outletId])
+  @@unique([email, inviteRole, outletId, status])
 }
 
 model TemporaryPassword {

@@ -1,12 +1,6 @@
 import { prisma } from "@/server/db";
 import { auth } from "@clerk/nextjs/server";
-import { Button } from "@/components/ui/button";
-import { createInvitation } from "@/server/actions/invitation";
-
-interface Outlet {
-    id: string;
-    name: string;
-}
+import { InviteUserForm } from "./InviteUserForm";
 
 export default async function InviteUserPage() {
     const { userId } = await auth();
@@ -19,59 +13,24 @@ export default async function InviteUserPage() {
 
     if (!user?.tenantId) return <div>No tenant found</div>;
 
+    const tenant = await prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+        select: { primaryColor: true }
+    });
+
     const outlets = await prisma.outlet.findMany({
         where: { tenantId: user.tenantId }
     });
 
     return (
-        <div className="max-w-2xl mx-auto">
-            <h1 className="text-2xl font-bold mb-6">Invite New User</h1>
+        <div className="max-w-xl mx-auto mt-10">
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold tracking-tight">Invite New User</h1>
+                <p className="text-muted-foreground">Send an email invitation to join your team.</p>
+            </div>
 
-            <div className="bg-white p-6 rounded-lg shadow border">
-                <form action={createInvitation} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Email Address</label>
-                        <input
-                            name="email"
-                            type="email"
-                            placeholder="colleague@example.com"
-                            className="w-full p-2 border rounded-md"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Role</label>
-                        <select
-                            name="role"
-                            className="w-full p-2 border rounded-md"
-                            aria-label="Select user role"
-                            required
-                        >
-                            <option value="STAFF">Staff</option>
-                            <option value="OUTLET_MANAGER">Outlet Manager</option>
-                            <option value="BRAND_ADMIN">Brand Admin</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Outlet (Required for Staff/Manager)</label>
-                        <select
-                            name="outletId"
-                            className="w-full p-2 border rounded-md"
-                            aria-label="Select outlet"
-                        >
-                            <option value="">Select Outlet...</option>
-                            {outlets.map((outlet: Outlet) => (
-                                <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="pt-4">
-                        <Button type="submit">Send Invitation</Button>
-                    </div>
-                </form>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-stone-200">
+                <InviteUserForm outlets={outlets} brandColor={tenant?.primaryColor || '#e11d48'} />
             </div>
         </div>
     );

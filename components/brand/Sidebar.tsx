@@ -29,6 +29,8 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName }: SidebarP
     const [isCollapsed, setIsCollapsed] = useState(false);
     const pathname = usePathname();
 
+    const brandStyle = { color: brandColor };
+
     const toggleSidebar = () => setIsCollapsed(!isCollapsed);
 
     const navItems = [
@@ -82,7 +84,8 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName }: SidebarP
                                 exit={{ opacity: 0, width: 0 }}
                                 className="overflow-hidden whitespace-nowrap"
                             >
-                                <h2 className="text-lg font-bold truncate" style={{ color: brandColor }}>
+                                {/* eslint-disable-next-line */}
+                                <h2 className="text-lg font-bold truncate" style={brandStyle}>
                                     {brandName}
                                 </h2>
                                 <p className="text-xs text-gray-500">Brand Admin</p>

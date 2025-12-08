@@ -276,6 +276,7 @@ export class InventoryService {
                 }
             });
 
+            await CacheService.invalidate(CacheService.keys.fullMenu(params.outletId));
             return product;
         });
     }
@@ -297,7 +298,7 @@ export class InventoryService {
             throw new TRPCError({ code: 'CONFLICT', message: 'SKU already exists' });
         }
 
-        return prisma.product.create({
+        const product = await prisma.product.create({
             data: {
                 outletId: params.outletId,
                 name: params.name,
@@ -310,6 +311,8 @@ export class InventoryService {
                 version: 1
             }
         });
+        await CacheService.invalidate(CacheService.keys.fullMenu(params.outletId));
+        return product;
     }
 
     static async updateProduct(prisma: PrismaClient, params: {
@@ -319,7 +322,13 @@ export class InventoryService {
         unit?: string;
         description?: string;
     }) {
-        return prisma.product.update({
+        // Fetch outletId for cache invalidation before update
+        const current = await prisma.product.findUnique({
+            where: { id: params.id },
+            select: { outletId: true }
+        });
+
+        const result = await prisma.product.update({
             where: { id: params.id },
             data: {
                 name: params.name,
@@ -329,5 +338,11 @@ export class InventoryService {
                 version: { increment: 1 }
             }
         });
+
+        if (current) {
+            await CacheService.invalidate(CacheService.keys.fullMenu(current.outletId));
+        }
+
+        return result;
     }
 }

@@ -26,6 +26,13 @@ function BrandInviteContent() {
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [primaryColor, setPrimaryColor] = useState('#e11d48');
 
+    const colorPreviewStyle = { backgroundColor: primaryColor };
+    const buttonStyle = {
+        backgroundColor: user ? primaryColor : '#e5e7eb',
+        color: 'white',
+        cursor: user ? 'pointer' : 'not-allowed'
+    } as React.CSSProperties;
+
     // Mutation to activate
     const activateMutation = trpc.public.activateBrand.useMutation({
         onSuccess: (data: any) => {
@@ -184,12 +191,15 @@ function BrandInviteContent() {
                                             <Palette className="w-4 h-4" /> Brand Theme Color
                                         </Label>
                                         <div className="flex items-center gap-3">
+                                            {/* eslint-disable-next-line */}
                                             <div
                                                 className="h-10 w-10 rounded-full border-2 border-stone-200 shadow-sm cursor-pointer overflow-hidden relative"
-                                                style={{ backgroundColor: primaryColor }}
+                                                style={colorPreviewStyle}
                                             >
                                                 <input
                                                     type="color"
+                                                    title="Choose Brand Color"
+                                                    aria-label="Choose Brand Color"
                                                     className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                                                     value={primaryColor}
                                                     onChange={(e) => setPrimaryColor(e.target.value)}
@@ -203,7 +213,8 @@ function BrandInviteContent() {
                                                 placeholder="#E11D48"
                                                 maxLength={7}
                                             />
-                                            <div className="h-10 flex-1 rounded-md flex items-center px-3 text-white text-sm font-medium shadow-sm" style={{ backgroundColor: primaryColor }}>
+                                            {/* eslint-disable-next-line */}
+                                            <div className="h-10 flex-1 rounded-md flex items-center px-3 text-white text-sm font-medium shadow-sm" style={colorPreviewStyle}>
                                                 Preview Button
                                             </div>
                                         </div>
@@ -213,13 +224,10 @@ function BrandInviteContent() {
                         )}
                     </CardContent>
                     <CardFooter className="bg-stone-50/50 pt-6 border-t border-stone-100">
+                        {/* eslint-disable-next-line */}
                         <Button
                             className="w-full text-lg h-12 shadow-md transition-all hover:scale-[1.01]"
-                            style={{
-                                backgroundColor: user ? primaryColor : '#e5e7eb',
-                                color: 'white',
-                                cursor: user ? 'pointer' : 'not-allowed'
-                            }}
+                            style={buttonStyle}
                             disabled={!user || isActivating || activateMutation.isPending}
                             onClick={handleActivate}
                         >

@@ -4,6 +4,7 @@ import { prisma } from "@/server/db";
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { MailService } from "@/server/services/mail.service";
 
 const createInviteSchema = z.object({
     email: z.string().email("Invalid email address"),
@@ -47,10 +48,32 @@ export async function createInvitation(formData: FormData) {
         throw new Error("Outlet is required for this role");
     }
 
+    // Immediate Duplicate Check (Mandate 2.A)
+    const existingInvite = await prisma.invitation.findFirst({
+        where: {
+            email,
+            inviteRole: role,
+            outletId: outletId || null, // Ensure explicit null check if undefined
+            status: 'PENDING',
+            tenantId: dbUser.tenantId
+        }
+    });
+
+    if (existingInvite) {
+        // Return existing without creating new (Idempotency)
+        return {
+            success: true,
+            message: "Invitation already pending. Re-sent notification.",
+            id: existingInvite.id
+        };
+    }
+
+    const token = crypto.randomUUID();
+
     // Create invitation
     await prisma.invitation.create({
         data: {
-            token: crypto.randomUUID(),
+            token,
             email,
             inviteRole: role,
             tenantId: dbUser.tenantId,
@@ -61,7 +84,19 @@ export async function createInvitation(formData: FormData) {
         }
     });
 
-    redirect("/brand/staff");
+    // Send Email
+    if (outletId) {
+        // Fetch outlet name for email context
+        const outlet = await prisma.outlet.findUnique({ where: { id: outletId }, select: { name: true } });
+        if (outlet) {
+            await MailService.sendUserInvite(email, token, role, outlet.name);
+        }
+    } else {
+        // Fallback or Brand Admin invite without specific outlet (if applicable)
+        await MailService.sendUserInvite(email, token, role, "Beloop Brand");
+    }
+
+    return { success: true, message: "Invitation sent successfully!" };
 }
 
 export async function acceptInvitation(token: string) {

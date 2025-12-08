@@ -1,11 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 import { subDays, format } from 'date-fns';
-import { cacheGetOrSet } from '@/lib/redis';
+import { CacheService } from './cache.service';
 
 export class AnalyticsService {
 
     static async getPlatformStats(prisma: PrismaClient) {
-        return cacheGetOrSet('super:stats:platform', async () => {
+        return CacheService.getOrSet('super:stats:platform', async () => {
             const [totalTenants, totalUsers, totalOutlets, totalSales, activeTenants] = await Promise.all([
                 prisma.tenant.count(),
                 prisma.user.count(),
@@ -73,7 +73,7 @@ export class AnalyticsService {
     }
 
     static async getRevenueTrend(prisma: PrismaClient, days: number = 30) {
-        return cacheGetOrSet(`super:revenue:trend:${days}`, async () => {
+        return CacheService.getOrSet(`super:revenue:trend:${days}`, async () => {
             const startDate = subDays(new Date(), days);
 
             const sales = await prisma.sale.groupBy({
@@ -99,7 +99,7 @@ export class AnalyticsService {
     }
 
     static async getTenantHealth(prisma: PrismaClient) {
-        return cacheGetOrSet('super:tenant:health', async () => {
+        return CacheService.getOrSet('super:tenant:health', async () => {
             const tenants = await prisma.tenant.findMany({
                 include: {
                     _count: {
@@ -171,197 +171,207 @@ export class AnalyticsService {
     }
 
     static async getRecentActivity(prisma: PrismaClient, limit: number = 20) {
-        const [recentTenants, recentUsers, recentSales] = await Promise.all([
-            // Recent tenant signups
-            prisma.tenant.findMany({
-                take: 5,
-                orderBy: { createdAt: 'desc' },
-                select: {
-                    id: true,
-                    name: true,
-                    createdAt: true,
-                },
-            }),
-            // Recent user registrations
-            prisma.user.findMany({
-                take: 5,
-                orderBy: { createdAt: 'desc' },
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    role: true,
-                    createdAt: true,
-                    tenant: {
-                        select: { name: true },
+        // Recent activity is highly dynamic, maybe short cache or no cache?
+        // User goal "Universal Speed". 
+        // Queries are heavy-ish (3 queries combined).
+        return CacheService.getOrSet('super:recent:activity', async () => {
+            const [recentTenants, recentUsers, recentSales] = await Promise.all([
+                // Recent tenant signups
+                prisma.tenant.findMany({
+                    take: 5,
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        name: true,
+                        createdAt: true,
                     },
-                },
-            }),
-            // Recent high-value sales
-            prisma.sale.findMany({
-                take: 5,
-                where: {
-                    totalSale: {
-                        gte: 10000, // High-value threshold
+                }),
+                // Recent user registrations
+                prisma.user.findMany({
+                    take: 5,
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        role: true,
+                        createdAt: true,
+                        tenant: {
+                            select: { name: true },
+                        },
                     },
-                },
-                orderBy: { createdAt: 'desc' },
-                select: {
-                    id: true,
-                    totalSale: true,
-                    createdAt: true,
-                    outlet: {
-                        select: {
-                            name: true,
-                            tenant: {
-                                select: { name: true },
+                }),
+                // Recent high-value sales
+                prisma.sale.findMany({
+                    take: 5,
+                    where: {
+                        totalSale: { gte: 10000 },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        totalSale: true,
+                        createdAt: true,
+                        outlet: {
+                            select: {
+                                name: true,
+                                tenant: { select: { name: true } },
                             },
                         },
                     },
-                },
-            }),
-        ]);
+                }),
+            ]);
 
-        // Combine and sort all activities
-        const activities = [
-            ...recentTenants.map(t => ({
-                id: t.id,
-                type: 'TENANT_CREATED' as const,
-                description: `New tenant: ${t.name}`,
-                timestamp: t.createdAt,
-                metadata: { tenantName: t.name },
-            })),
-            ...recentUsers.map(u => ({
-                id: u.id,
-                type: 'USER_REGISTERED' as const,
-                description: `New ${u.role} user: ${u.name} (${u.tenant?.name || 'No tenant'})`,
-                timestamp: u.createdAt,
-                metadata: { userName: u.name, role: u.role, tenantName: u.tenant?.name },
-            })),
-            ...recentSales.map(s => ({
-                id: s.id,
-                type: 'HIGH_VALUE_SALE' as const,
-                description: `High-value sale: ₹${s.totalSale} at ${s.outlet.name}`,
-                timestamp: s.createdAt,
-                metadata: {
-                    amount: Number(s.totalSale),
-                    outletName: s.outlet.name,
-                    tenantName: s.outlet.tenant.name,
-                },
-            })),
-        ];
+            // Combine and sort all activities
+            const activities = [
+                ...recentTenants.map(t => ({
+                    id: t.id,
+                    type: 'TENANT_CREATED' as const,
+                    description: `New tenant: ${t.name}`,
+                    timestamp: t.createdAt,
+                    metadata: { tenantName: t.name },
+                })),
+                ...recentUsers.map(u => ({
+                    id: u.id,
+                    type: 'USER_REGISTERED' as const,
+                    description: `New ${u.role} user: ${u.name} (${u.tenant?.name || 'No tenant'})`,
+                    timestamp: u.createdAt,
+                    metadata: { userName: u.name, role: u.role, tenantName: u.tenant?.name },
+                })),
+                ...recentSales.map(s => ({
+                    id: s.id,
+                    type: 'HIGH_VALUE_SALE' as const,
+                    description: `High-value sale: ₹${s.totalSale} at ${s.outlet.name}`,
+                    timestamp: s.createdAt,
+                    metadata: {
+                        amount: Number(s.totalSale),
+                        outletName: s.outlet.name,
+                        tenantName: s.outlet.tenant.name,
+                    },
+                })),
+            ];
 
-        return activities
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-            .slice(0, limit);
+            return activities
+                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                .slice(0, limit);
+        }, 10); // Very short cache (10s) just to debounce concurrent dashboard loads
     }
 
     static async getTopTenants(prisma: PrismaClient, metric: 'revenue' | 'users' | 'growth' = 'revenue', limit: number = 10) {
-        const tenants = await prisma.tenant.findMany({
-            include: {
-                _count: {
-                    select: { users: true, outlets: true },
-                },
-                outlets: {
-                    include: {
-                        sales: {
-                            where: {
-                                createdAt: {
-                                    gte: subDays(new Date(), 30),
+        return CacheService.getOrSet(`super:top:tenants:${metric}`, async () => {
+            const tenants = await prisma.tenant.findMany({
+                include: {
+                    _count: {
+                        select: { users: true, outlets: true },
+                    },
+                    outlets: {
+                        include: {
+                            sales: {
+                                where: {
+                                    createdAt: {
+                                        gte: subDays(new Date(), 30),
+                                    },
                                 },
-                            },
-                            select: {
-                                totalSale: true,
+                                select: {
+                                    totalSale: true,
+                                },
                             },
                         },
                     },
                 },
-            },
-        });
+            });
 
-        const tenantsWithMetrics = tenants.map(tenant => {
-            const revenue = tenant.outlets.reduce((total, outlet) => {
-                return total + outlet.sales.reduce((sum, sale) => sum + Number(sale.totalSale || 0), 0);
-            }, 0);
+            const tenantsWithMetrics = tenants.map(tenant => {
+                const revenue = tenant.outlets.reduce((total, outlet) => {
+                    return total + outlet.sales.reduce((sum, sale) => sum + Number(sale.totalSale || 0), 0);
+                }, 0);
 
-            return {
-                id: tenant.id,
-                name: tenant.name,
-                revenue,
-                users: tenant._count.users,
-                outlets: tenant._count.outlets,
-            };
-        });
+                return {
+                    id: tenant.id,
+                    name: tenant.name,
+                    revenue,
+                    users: tenant._count.users,
+                    outlets: tenant._count.outlets,
+                };
+            });
 
-        // Sort based on metric
-        const sorted = tenantsWithMetrics.sort((a, b) => {
-            if (metric === 'revenue') return b.revenue - a.revenue;
-            if (metric === 'users') return b.users - a.users;
-            return 0; // growth metric would need historical data
-        });
+            // Sort based on metric
+            const sorted = tenantsWithMetrics.sort((a, b) => {
+                if (metric === 'revenue') return b.revenue - a.revenue;
+                if (metric === 'users') return b.users - a.users;
+                return 0;
+            });
 
-        return sorted.slice(0, limit);
+            return sorted.slice(0, limit);
+        }, 300);
     }
 
     static async getUserGrowth(prisma: PrismaClient, days: number = 30) {
-        const startDate = subDays(new Date(), days);
+        return CacheService.getOrSet(`super:user:growth:${days}`, async () => {
+            const startDate = subDays(new Date(), days);
 
-        const users = await prisma.user.groupBy({
-            by: ['createdAt'],
-            where: {
-                createdAt: {
-                    gte: startDate,
+            const users = await prisma.user.groupBy({
+                by: ['createdAt'],
+                where: {
+                    createdAt: {
+                        gte: startDate,
+                    },
                 },
-            },
-            _count: true,
-        });
+                _count: true,
+            });
 
-        // Group by date
-        const dailyCounts: Record<string, number> = {};
-        users.forEach(user => {
-            const date = format(new Date(user.createdAt), 'MMM dd');
-            dailyCounts[date] = (dailyCounts[date] || 0) + user._count;
-        });
+            // Group by date
+            const dailyCounts: Record<string, number> = {};
+            users.forEach(user => {
+                const date = format(new Date(user.createdAt), 'MMM dd');
+                dailyCounts[date] = (dailyCounts[date] || 0) + user._count;
+            });
 
-        return Object.entries(dailyCounts).map(([date, count]) => ({
-            date,
-            users: count,
-        }));
+            return Object.entries(dailyCounts).map(([date, count]) => ({
+                date,
+                users: count,
+            }));
+        }, 3600);
     }
+
+    // --- Brand/Outlet Reports (Cached) ---
 
     static async getReportStats(prisma: PrismaClient, params: {
         outletId: string;
         startDate: Date;
         endDate: Date;
     }) {
-        const { outletId, startDate, endDate } = params;
-        const orderWhere: any = {
-            outletId,
-            createdAt: {
-                gte: startDate,
-                lte: endDate,
-            },
-            status: 'COMPLETED',
-        };
+        const key = `report:stats:${params.outletId}:${params.startDate.toISOString()}:${params.endDate.toISOString()}`;
+        return CacheService.getOrSet(key, async () => {
+            const { outletId, startDate, endDate } = params;
+            const orderWhere: any = {
+                outletId,
+                createdAt: {
+                    gte: startDate,
+                    lte: endDate,
+                },
+                status: 'COMPLETED',
+            };
 
-        const orders = await prisma.order.findMany({
-            where: orderWhere,
-            select: {
-                totalAmount: true,
-                customerId: true,
-            }
-        });
+            const orders = await prisma.order.findMany({
+                where: orderWhere,
+                select: {
+                    totalAmount: true,
+                    customerId: true,
+                }
+            });
 
-        const orderCount = orders.length;
-        const uniqueCustomers = new Set(orders.map(o => o.customerId).filter(Boolean)).size;
-        const orderSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+            const orderCount = orders.length;
+            const uniqueCustomers = new Set(orders.map(o => o.customerId).filter(Boolean)).size;
+            const orderSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
 
-        return {
-            sales: orderSales,
-            orders: orderCount,
-            customers: uniqueCustomers,
-            avgOrderValue: orderCount > 0 ? orderSales / orderCount : 0,
-        };
+            return {
+                sales: orderSales,
+                orders: orderCount,
+                customers: uniqueCustomers,
+                avgOrderValue: orderCount > 0 ? orderSales / orderCount : 0,
+            };
+        }, 300); // 5 min cache
     }
 
     static async getReportSalesTrend(prisma: PrismaClient, params: {
@@ -369,27 +379,30 @@ export class AnalyticsService {
         startDate: Date;
         endDate: Date;
     }) {
-        const { outletId, startDate, endDate } = params;
-        const orders = await prisma.order.findMany({
-            where: {
-                outletId,
-                createdAt: { gte: startDate, lte: endDate },
-                status: 'COMPLETED',
-            },
-            orderBy: { createdAt: 'asc' },
-            select: {
-                createdAt: true,
-                totalAmount: true,
-            }
-        });
+        const key = `report:trend:${params.outletId}:${params.startDate.toISOString()}:${params.endDate.toISOString()}`;
+        return CacheService.getOrSet(key, async () => {
+            const { outletId, startDate, endDate } = params;
+            const orders = await prisma.order.findMany({
+                where: {
+                    outletId,
+                    createdAt: { gte: startDate, lte: endDate },
+                    status: 'COMPLETED',
+                },
+                orderBy: { createdAt: 'asc' },
+                select: {
+                    createdAt: true,
+                    totalAmount: true,
+                }
+            });
 
-        const aggregated: Record<string, number> = {};
-        orders.forEach(o => {
-            const d = o.createdAt.toISOString().split('T')[0];
-            aggregated[d] = (aggregated[d] || 0) + Number(o.totalAmount);
-        });
+            const aggregated: Record<string, number> = {};
+            orders.forEach(o => {
+                const d = o.createdAt.toISOString().split('T')[0];
+                aggregated[d] = (aggregated[d] || 0) + Number(o.totalAmount);
+            });
 
-        return Object.entries(aggregated).map(([date, amount]) => ({ date, amount }));
+            return Object.entries(aggregated).map(([date, amount]) => ({ date, amount }));
+        }, 300);
     }
 
     static async getReportTopItems(prisma: PrismaClient, params: {
@@ -398,30 +411,33 @@ export class AnalyticsService {
         endDate: Date;
         limit: number;
     }) {
-        const { outletId, startDate, endDate, limit } = params;
-        const items = await prisma.orderItem.groupBy({
-            by: ['name'],
-            where: {
-                order: {
-                    outletId,
-                    createdAt: { gte: startDate, lte: endDate },
-                    status: 'COMPLETED',
-                }
-            },
-            _sum: {
-                quantity: true,
-                total: true,
-            },
-            orderBy: {
-                _sum: { total: 'desc' }
-            },
-            take: limit,
-        });
+        const key = `report:top:${params.outletId}:${params.startDate.toISOString()}:${params.endDate.toISOString()}:${params.limit}`;
+        return CacheService.getOrSet(key, async () => {
+            const { outletId, startDate, endDate, limit } = params;
+            const items = await prisma.orderItem.groupBy({
+                by: ['name'],
+                where: {
+                    order: {
+                        outletId,
+                        createdAt: { gte: startDate, lte: endDate },
+                        status: 'COMPLETED',
+                    }
+                },
+                _sum: {
+                    quantity: true,
+                    total: true,
+                },
+                orderBy: {
+                    _sum: { total: 'desc' }
+                },
+                take: limit,
+            });
 
-        return items.map(i => ({
-            name: i.name,
-            orders: i._sum.quantity || 0,
-            revenue: Number(i._sum.total || 0),
-        }));
+            return items.map(i => ({
+                name: i.name,
+                orders: i._sum.quantity || 0,
+                revenue: Number(i._sum.total || 0),
+            }));
+        }, 300);
     }
 }

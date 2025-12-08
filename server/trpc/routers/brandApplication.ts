@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { router, publicProcedure, requireSuper } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { prisma } from '@/lib/prisma';
+import { MailService } from '@/server/services/mail.service';
 
 export const brandApplicationRouter = router({
     submit: publicProcedure
@@ -64,7 +65,10 @@ export const brandApplicationRouter = router({
                 data: { status: 'APPROVED' },
             });
 
-            // 3. Return Link for Display
+            // 3. Send Email
+            await MailService.sendBrandInvite(application.email, token, application.brandName);
+
+            // 4. Return Link for Display
             const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
             const link = `${baseUrl}/invite/brand?token=${token}`;
 

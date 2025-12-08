@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Plus, Mail, User as UserIcon, Building2, Clock } from "lucide-react";
 
 import { SearchInput } from "@/components/common/SearchInput";
+import { InviteActions } from "./InviteActions";
 
 export default async function StaffPage({ searchParams }: { searchParams: { search?: string } }) {
     const { userId } = await auth();
@@ -82,7 +83,8 @@ export default async function StaffPage({ searchParams }: { searchParams: { sear
                                         <th className="p-4">Email</th>
                                         <th className="p-4">Role</th>
                                         <th className="p-4">Outlet</th>
-                                        <th className="p-4">Invitation Link</th>
+                                        <th className="p-4">Link</th>
+                                        <th className="p-4 text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
@@ -96,9 +98,12 @@ export default async function StaffPage({ searchParams }: { searchParams: { sear
                                             </td>
                                             <td className="p-4 text-muted-foreground">{invite.outlet?.name || 'All Outlets'}</td>
                                             <td className="p-4">
-                                                <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-xs select-all">
-                                                    {process.env.NEXT_PUBLIC_APP_URL}/invite/{invite.token}
+                                                <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-xs select-all block w-32 truncate">
+                                                    .../invite/{invite.token.substring(0, 8)}...
                                                 </code>
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <InviteActions inviteId={invite.id} />
                                             </td>
                                         </tr>
                                     ))}
