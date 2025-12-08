@@ -33,9 +33,32 @@ export default async function OnboardingPage() {
     }
   });
 
-  // If user is SUPER in database, redirect immediately
+  // If user is SUPER in database, update Clerk metadata and redirect
   if (dbUser?.role === 'SUPER') {
-    console.log('[ONBOARDING] Super Admin detected in database, redirecting to /super/dashboard');
+    console.log('[ONBOARDING] Super Admin detected in database');
+
+    // Check if Clerk metadata is missing
+    const clerkRole = sessionClaims?.metadata?.role;
+    if (clerkRole !== 'SUPER') {
+      console.log('[ONBOARDING] Clerk metadata missing, updating...');
+
+      try {
+        const { clerkClient } = await import('@clerk/nextjs/server');
+        const client = await clerkClient();
+        await client.users.updateUser(userId, {
+          publicMetadata: {
+            role: 'SUPER',
+            onboardingComplete: true,
+            userId: dbUser.id
+          }
+        });
+        console.log('[ONBOARDING] Clerk metadata updated for Super Admin');
+      } catch (clerkError) {
+        console.error('[ONBOARDING] Failed to update Clerk metadata:', clerkError);
+      }
+    }
+
+    console.log('[ONBOARDING] Redirecting Super Admin to /super/dashboard');
     redirect('/super/dashboard');
   }
 
