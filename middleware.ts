@@ -12,7 +12,9 @@ const isPublicRoute = createRouteMatcher([
     '/api/trpc(.*)', // Allow tRPC API access for POS
     '/api/onboarding', // Brand creation API - handles own auth
     '/api/debug(.*)', // Debug endpoints
-    '/api/admin/fix-super-admin', // One-time metadata fix
+    '/api/admin(.*)', // Admin fix endpoints
+    '/api/create-super-admin', // Super Admin creation
+    '/api/emergency-fix-super-admin', // Emergency fix
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
