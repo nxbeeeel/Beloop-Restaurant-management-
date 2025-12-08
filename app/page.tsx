@@ -50,12 +50,12 @@ export default async function HomePage() {
             </nav>
             <div className="h-6 w-px bg-white/10 hidden md:block" />
             <div className="flex items-center gap-3">
-              <Button asChild variant="ghost" className="text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5">
-                <Link href="/login">Log in</Link>
-              </Button>
-              <Button asChild className="bg-white text-black hover:bg-gray-200 font-semibold rounded-full px-5 transition-all hover:scale-105 active:scale-95">
-                <Link href="#apply">Get Access</Link>
-              </Button>
+              <Link href="/login" className="text-sm font-medium text-gray-300 hover:text-white px-4 py-2 rounded-md hover:bg-white/5 transition-colors">
+                Log in
+              </Link>
+              <Link href="#apply" className="bg-white text-black hover:bg-gray-200 font-semibold rounded-full px-5 py-2 transition-all hover:scale-105 active:scale-95">
+                Get Access
+              </Link>
             </div>
           </div>
         </div>
