@@ -39,7 +39,7 @@ export default clerkMiddleware(async (auth, req) => {
     // 3. ENFORCE AUTHENTICATION (All non-public routes require login)
     if (!userId) {
         console.log(`[MIDDLEWARE-${requestId}] 🚫 Unauthenticated access to protected route: ${currentPath}`);
-        return auth.protect();
+        return auth.redirectToSignIn({ returnBackUrl: req.url });
     }
 
     // 4. EXTRACT ROLES & METADATA
