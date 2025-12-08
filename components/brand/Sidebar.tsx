@@ -12,11 +12,11 @@ import {
     HelpCircle,
     ChevronLeft,
     ChevronRight,
-    LogOut,
-    Utensils
+    Utensils,
+    Settings
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { LogoutButton } from "@/components/auth/LogoutButton";
+import { UserButton } from "@clerk/nextjs";
 
 interface SidebarProps {
     brandName: string;
@@ -39,6 +39,7 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName }: SidebarP
         { href: "/brand/products", label: "Menu", icon: Utensils },
         { href: "/brand/staff", label: "Staff", icon: Users },
         { href: "/brand/reports", label: "Reports", icon: FileBarChart },
+        { href: "/brand/settings", label: "Settings", icon: Settings },
     ];
 
     return (
@@ -157,30 +158,23 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName }: SidebarP
 
             {/* Footer / User */}
             <div className="p-4 border-t bg-gray-50/50">
-                <div className={cn("flex flex-col gap-3", isCollapsed ? "items-center" : "items-stretch")}>
+                <div className={cn("flex items-center gap-3", isCollapsed ? "justify-center" : "")}>
+                    <UserButton
+                        afterSignOutUrl="/"
+                        appearance={{
+                            elements: {
+                                avatarBox: "w-9 h-9",
+                                userButtonPopoverCard: "shadow-xl"
+                            }
+                        }}
+                    />
 
-                    {/* User Info */}
-                    <div className={cn("flex items-center gap-3", isCollapsed && "justify-center")}>
-                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium text-sm">
-                            {userName?.charAt(0) || "U"}
+                    {!isCollapsed && (
+                        <div className="flex-1 overflow-hidden">
+                            <p className="text-sm font-medium text-gray-900 truncate">{userName || "User"}</p>
+                            <p className="text-xs text-gray-400 truncate">Manage Account</p>
                         </div>
-
-                        {!isCollapsed && (
-                            <div className="flex-1 overflow-hidden">
-                                <p className="text-sm font-medium text-gray-900 truncate">{userName}</p>
-                                <p className="text-xs text-gray-400 truncate">Administrator</p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Logout Button */}
-                    <div className={cn("pt-2", isCollapsed && "pt-0")}>
-                        {isCollapsed ? (
-                            <LogoutButton variant="ghost" size="icon" showText={false} />
-                        ) : (
-                            <LogoutButton variant="outline" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50" />
-                        )}
-                    </div>
+                    )}
                 </div>
             </div>
         </motion.aside>
