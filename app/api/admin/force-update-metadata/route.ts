@@ -1,3 +1,11 @@
+import { NextResponse } from 'next/server';
+import { auth, clerkClient } from '@clerk/nextjs/server';
+import { prisma } from '@/server/db';
+
+/**
+ * FORCE update Clerk metadata for current user
+ * This will set the metadata directly via Clerk API
+ */
 export async function GET() {
     try {
         const { userId } = await auth();
