@@ -119,14 +119,18 @@ export default async function OnboardingPage() {
         data: { status: 'ACCEPTED' }
       });
 
-      // Sync Clerk Metadata - handled by middleware DB check
-      // Cookie setting removed - causes production error in Next.js 15
+      // Sync Clerk Metadata - handled by SessionSyncRedirect on client
 
-      // Redirect based on role
-      if (invite.inviteRole === 'BRAND_ADMIN') redirect('/brand/dashboard');
-      if (invite.inviteRole === 'OUTLET_MANAGER') redirect('/outlet/dashboard');
-      if (invite.inviteRole === 'STAFF') redirect('/outlet/orders');
-      redirect('/');
+      // Determine target path
+      let targetPath = '/';
+      if (invite.inviteRole === 'BRAND_ADMIN') targetPath = '/brand/dashboard';
+      else if (invite.inviteRole === 'OUTLET_MANAGER') targetPath = '/outlet/dashboard';
+      else if (invite.inviteRole === 'STAFF') targetPath = '/outlet/orders';
+
+      // FORCE CLIENT SYNC: Return the client component to refresh session before navigating
+      // This prevents the "Infinite Loop" where Middleware sees the old session (no role) 
+      // and bounces the user back here, while DB has the new role.
+      return <SessionSyncRedirect targetPath={targetPath} />;
     }
   }
 
