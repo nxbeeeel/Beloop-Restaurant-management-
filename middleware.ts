@@ -1,6 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/server/db';
 import { ROLE_ROUTES, type UserRole } from '@/config/roles';
 
 const isPublicRoute = createRouteMatcher([
@@ -32,10 +31,11 @@ export default clerkMiddleware(async (auth, req) => {
 
         // ========================================
         // PRIORITY-BASED AUTHENTICATION FLOW
+        // (Clerk metadata only - no DB queries to keep bundle small)
         // ========================================
 
         if (userId) {
-            // PRIORITY 1: Check Clerk metadata for role (fastest)
+            // Check Clerk metadata for role
             const metadataRole = sessionClaims?.metadata?.role as UserRole | undefined;
 
             if (metadataRole && metadataRole in ROLE_ROUTES) {
@@ -44,7 +44,7 @@ export default clerkMiddleware(async (auth, req) => {
 
                 // If user is on /onboarding but has a role, redirect to their dashboard
                 if (currentPath === '/onboarding') {
-                    console.log(`[MIDDLEWARE-PRIORITY] ${metadataRole} user (metadata) → ${targetRoute}`);
+                    console.log(`[MIDDLEWARE-PRIORITY] ${metadataRole} user → ${targetRoute}`);
                     return NextResponse.redirect(new URL(targetRoute, req.url));
                 }
 
@@ -52,34 +52,7 @@ export default clerkMiddleware(async (auth, req) => {
                 return NextResponse.next();
             }
 
-            // PRIORITY 2: Fallback to database check (if Clerk metadata missing)
-            console.log('[MIDDLEWARE] No role in Clerk metadata, checking database...');
-
-            try {
-                const user = await prisma.user.findUnique({
-                    where: { clerkId: userId },
-                    select: { role: true }
-                });
-
-                if (user?.role && user.role in ROLE_ROUTES) {
-                    const targetRoute = ROLE_ROUTES[user.role as UserRole];
-                    const currentPath = req.nextUrl.pathname;
-
-                    // If user is on /onboarding but has a role in DB, redirect to their dashboard
-                    if (currentPath === '/onboarding') {
-                        console.log(`[MIDDLEWARE-PRIORITY] ${user.role} user (database) → ${targetRoute}`);
-                        return NextResponse.redirect(new URL(targetRoute, req.url));
-                    }
-
-                    // Allow access
-                    return NextResponse.next();
-                }
-            } catch (dbError) {
-                console.error('[MIDDLEWARE] Database check failed:', dbError);
-                // Continue to onboarding check if DB fails
-            }
-
-            // PRIORITY 3: Check onboarding status
+            // Check onboarding status
             const onboardingCookie = req.cookies.get('onboarding_complete');
             const isCookieSet = onboardingCookie?.value === 'true';
             const onboardingComplete = sessionClaims?.metadata?.onboardingComplete === true;
@@ -89,7 +62,7 @@ export default clerkMiddleware(async (auth, req) => {
                 return NextResponse.next();
             }
 
-            // PRIORITY 4: Redirect to onboarding if not complete
+            // Redirect to onboarding if not complete
             if (req.nextUrl.pathname !== '/onboarding' && req.nextUrl.pathname !== '/contact-admin') {
                 console.log('[MIDDLEWARE] User needs onboarding, redirecting...');
                 return NextResponse.redirect(new URL('/onboarding', req.url));
