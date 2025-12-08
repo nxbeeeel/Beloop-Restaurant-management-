@@ -1,5 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import { prisma } from '@/server/db';
+import { ROLE_ROUTES, type UserRole } from '@/config/roles';
 
 const isPublicRoute = createRouteMatcher([
     '/',
@@ -10,6 +12,8 @@ const isPublicRoute = createRouteMatcher([
     '/api/webhooks(.*)',
     '/api/trpc(.*)', // Allow tRPC API access for POS
     '/api/onboarding', // Brand creation API - handles own auth
+    '/api/test-deployment', // Deployment verification
+    '/api/admin/fix-super-admin', // One-time metadata fix
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -21,62 +25,82 @@ export default clerkMiddleware(async (auth, req) => {
             return redirectToSignIn({ returnBackUrl: req.url });
         }
 
-        // Check if user has the onboarding cookie (immediate bypass)
-        const onboardingCookie = req.cookies.get('onboarding_complete');
-        const isCookieSet = onboardingCookie?.value === 'true';
-
-        // FAST PATH: If user has SUPER role in metadata, redirect directly to super dashboard
-        if (
-            userId &&
-            sessionClaims?.metadata?.role === 'SUPER' &&
-            req.nextUrl.pathname === '/onboarding'
-        ) {
-            console.log('Middleware: SUPER user detected, redirecting to /super/dashboard');
-            const superUrl = new URL('/super/dashboard', req.url);
-            return NextResponse.redirect(superUrl);
-        }
-
-        // FAST PATH: If user has BRAND_ADMIN role and onboardingComplete, skip onboarding
-        if (
-            userId &&
-            sessionClaims?.metadata?.role === 'BRAND_ADMIN' &&
-            sessionClaims?.metadata?.onboardingComplete === true &&
-            req.nextUrl.pathname === '/onboarding'
-        ) {
-            console.log('Middleware: BRAND_ADMIN user detected, redirecting to /brand/dashboard');
-            const brandUrl = new URL('/brand/dashboard', req.url);
-            return NextResponse.redirect(brandUrl);
-        }
-
-        // Catch users who do not have `onboardingComplete: true` in their metadata AND no cookie
-        // Redirect them to the /onboarding route to complete onboarding
-        if (
-            userId &&
-            !sessionClaims?.metadata?.onboardingComplete &&
-            !isCookieSet &&
-            req.nextUrl.pathname !== '/onboarding' &&
-            req.nextUrl.pathname !== '/contact-admin' &&
-            !isPublicRoute(req)
-        ) {
-            console.log('Middleware Redirecting to /onboarding:', {
-                userId,
-                path: req.nextUrl.pathname,
-                metadata: sessionClaims?.metadata,
-                cookie: isCookieSet
-            });
-            const onboardingUrl = new URL('/onboarding', req.url);
-            return NextResponse.redirect(onboardingUrl);
-        }
-
-        // If the user is logged in and the route is protected, let them view
-        if (userId && !isPublicRoute(req)) {
+        // Skip middleware for public routes
+        if (isPublicRoute(req)) {
             return NextResponse.next();
         }
+
+        // ========================================
+        // PRIORITY-BASED AUTHENTICATION FLOW
+        // ========================================
+
+        if (userId) {
+            // PRIORITY 1: Check Clerk metadata for role (fastest)
+            const metadataRole = sessionClaims?.metadata?.role as UserRole | undefined;
+
+            if (metadataRole && metadataRole in ROLE_ROUTES) {
+                const targetRoute = ROLE_ROUTES[metadataRole];
+                const currentPath = req.nextUrl.pathname;
+
+                // If user is on /onboarding but has a role, redirect to their dashboard
+                if (currentPath === '/onboarding') {
+                    console.log(`[MIDDLEWARE-PRIORITY] ${metadataRole} user (metadata) → ${targetRoute}`);
+                    return NextResponse.redirect(new URL(targetRoute, req.url));
+                }
+
+                // Allow access to their designated area
+                return NextResponse.next();
+            }
+
+            // PRIORITY 2: Fallback to database check (if Clerk metadata missing)
+            console.log('[MIDDLEWARE] No role in Clerk metadata, checking database...');
+
+            try {
+                const user = await prisma.user.findUnique({
+                    where: { clerkId: userId },
+                    select: { role: true }
+                });
+
+                if (user?.role && user.role in ROLE_ROUTES) {
+                    const targetRoute = ROLE_ROUTES[user.role as UserRole];
+                    const currentPath = req.nextUrl.pathname;
+
+                    // If user is on /onboarding but has a role in DB, redirect to their dashboard
+                    if (currentPath === '/onboarding') {
+                        console.log(`[MIDDLEWARE-PRIORITY] ${user.role} user (database) → ${targetRoute}`);
+                        return NextResponse.redirect(new URL(targetRoute, req.url));
+                    }
+
+                    // Allow access
+                    return NextResponse.next();
+                }
+            } catch (dbError) {
+                console.error('[MIDDLEWARE] Database check failed:', dbError);
+                // Continue to onboarding check if DB fails
+            }
+
+            // PRIORITY 3: Check onboarding status
+            const onboardingCookie = req.cookies.get('onboarding_complete');
+            const isCookieSet = onboardingCookie?.value === 'true';
+            const onboardingComplete = sessionClaims?.metadata?.onboardingComplete === true;
+
+            // If user has completed onboarding (via cookie or metadata), allow access
+            if (onboardingComplete || isCookieSet) {
+                return NextResponse.next();
+            }
+
+            // PRIORITY 4: Redirect to onboarding if not complete
+            if (req.nextUrl.pathname !== '/onboarding' && req.nextUrl.pathname !== '/contact-admin') {
+                console.log('[MIDDLEWARE] User needs onboarding, redirecting...');
+                return NextResponse.redirect(new URL('/onboarding', req.url));
+            }
+        }
+
+        return NextResponse.next();
     } catch (error) {
-        console.error("Middleware Error:", error);
-        // Return a generic error response or let it fail, but logging is key
-        // We can't really return a 500 page from middleware easily, but logging helps debugging
-        throw error;
+        console.error('[MIDDLEWARE] Critical error:', error);
+        // Log but don't block - let the app handle it
+        return NextResponse.next();
     }
 });
 
@@ -88,4 +112,3 @@ export const config = {
         '/(api|trpc)(.*)',
     ],
 };
-

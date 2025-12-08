@@ -1,41 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser, clerkClient } from '@clerk/nextjs/server';
 import { prisma } from '@/server/db';
+import { Prisma } from '@prisma/client';
+import { generateTraceId, logWithTrace } from '@/lib/trace';
 
 export async function POST(req: NextRequest) {
-    console.log('[API /api/onboarding] POST request received');
+    const traceId = generateTraceId();
+    logWithTrace(traceId, 'info', 'Brand creation request received');
+
     try {
         const { userId } = await auth();
-        console.log('[API /api/onboarding] userId:', userId);
-        
+
         if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            logWithTrace(traceId, 'error', 'Unauthorized - no userId');
+            return NextResponse.json({ error: 'Unauthorized', traceId }, { status: 401 });
         }
 
         const user = await currentUser();
-        console.log('[API /api/onboarding] currentUser:', user?.emailAddresses[0]?.emailAddress);
-        
+
         if (!user) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+            logWithTrace(traceId, 'error', 'User not found');
+            return NextResponse.json({ error: 'User not found', traceId }, { status: 404 });
         }
 
         const body = await req.json();
-        console.log('[API /api/onboarding] Request body:', { name: body.name, slug: body.slug });
-        
         const { name, slug, logoUrl, primaryColor } = body;
 
         // Validate required fields
         if (!name || !slug) {
-            return NextResponse.json({ error: 'Name and slug are required' }, { status: 400 });
-        }
-
-        // Check if slug is already taken
-        const existingTenant = await prisma.tenant.findUnique({
-            where: { slug },
-        });
-
-        if (existingTenant) {
-            return NextResponse.json({ error: 'Brand slug already taken' }, { status: 400 });
+            logWithTrace(traceId, 'error', 'Missing required fields', { name: !!name, slug: !!slug });
+            return NextResponse.json({ error: 'Name and slug are required', traceId }, { status: 400 });
         }
 
         // Check for pending BrandInvitation to prevent dual creation
@@ -47,15 +41,32 @@ export async function POST(req: NextRequest) {
         });
 
         if (pendingInvite) {
+            logWithTrace(traceId, 'warn', 'User has pending invitation', { brandName: pendingInvite.brandName });
             return NextResponse.json({
-                error: `You already have a pending invitation for "${pendingInvite.brandName}". Please use the link provided by the administrator.`
+                error: `You already have a pending invitation for "${pendingInvite.brandName}". Please use the link provided by the administrator.`,
+                traceId
             }, { status: 409 });
         }
 
-        // Create tenant (brand) and user in a transaction
+        // ========================================
+        // PHASE 1: ATOMIC DATABASE TRANSACTION
+        // ========================================
+        logWithTrace(traceId, 'info', 'Starting database transaction');
+
         let tenant;
+        let dbUser;
+
         try {
-            tenant = await prisma.$transaction(async (tx) => {
+            const result = await prisma.$transaction(async (tx) => {
+                // Check if slug already exists (within transaction for consistency)
+                const existingTenant = await tx.tenant.findUnique({
+                    where: { slug },
+                });
+
+                if (existingTenant) {
+                    throw new Error('SLUG_EXISTS');
+                }
+
                 // Create tenant
                 const newTenant = await tx.tenant.create({
                     data: {
@@ -64,25 +75,29 @@ export async function POST(req: NextRequest) {
                         logoUrl: logoUrl || null,
                         primaryColor: primaryColor || '#e11d48',
                         subscriptionStatus: 'TRIAL',
-                        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+                        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                     },
                 });
+
+                logWithTrace(traceId, 'info', 'Tenant created', { tenantId: newTenant.id });
 
                 // Update or create user with tenant assignment
                 const existingUser = await tx.user.findUnique({
                     where: { clerkId: userId },
                 });
 
+                let updatedUser;
                 if (existingUser) {
-                    await tx.user.update({
+                    updatedUser = await tx.user.update({
                         where: { clerkId: userId },
                         data: {
                             tenantId: newTenant.id,
                             role: 'BRAND_ADMIN',
                         },
                     });
+                    logWithTrace(traceId, 'info', 'User updated', { userId: updatedUser.id });
                 } else {
-                    await tx.user.create({
+                    updatedUser = await tx.user.create({
                         data: {
                             clerkId: userId,
                             email: user.emailAddresses[0].emailAddress,
@@ -91,21 +106,53 @@ export async function POST(req: NextRequest) {
                             role: 'BRAND_ADMIN',
                         },
                     });
+                    logWithTrace(traceId, 'info', 'User created', { userId: updatedUser.id });
                 }
 
-                return newTenant;
+                return { tenant: newTenant, user: updatedUser };
             });
 
-            console.log('[API /api/onboarding] Database transaction successful, tenant created:', tenant.id);
+            tenant = result.tenant;
+            dbUser = result.user;
+
+            logWithTrace(traceId, 'info', 'Database transaction committed successfully');
         } catch (dbError) {
-            console.error('[API /api/onboarding] Database transaction failed:', dbError);
+            logWithTrace(traceId, 'error', 'Database transaction failed', {
+                error: dbError instanceof Error ? dbError.message : 'Unknown error'
+            });
+
+            // Check for specific errors
+            if (dbError instanceof Error && dbError.message === 'SLUG_EXISTS') {
+                return NextResponse.json(
+                    { error: 'Brand slug already taken', traceId },
+                    { status: 400 }
+                );
+            }
+
+            if (dbError instanceof Prisma.PrismaClientKnownRequestError) {
+                if (dbError.code === 'P2002') {
+                    return NextResponse.json(
+                        { error: 'Brand slug already exists', traceId },
+                        { status: 400 }
+                    );
+                }
+            }
+
             return NextResponse.json(
-                { error: 'Failed to create brand in database', details: dbError instanceof Error ? dbError.message : 'Unknown error' },
+                {
+                    error: 'Failed to create brand in database',
+                    details: dbError instanceof Error ? dbError.message : 'Unknown error',
+                    traceId
+                },
                 { status: 500 }
             );
         }
 
-        // Update Clerk metadata (separate from DB transaction to avoid rollback issues)
+        // ========================================
+        // PHASE 2: CLERK METADATA UPDATE (NON-BLOCKING)
+        // ========================================
+        logWithTrace(traceId, 'info', 'Updating Clerk metadata');
+
         try {
             const client = await clerkClient();
             await client.users.updateUser(userId, {
@@ -115,15 +162,20 @@ export async function POST(req: NextRequest) {
                     tenantId: tenant.id,
                 },
             });
-            console.log('[API /api/onboarding] Clerk metadata updated successfully');
+            logWithTrace(traceId, 'info', 'Clerk metadata updated successfully');
         } catch (clerkError) {
-            console.error('[API /api/onboarding] Clerk metadata update failed (brand still created):', clerkError);
-            // Don't fail the request - brand was created successfully
-            // The cookie will allow access even if Clerk metadata fails
+            // Log but don't fail - brand was created successfully
+            logWithTrace(traceId, 'warn', 'Clerk metadata update failed (non-fatal)', {
+                error: clerkError instanceof Error ? clerkError.message : 'Unknown error'
+            });
         }
 
+        // ========================================
+        // PHASE 3: RESPONSE WITH COOKIE
+        // ========================================
         const response = NextResponse.json({
             success: true,
+            traceId,
             tenant: {
                 id: tenant.id,
                 name: tenant.name,
@@ -141,19 +193,24 @@ export async function POST(req: NextRequest) {
             secure: process.env.NODE_ENV === 'production'
         });
 
-        console.log('[API /api/onboarding] Brand creation completed successfully');
+        logWithTrace(traceId, 'info', 'Brand creation completed successfully');
         return response;
+
     } catch (error) {
-        console.error('[API /api/onboarding] Unexpected error:', error);
-        console.error('[API /api/onboarding] Error stack:', error instanceof Error ? error.stack : 'No stack');
-        
+        logWithTrace(traceId, 'error', 'Unexpected error', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+        });
+
         return NextResponse.json(
-            { 
-                error: 'An unexpected error occurred', 
-                details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined 
+            {
+                error: 'An unexpected error occurred',
+                details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined,
+                traceId
             },
             { status: 500 }
         );
     }
 }
+
 
