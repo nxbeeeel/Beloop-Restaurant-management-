@@ -11,7 +11,7 @@ const isPublicRoute = createRouteMatcher([
     '/api/webhooks(.*)',
     '/api/trpc(.*)', // Allow tRPC API access for POS
     '/api/onboarding', // Brand creation API - handles own auth
-    '/api/test-deployment', // Deployment verification
+    '/api/debug(.*)', // Debug endpoints
     '/api/admin/fix-super-admin', // One-time metadata fix
 ]);
 
