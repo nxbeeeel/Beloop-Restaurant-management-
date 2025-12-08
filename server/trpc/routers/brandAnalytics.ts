@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+import { router, protectedProcedure } from '../trpc';
 import { prisma } from '@/server/db';
-import { redis } from '@/server/services/cache.service';
+import { redis } from '@/lib/redis';
 
-export const brandAnalyticsRouter = createTRPCRouter({
+export const brandAnalyticsRouter = router({
     /**
      * Get Brand Overview - Main KPIs for dashboard
      * Cached for 6 hours in Redis
