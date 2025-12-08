@@ -5,7 +5,7 @@ import PurchaseOrderList from "@/components/procurement/PurchaseOrderList";
 
 export default async function OrdersPage() {
     const { userId } = await auth();
-    if (!userId) redirect("/");
+    if (!userId) return null;
 
     const user = await prisma.user.findUnique({
         where: { clerkId: userId },
@@ -13,12 +13,12 @@ export default async function OrdersPage() {
     });
 
     if (!user || !user.outletId) {
-        redirect("/");
+        return <div className="p-8 text-red-500">Outlet configuration missing</div>;
     }
 
-    // Ensure only authorized roles can access
+    // Role check
     if (user.role !== "OUTLET_MANAGER" && user.role !== "STAFF") {
-        redirect("/");
+        return <div className="p-8 text-red-500">Unauthorized Access</div>;
     }
 
     return <PurchaseOrderList outletId={user.outletId} />;

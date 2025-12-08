@@ -5,7 +5,7 @@ import GoogleSheetsExport from "@/components/export/GoogleSheetsExport";
 
 export default async function ExportPage() {
     const { userId } = await auth();
-    if (!userId) redirect("/login");
+    if (!userId) return null; // Safe exit
 
     const user = await prisma.user.findUnique({
         where: { clerkId: userId },

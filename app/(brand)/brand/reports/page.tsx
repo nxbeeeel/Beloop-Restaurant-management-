@@ -5,7 +5,7 @@ import { MonthlyReportView } from "@/components/reports/MonthlyReportView";
 
 export default async function BrandReportsPage() {
     const { userId } = await auth();
-    if (!userId) redirect("/login");
+    if (!userId) return null; // Safe exit
 
     const user = await prisma.user.findUnique({
         where: { clerkId: userId },
