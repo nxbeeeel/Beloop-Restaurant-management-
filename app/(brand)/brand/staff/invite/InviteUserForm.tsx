@@ -22,8 +22,7 @@ export function InviteUserForm({ outlets, brandColor = '#e11d48' }: InviteUserFo
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [role, setRole] = useState("STAFF");
 
-    const ringStyle = { '--tw-ring-color': brandColor } as React.CSSProperties;
-    const buttonStyle = { backgroundColor: brandColor };
+
 
     const handleSubmit = async (formData: FormData) => {
         setIsSubmitting(true);
@@ -52,8 +51,7 @@ export function InviteUserForm({ outlets, brandColor = '#e11d48' }: InviteUserFo
                     name="email"
                     type="email"
                     placeholder="colleague@example.com"
-                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-offset-1 outline-none transition-all"
-                    style={ringStyle}
+                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-rose-600 focus:ring-offset-1 outline-none transition-all"
                     required
                 />
             </div>
@@ -65,8 +63,7 @@ export function InviteUserForm({ outlets, brandColor = '#e11d48' }: InviteUserFo
                     name="role"
                     title="Select Role"
                     aria-label="Select Role"
-                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-offset-1 outline-none transition-all"
-                    style={ringStyle}
+                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-rose-600 focus:ring-offset-1 outline-none transition-all"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                     required
@@ -85,8 +82,7 @@ export function InviteUserForm({ outlets, brandColor = '#e11d48' }: InviteUserFo
                         name="outletId"
                         title="Select Outlet"
                         aria-label="Select Outlet"
-                        className="w-full p-2 border rounded-md focus:ring-2 focus:ring-offset-1 outline-none transition-all"
-                        style={ringStyle}
+                        className="w-full p-2 border rounded-md focus:ring-2 focus:ring-rose-600 focus:ring-offset-1 outline-none transition-all"
                         required
                     >
                         <option value="">Select Outlet...</option>
@@ -100,8 +96,7 @@ export function InviteUserForm({ outlets, brandColor = '#e11d48' }: InviteUserFo
             <div className="pt-4">
                 <Button
                     type="submit"
-                    className="w-full text-white transition-all shadow-md hover:shadow-lg active:scale-[0.98]"
-                    style={buttonStyle}
+                    className="w-full bg-rose-600 hover:bg-rose-700 text-white transition-all shadow-md hover:shadow-lg active:scale-[0.98]"
                     disabled={isSubmitting}
                 >
                     {isSubmitting ? (

@@ -108,4 +108,13 @@
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-rose-500 to-pink-600;
   }
+
+  /* Chart bar utilities with dynamic sizing via CSS custom properties */
+  .chart-bar {
+    height: var(--chart-height);
+  }
+
+  .chart-progress {
+    width: var(--chart-width);
+  }
 }
