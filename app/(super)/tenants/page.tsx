@@ -5,13 +5,18 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 
 export default async function TenantsPage() {
     const { userId } = await auth();
-    if (!userId) redirect("/login");
+
+    if (!userId) return null; // Component won't render, no redirect loop
 
     const user = await prisma.user.findUnique({
         where: { clerkId: userId },
         select: { role: true },
     });
-    if (!user || user.role !== "SUPER") redirect("/");
+
+    // Safety check - render Access Denied instead of Redirect Loop
+    if (!user || user.role !== "SUPER") {
+        return <div className="p-8 text-red-500 font-bold">Unauthorized Access</div>;
+    }
 
     const tenants = await prisma.tenant.findMany({
         orderBy: { createdAt: "desc" },
