@@ -21,8 +21,8 @@ export default async function OnboardingPage() {
     where: {
       OR: [
         { clerkId: userId },
-        { email: userEmail ? { equals: userEmail, mode: 'insensitive' } : undefined }
-      ].filter(Boolean)
+        ...(userEmail ? [{ email: { equals: userEmail, mode: 'insensitive' as const } }] : [])
+      ]
     },
     select: {
       id: true,
