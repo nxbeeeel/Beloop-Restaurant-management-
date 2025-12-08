@@ -52,55 +52,6 @@ export async function POST(req: Request) {
     const eventType = evt.type;
 
 
-    if (eventType === 'user.created' || eventType === 'user.updated') {
-        const { id, email_addresses, first_name, last_name } = evt.data;
-        const email = email_addresses[0]?.email_address;
-        const name = `${first_name || ''} ${last_name || ''}`.trim() || email;
-
-        if (email) {
-            // Upsert user in database
-            const dbUser = await prisma.user.upsert({
-                where: { clerkId: id },
-                update: {
-                    email,
-                    name,
-                },
-                create: {
-                    clerkId: id,
-                    email,
-                    name,
-                    role: 'STAFF', // Default role, will be updated by invitation or admin
-                },
-                select: {
-                    id: true,
-                    role: true,
-                    tenantId: true,
-                    outletId: true
-                }
-            });
-
-            // STRUCTURAL FIX: Sync database role to Clerk metadata
-            // This ensures Clerk metadata is always in sync with database
-            try {
-                const { clerkClient } = await import('@clerk/nextjs/server');
-                const client = await clerkClient();
-
-                await client.users.updateUser(id, {
-                    publicMetadata: {
-                        role: dbUser.role,
-                        onboardingComplete: dbUser.role === 'SUPER' || (dbUser.tenantId !== null),
-                        userId: dbUser.id,
-                        ...(dbUser.tenantId && { tenantId: dbUser.tenantId }),
-                        ...(dbUser.outletId && { outletId: dbUser.outletId })
-                    }
-                });
-
-                console.log(`[WEBHOOK] Synced metadata for user ${id}: role=${dbUser.role}`);
-            } catch (clerkError) {
-                console.error(`[WEBHOOK] Failed to sync metadata for user ${id}:`, clerkError);
-            }
-        }
-    }
 
     if (eventType === 'user.deleted') {
         const { id } = evt.data;
