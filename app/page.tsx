@@ -33,13 +33,22 @@ export default async function HomePage() {
       {/* Navigation */}
       <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/50 backdrop-blur-xl">
         <div className="container mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-rose-500 to-orange-600 rounded-lg flex items-center justify-center shadow-lg shadow-rose-500/20">
-              <Building2 className="text-white w-6 h-6" />
+          <div className="flex items-center gap-3 select-none">
+            {/* Logo Icon */}
+            <div className="relative w-10 h-10 flex items-center justify-center bg-gradient-to-tr from-rose-600 to-orange-600 rounded-xl shadow-lg shadow-rose-500/20 group cursor-pointer hover:scale-105 transition-transform">
+              <div className="absolute inset-0 bg-white/20 rounded-xl blur-[1px]"></div>
+              <Building2 className="relative text-white w-6 h-6 stroke-[2.5px]" />
             </div>
-            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-              Beloop
-            </span>
+
+            {/* Logo Text */}
+            <div className="flex flex-col">
+              <span className="text-2xl font-black tracking-tight text-white leading-none font-sans">
+                beloop<span className="text-rose-500">.</span>
+              </span>
+              <span className="text-[10px] font-bold tracking-[0.2em] text-gray-400 uppercase leading-none mt-0.5">
+                Financial OS
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-6">
