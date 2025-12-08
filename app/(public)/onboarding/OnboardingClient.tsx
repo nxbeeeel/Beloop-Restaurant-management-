@@ -78,11 +78,22 @@ export default function OnboardingClient() {
                 }),
             });
 
-            if (!response.ok) throw new Error('Failed to create brand');
-            router.push('/brand/dashboard');
+            const data = await response.json();
+            console.log('Onboarding response:', { status: response.status, data });
+
+            if (!response.ok) {
+                const errorMsg = data.error || 'Failed to create brand';
+                console.error('Onboarding error:', errorMsg);
+                alert(`Error: ${errorMsg}`);
+                throw new Error(errorMsg);
+            }
+
+            console.log('Brand created successfully, redirecting to dashboard...');
+            // Force a hard redirect to ensure Clerk metadata refreshes
+            window.location.href = '/brand/dashboard';
         } catch (error) {
             console.error('Onboarding error:', error);
-            alert('Failed to create brand. Please try again.');
+            alert(`Failed to create brand: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setLoading(false);
         }
