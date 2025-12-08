@@ -52,52 +52,75 @@ export async function POST(req: NextRequest) {
             }, { status: 409 });
         }
 
-        // Create tenant (brand)
-        const tenant = await prisma.tenant.create({
-            data: {
-                name,
-                slug,
-                logoUrl: logoUrl || null,
-                primaryColor: primaryColor || '#e11d48',
-                subscriptionStatus: 'TRIAL',
-                trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
-            },
-        });
+        // Create tenant (brand) and user in a transaction
+        let tenant;
+        try {
+            tenant = await prisma.$transaction(async (tx) => {
+                // Create tenant
+                const newTenant = await tx.tenant.create({
+                    data: {
+                        name,
+                        slug,
+                        logoUrl: logoUrl || null,
+                        primaryColor: primaryColor || '#e11d48',
+                        subscriptionStatus: 'TRIAL',
+                        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+                    },
+                });
 
-        // Update or create user with tenant assignment
-        const existingUser = await prisma.user.findUnique({
-            where: { clerkId: userId },
-        });
+                // Update or create user with tenant assignment
+                const existingUser = await tx.user.findUnique({
+                    where: { clerkId: userId },
+                });
 
-        if (existingUser) {
-            await prisma.user.update({
-                where: { clerkId: userId },
-                data: {
-                    tenantId: tenant.id,
-                    role: 'BRAND_ADMIN',
-                },
+                if (existingUser) {
+                    await tx.user.update({
+                        where: { clerkId: userId },
+                        data: {
+                            tenantId: newTenant.id,
+                            role: 'BRAND_ADMIN',
+                        },
+                    });
+                } else {
+                    await tx.user.create({
+                        data: {
+                            clerkId: userId,
+                            email: user.emailAddresses[0].emailAddress,
+                            name: `${user.firstName} ${user.lastName}`.trim() || user.emailAddresses[0].emailAddress,
+                            tenantId: newTenant.id,
+                            role: 'BRAND_ADMIN',
+                        },
+                    });
+                }
+
+                return newTenant;
             });
-        } else {
-            await prisma.user.create({
-                data: {
-                    clerkId: userId,
-                    email: user.emailAddresses[0].emailAddress,
-                    name: `${user.firstName} ${user.lastName}`.trim() || user.emailAddresses[0].emailAddress,
-                    tenantId: tenant.id,
-                    role: 'BRAND_ADMIN',
-                },
-            });
+
+            console.log('[API /api/onboarding] Database transaction successful, tenant created:', tenant.id);
+        } catch (dbError) {
+            console.error('[API /api/onboarding] Database transaction failed:', dbError);
+            return NextResponse.json(
+                { error: 'Failed to create brand in database', details: dbError instanceof Error ? dbError.message : 'Unknown error' },
+                { status: 500 }
+            );
         }
 
-        // Update Clerk metadata to mark onboarding as complete
-        const client = await clerkClient();
-        await client.users.updateUser(userId, {
-            publicMetadata: {
-                onboardingComplete: true,
-                role: 'BRAND_ADMIN',
-                tenantId: tenant.id,
-            },
-        });
+        // Update Clerk metadata (separate from DB transaction to avoid rollback issues)
+        try {
+            const client = await clerkClient();
+            await client.users.updateUser(userId, {
+                publicMetadata: {
+                    onboardingComplete: true,
+                    role: 'BRAND_ADMIN',
+                    tenantId: tenant.id,
+                },
+            });
+            console.log('[API /api/onboarding] Clerk metadata updated successfully');
+        } catch (clerkError) {
+            console.error('[API /api/onboarding] Clerk metadata update failed (brand still created):', clerkError);
+            // Don't fail the request - brand was created successfully
+            // The cookie will allow access even if Clerk metadata fails
+        }
 
         const response = NextResponse.json({
             success: true,
@@ -118,11 +141,17 @@ export async function POST(req: NextRequest) {
             secure: process.env.NODE_ENV === 'production'
         });
 
+        console.log('[API /api/onboarding] Brand creation completed successfully');
         return response;
     } catch (error) {
-        console.error('Onboarding error:', error);
+        console.error('[API /api/onboarding] Unexpected error:', error);
+        console.error('[API /api/onboarding] Error stack:', error instanceof Error ? error.stack : 'No stack');
+        
         return NextResponse.json(
-            { error: 'Failed to create brand' },
+            { 
+                error: 'An unexpected error occurred', 
+                details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined 
+            },
             { status: 500 }
         );
     }
