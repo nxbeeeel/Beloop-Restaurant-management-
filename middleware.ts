@@ -99,15 +99,18 @@ export default clerkMiddleware(async (auth, req) => {
         return NextResponse.redirect(new URL('/outlet/orders', req.url));
     }
 
-    // CASE E: NO ROLE / ONBOARDING INCOMPLETE
-    // If we are already at /onboarding, STOP. Do not redirect again.
+    // CASE E: NO ROLE / ONBOARDING INCOMPLETE (BYPASS MODE)
+    // User requested to remove the Onboarding Gate to fix infinite loops.
+    // We will now allow the request to proceed, trusting the destination page 
+    // or API to handle the lack of data/permissions if needed.
+
+    // If trying to access /onboarding, redirect to root (since we are deleting the page)
     if (currentPath.startsWith('/onboarding')) {
-        return NextResponse.next();
+        return NextResponse.redirect(new URL('/', req.url));
     }
 
-    // Otherwise, send to onboarding
-    console.log(`[MIDDLEWARE-${requestId}] ⚠️ No Role/Onboarding. Sending to /onboarding`);
-    return NextResponse.redirect(new URL('/onboarding', req.url));
+    console.log(`[MIDDLEWARE-${requestId}] ⚠️ No Role/Metadata found. ALLOWING access to: ${currentPath} (Bypass Mode)`);
+    return NextResponse.next();
 });
 
 export const config = {
