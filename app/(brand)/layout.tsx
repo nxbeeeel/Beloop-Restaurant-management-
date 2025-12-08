@@ -34,12 +34,8 @@ export default async function BrandLayout({
         }
     });
 
-    // 🛡️ Security Check: If user has no tenant, they shouldn't be here.
-    // They are likely a Super Admin or Unassigned user.
-    // Send them to root '/' where the main router will send them to the right place.
-    if (!user?.tenantId) {
-        redirect('/');
-    }
+    // 🛡️ Security Check: handled by Middleware.
+    // Middleware ensures only BRAND_ADMIN access this route.
 
     const brandName = (user as any)?.tenant?.name || "Beloop";
     const brandLogo = (user as any)?.tenant?.logoUrl;
