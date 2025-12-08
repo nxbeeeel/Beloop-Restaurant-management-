@@ -42,14 +42,12 @@ export default async function HomePage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/login">
-              <Button variant="ghost" className="text-gray-600 hover:text-rose-600 hover:bg-rose-50">Login</Button>
-            </Link>
-            <Link href="#apply">
-              <Button className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 shadow-lg shadow-rose-500/20 rounded-full px-6">
-                Get Started
-              </Button>
-            </Link>
+            <Button asChild variant="ghost" className="text-gray-600 hover:text-rose-600 hover:bg-rose-50">
+              <Link href="/login">Login</Link>
+            </Button>
+            <Button asChild className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 shadow-lg shadow-rose-500/20 rounded-full px-6">
+              <Link href="#apply">Get Started</Link>
+            </Button>
           </div>
         </div>
       </header>
@@ -78,16 +76,16 @@ export default async function HomePage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
-            <Link href="#apply">
-              <Button size="lg" className="h-14 px-8 text-lg bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 shadow-xl shadow-rose-500/20 rounded-full transition-transform hover:scale-105">
-                Start Free Trial <ArrowRight className="ml-2 w-5 h-5" />
+            <div className="inline-block transition-transform hover:scale-105">
+              <Button asChild size="lg" className="h-14 px-8 text-lg bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 shadow-xl shadow-rose-500/20 rounded-full">
+                <Link href="#apply">
+                  Start Free Trial <ArrowRight className="ml-2 w-5 h-5" />
+                </Link>
               </Button>
-            </Link>
-            <Link href="/login">
-              <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-2 hover:bg-gray-50 rounded-full bg-white/50 backdrop-blur-sm">
-                View Demo
-              </Button>
-            </Link>
+            </div>
+            <Button asChild size="lg" variant="outline" className="h-14 px-8 text-lg border-2 hover:bg-gray-50 rounded-full bg-white/50 backdrop-blur-sm">
+              <Link href="/login">View Demo</Link>
+            </Button>
           </div>
 
           <div className="pt-8 flex items-center justify-center gap-8 text-sm text-gray-500 animate-in fade-in duration-1000 delay-500">
