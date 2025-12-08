@@ -14,39 +14,13 @@ export default async function OnboardingPage() {
     redirect('/login');
   }
 
-  // Check if user has completed onboarding via Clerk metadata
-  if (sessionClaims?.metadata?.onboardingComplete === true) {
-    const role = sessionClaims.metadata.role;
-    if (role === 'SUPER') redirect('/super/dashboard');
-    else if (role === 'BRAND_ADMIN') redirect('/brand/dashboard');
-    else if (role === 'OUTLET_MANAGER') redirect('/outlet/dashboard');
-    else if (role === 'STAFF') redirect('/outlet/orders');
-  }
+  // NO REDIRECTS HERE - Middleware handles all role-based redirects
+  // This page should only be accessible if middleware allows it
+  // (i.e., user has no role and no onboarding complete flag)
 
-  // Double-check database (robust lookup)
-  console.log('--- ONBOARDING DEBUG START ---');
-  console.log('Clerk userId:', userId);
-  console.log('Clerk Email:', sessionClaims?.email);
-
-  const userEmail = sessionClaims?.email as string | undefined;
-  let user = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { clerkId: userId },
-        ...(userEmail ? [{ email: { equals: userEmail, mode: 'insensitive' as const } }] : [])
-      ]
-    },
-    select: {
-      id: true,
-      email: true,
-      role: true,
-      tenantId: true,
-      outletId: true
-    }
-  });
-
-  console.log('DB Search Result:', user ? `Found User: ${user.id} (${user.role})` : 'User NOT Found');
-  console.log('--- ONBOARDING DEBUG END ---');
+  console.log('--- ONBOARDING PAGE LOADED ---');
+  console.log('User ID:', userId);
+  console.log('Session metadata:', sessionClaims?.metadata);
 
   // EMERGENCY BACKDOOR: If we know it's Nabeel by email, force the UI to appear
   // This handles cases where Prisma might be acting weird or ID is mismatched
