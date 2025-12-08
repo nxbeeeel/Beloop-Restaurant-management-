@@ -2,10 +2,6 @@
 const nextConfig = {
     reactStrictMode: true,
     transpilePackages: ['lucide-react'],
-    eslint: {
-        // Disable ESLint during production builds
-        ignoreDuringBuilds: true,
-    },
     typescript: {
         // !! WARN !!
         // Dangerously allow production builds to successfully complete even if
