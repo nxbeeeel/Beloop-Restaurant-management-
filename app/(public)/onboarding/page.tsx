@@ -14,6 +14,30 @@ export default async function OnboardingPage() {
     redirect('/login');
   }
 
+  // IMMEDIATE CHECK: Query database for Super Admin role
+  // This bypasses Clerk metadata and ensures Super Admin always redirects correctly
+  const dbUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { clerkId: userId },
+        { email: { equals: sessionClaims?.email, mode: 'insensitive' } }
+      ]
+    },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      tenantId: true,
+      outletId: true
+    }
+  });
+
+  // If user is SUPER in database, redirect immediately
+  if (dbUser?.role === 'SUPER') {
+    console.log('[ONBOARDING] Super Admin detected in database, redirecting to /super/dashboard');
+    redirect('/super/dashboard');
+  }
+
   // Check if user has completed onboarding via Clerk metadata
   if (sessionClaims?.metadata?.onboardingComplete === true) {
     const role = sessionClaims.metadata.role;
@@ -27,14 +51,7 @@ export default async function OnboardingPage() {
   console.log('Clerk userId:', userId);
   console.log('Clerk Email:', sessionClaims?.email);
 
-  let user = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { clerkId: userId },
-        { email: { equals: sessionClaims?.email, mode: 'insensitive' } }
-      ]
-    }
-  });
+  let user = dbUser; // Reuse the query we already did
 
   console.log('DB Search Result:', user ? `Found User: ${user.id} (${user.role})` : 'User NOT Found');
   console.log('--- ONBOARDING DEBUG END ---');
