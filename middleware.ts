@@ -44,8 +44,8 @@ export default clerkMiddleware(async (auth, req) => {
                 const targetRoute = ROLE_ROUTES[metadataRole];
                 const currentPath = req.nextUrl.pathname;
 
-                // If user is on /onboarding but has a role, redirect to their dashboard
-                if (currentPath === '/onboarding') {
+                // Always redirect from root or onboarding to user's dashboard
+                if (currentPath === '/' || currentPath === '/onboarding') {
                     console.log(`[MIDDLEWARE-PRIORITY] ${metadataRole} user → ${targetRoute}`);
                     return NextResponse.redirect(new URL(targetRoute, req.url));
                 }
