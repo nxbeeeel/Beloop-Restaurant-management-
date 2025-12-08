@@ -16,12 +16,13 @@ export default async function OnboardingPage() {
 
   // IMMEDIATE CHECK: Query database for Super Admin role
   // This bypasses Clerk metadata and ensures Super Admin always redirects correctly
+  const userEmail = sessionClaims?.email as string | undefined;
   const dbUser = await prisma.user.findFirst({
     where: {
       OR: [
         { clerkId: userId },
-        { email: { equals: sessionClaims?.email, mode: 'insensitive' } }
-      ]
+        { email: userEmail ? { equals: userEmail, mode: 'insensitive' } : undefined }
+      ].filter(Boolean)
     },
     select: {
       id: true,
@@ -91,7 +92,7 @@ export default async function OnboardingPage() {
   // ---------------------------------------------------------
   // CHECK FOR PENDING INVITATIONS
   // ---------------------------------------------------------
-  const email = sessionClaims?.email;
+  const email = userEmail; // Reuse the typed email from above
   if (email) {
     const invite = await prisma.invitation.findFirst({
       where: {
