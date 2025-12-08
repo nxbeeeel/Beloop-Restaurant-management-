@@ -3,18 +3,25 @@ import { auth, currentUser, clerkClient } from '@clerk/nextjs/server';
 import { prisma } from '@/server/db';
 
 export async function POST(req: NextRequest) {
+    console.log('[API /api/onboarding] POST request received');
     try {
         const { userId } = await auth();
+        console.log('[API /api/onboarding] userId:', userId);
+        
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const user = await currentUser();
+        console.log('[API /api/onboarding] currentUser:', user?.emailAddresses[0]?.emailAddress);
+        
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
         const body = await req.json();
+        console.log('[API /api/onboarding] Request body:', { name: body.name, slug: body.slug });
+        
         const { name, slug, logoUrl, primaryColor } = body;
 
         // Validate required fields
