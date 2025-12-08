@@ -51,6 +51,84 @@ export async function POST(req: Request) {
     // For this guide, you simply log the payload to the console
     const eventType = evt.type;
 
+    if (eventType === 'user.created' || eventType === 'user.updated') {
+        const { id, email_addresses, first_name, last_name } = evt.data;
+        const email = email_addresses[0]?.email_address;
+        const name = `${first_name || ''} ${last_name || ''}`.trim() || email;
+
+        if (email) {
+            // STRUCTURAL FIX: Enforce one email = one user
+            // Check if user exists by EMAIL first (not just Clerk ID)
+            const existingUserByEmail = await prisma.user.findUnique({
+                where: { email: email.toLowerCase() },
+                select: { id: true, clerkId: true, role: true }
+            });
+
+            let dbUser;
+
+            if (existingUserByEmail && existingUserByEmail.clerkId !== id) {
+                // User recreated their Clerk account - update existing record
+                console.log(`[WEBHOOK] User recreated Clerk account. Updating existing user ${existingUserByEmail.id}`);
+                console.log(`[WEBHOOK] Old Clerk ID: ${existingUserByEmail.clerkId}, New Clerk ID: ${id}`);
+
+                dbUser = await prisma.user.update({
+                    where: { id: existingUserByEmail.id },
+                    data: {
+                        clerkId: id,
+                        name,
+                    },
+                    select: {
+                        id: true,
+                        role: true,
+                        tenantId: true,
+                        outletId: true
+                    }
+                });
+            } else {
+                // Normal upsert by Clerk ID
+                dbUser = await prisma.user.upsert({
+                    where: { clerkId: id },
+                    update: {
+                        email: email.toLowerCase(),
+                        name,
+                    },
+                    create: {
+                        clerkId: id,
+                        email: email.toLowerCase(),
+                        name,
+                        role: 'STAFF', // Default role, will be updated by invitation or admin
+                    },
+                    select: {
+                        id: true,
+                        role: true,
+                        tenantId: true,
+                        outletId: true
+                    }
+                });
+            }
+
+            // STRUCTURAL FIX: Sync database role to Clerk metadata
+            // This ensures Clerk metadata is always in sync with database
+            try {
+                const { clerkClient } = await import('@clerk/nextjs/server');
+                const client = await clerkClient();
+
+                await client.users.updateUser(id, {
+                    publicMetadata: {
+                        role: dbUser.role,
+                        onboardingComplete: dbUser.role === 'SUPER' || (dbUser.tenantId !== null),
+                        userId: dbUser.id,
+                        ...(dbUser.tenantId && { tenantId: dbUser.tenantId }),
+                        ...(dbUser.outletId && { outletId: dbUser.outletId })
+                    }
+                });
+
+                console.log(`[WEBHOOK] Synced metadata for user ${id}: role=${dbUser.role}`);
+            } catch (clerkError) {
+                console.error(`[WEBHOOK] Failed to sync metadata for user ${id}:`, clerkError);
+            }
+        }
+    }
 
 
     if (eventType === 'user.deleted') {
