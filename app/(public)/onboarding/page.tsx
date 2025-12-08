@@ -14,10 +14,22 @@ export default async function OnboardingPage() {
     redirect('/login');
   }
 
-  // IMMEDIATE CHECK: Query database for Super Admin role
-  // This bypasses Clerk metadata and ensures Super Admin always redirects correctly
+  // Check if user has completed onboarding via Clerk metadata
+  if (sessionClaims?.metadata?.onboardingComplete === true) {
+    const role = sessionClaims.metadata.role;
+    if (role === 'SUPER') redirect('/super/dashboard');
+    else if (role === 'BRAND_ADMIN') redirect('/brand/dashboard');
+    else if (role === 'OUTLET_MANAGER') redirect('/outlet/dashboard');
+    else if (role === 'STAFF') redirect('/outlet/orders');
+  }
+
+  // Double-check database (robust lookup)
+  console.log('--- ONBOARDING DEBUG START ---');
+  console.log('Clerk userId:', userId);
+  console.log('Clerk Email:', sessionClaims?.email);
+
   const userEmail = sessionClaims?.email as string | undefined;
-  const dbUser = await prisma.user.findFirst({
+  let user = await prisma.user.findFirst({
     where: {
       OR: [
         { clerkId: userId },
@@ -32,50 +44,6 @@ export default async function OnboardingPage() {
       outletId: true
     }
   });
-
-  // If user is SUPER in database, update Clerk metadata and redirect
-  if (dbUser?.role === 'SUPER') {
-    console.log('[ONBOARDING] Super Admin detected in database');
-
-    // Check if Clerk metadata is missing
-    const clerkRole = sessionClaims?.metadata?.role;
-    if (clerkRole !== 'SUPER') {
-      console.log('[ONBOARDING] Clerk metadata missing, updating...');
-
-      try {
-        const { clerkClient } = await import('@clerk/nextjs/server');
-        const client = await clerkClient();
-        await client.users.updateUser(userId, {
-          publicMetadata: {
-            role: 'SUPER',
-            onboardingComplete: true,
-            userId: dbUser.id
-          }
-        });
-        console.log('[ONBOARDING] Clerk metadata updated for Super Admin');
-      } catch (clerkError) {
-        console.error('[ONBOARDING] Failed to update Clerk metadata:', clerkError);
-      }
-    }
-
-    console.log('[ONBOARDING] Redirecting Super Admin to /super/dashboard');
-    redirect('/super/dashboard');
-  }
-
-  // Check if user has completed onboarding via Clerk metadata
-  if (sessionClaims?.metadata?.onboardingComplete === true) {
-    const role = sessionClaims.metadata.role;
-    if (role === 'SUPER') redirect('/super/dashboard');
-    else if (role === 'BRAND_ADMIN') redirect('/brand/dashboard');
-    else redirect('/outlet/dashboard');
-  }
-
-  // Double-check database (robust lookup)
-  console.log('--- ONBOARDING DEBUG START ---');
-  console.log('Clerk userId:', userId);
-  console.log('Clerk Email:', sessionClaims?.email);
-
-  let user = dbUser; // Reuse the query we already did
 
   console.log('DB Search Result:', user ? `Found User: ${user.id} (${user.role})` : 'User NOT Found');
   console.log('--- ONBOARDING DEBUG END ---');
