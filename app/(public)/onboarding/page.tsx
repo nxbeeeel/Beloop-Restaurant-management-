@@ -11,7 +11,9 @@ export default async function OnboardingPage() {
   const { userId, sessionClaims } = await auth();
 
   if (!userId) {
-    redirect('/login');
+    // Let Middleware handle this, or return null/unauthorized UI if strictly needed.
+    // Returning null to prevent rendering protected content if auth fails silently.
+    return null;
   }
 
   // NO REDIRECTS HERE - Middleware handles all role-based redirects

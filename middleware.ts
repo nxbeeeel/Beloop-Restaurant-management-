@@ -1,6 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import { type CustomJwtSessionClaims } from '@/types/clerk';
+
 
 const isPublicRoute = createRouteMatcher([
     '/',

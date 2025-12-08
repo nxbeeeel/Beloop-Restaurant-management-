@@ -9,7 +9,8 @@ export default async function OutletLayout({
     children: React.ReactNode;
 }) {
     const { userId } = await auth();
-    if (!userId) redirect("/login");
+    // Middleware handles protection.
+    if (!userId) return null; // Safe exit vs Redirect loop
 
     const user = await prisma.user.findUnique({
         where: { clerkId: userId },

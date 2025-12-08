@@ -9,7 +9,7 @@ export default async function SuperLayout({
     children: React.ReactNode;
 }) {
     const { userId } = await auth();
-    if (!userId) redirect("/login");
+    // Middleware handles protection. No secondary redirect here.
 
     return (
         <div className="flex min-h-screen bg-stone-950 text-white">
