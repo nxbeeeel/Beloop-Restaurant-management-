@@ -4,6 +4,7 @@ import { prisma } from "@/server/db";
 import OnboardingClient from "./OnboardingClient";
 import OnboardingSuccess from "./OnboardingSuccess";
 import SignOutWrapper from "./SignOutWrapper";
+import { SessionSyncRedirect } from "@/components/auth/SessionSyncRedirect";
 
 import { cookies } from "next/headers";
 
@@ -72,8 +73,8 @@ export default async function OnboardingPage() {
       redirectPath = '/outlet/dashboard';
     }
 
-    // Automatic redirect
-    redirect(redirectPath);
+    // Automatic redirect using Client Component to force session refresh
+    return <SessionSyncRedirect targetPath={redirectPath} />;
   }
 
   // ---------------------------------------------------------
