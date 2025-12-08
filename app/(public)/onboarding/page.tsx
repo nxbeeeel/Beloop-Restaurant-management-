@@ -18,13 +18,33 @@ export default async function OnboardingPage() {
   // This page should only be accessible if middleware allows it
   // (i.e., user has no role and no onboarding complete flag)
 
+
   console.log('--- ONBOARDING PAGE LOADED ---');
   console.log('User ID:', userId);
   console.log('Session metadata:', sessionClaims?.metadata);
 
+  // Query database for user (needed for page logic)
+  const userEmail = sessionClaims?.email as string | undefined;
+  let user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { clerkId: userId },
+        ...(userEmail ? [{ email: { equals: userEmail, mode: 'insensitive' as const } }] : [])
+      ]
+    },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      tenantId: true,
+      outletId: true
+    }
+  });
+
   // EMERGENCY BACKDOOR: If we know it's Nabeel by email, force the UI to appear
   // This handles cases where Prisma might be acting weird or ID is mismatched
   const isSuperAdminEmail = sessionClaims?.email === 'mnabeelca123@gmail.com';
+
 
   if (isSuperAdminEmail && !user) {
     // Fake the user object for the UI if DB failed but Email matched
