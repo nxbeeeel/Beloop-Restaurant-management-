@@ -50,8 +50,18 @@ export default clerkMiddleware(async (auth, req) => {
                     return NextResponse.redirect(new URL(targetRoute, req.url));
                 }
 
-                // Allow access to their designated area
-                return NextResponse.next();
+                // Check if user is accessing the correct area for their role
+                const rolePrefix = targetRoute.split('/')[1]; // e.g., 'super', 'brand', 'outlet'
+                const currentPrefix = currentPath.split('/')[1];
+
+                // If user is in their correct area, allow access
+                if (currentPrefix === rolePrefix) {
+                    return NextResponse.next();
+                }
+
+                // If user is trying to access wrong area, redirect to their dashboard
+                console.log(`[MIDDLEWARE] ${metadataRole} user accessing wrong area (${currentPath}), redirecting to ${targetRoute}`);
+                return NextResponse.redirect(new URL(targetRoute, req.url));
             }
 
             // Check onboarding status
