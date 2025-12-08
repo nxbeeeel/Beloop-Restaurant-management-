@@ -51,6 +51,11 @@ function BrandInviteContent() {
     const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            // Limit to 500KB to prevent 413 errors
+            if (file.size > 500000) {
+                alert('Logo file is too large. Please choose a file smaller than 500KB.');
+                return;
+            }
             setLogoFile(file);
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -64,14 +69,17 @@ function BrandInviteContent() {
         if (!token) return;
         setIsActivating(true);
 
-        // Convert Logo to Base64 if exists
+        // Skip logo if too large to prevent 413 errors
+        // Base64 encoding increases size by ~33%, so limit to ~500KB original
         let logoUrl: string | null = null;
-        if (logoFile) {
+        if (logoFile && logoFile.size < 500000) {
             const reader = new FileReader();
             logoUrl = await new Promise<string>((resolve) => {
                 reader.onloadend = () => resolve(reader.result as string);
                 reader.readAsDataURL(logoFile);
             });
+        } else if (logoFile) {
+            console.warn('Logo file too large, skipping upload');
         }
 
         activateMutation.mutate({

@@ -33,6 +33,11 @@ export default function OnboardingClient() {
     const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            // Limit to 500KB to prevent 413 errors
+            if (file.size > 500000) {
+                alert('Logo file is too large. Please choose a file smaller than 500KB.');
+                return;
+            }
             setFormData({ ...formData, logoFile: file });
             const reader = new FileReader();
             reader.onloadend = () => setLogoPreview(reader.result as string);
