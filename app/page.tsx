@@ -58,24 +58,7 @@ export default async function HomePage() {
               <Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link>
             </nav>
             <div className="h-6 w-px bg-white/10 hidden md:block" />
-            <div className="flex items-center gap-3">
-              {userId ? (
-                <Link href="/super/dashboard" className="text-sm font-medium text-white bg-white/10 border border-white/10 hover:bg-white/20 px-4 py-2 rounded-md transition-colors flex items-center gap-2">
-                  <LayoutDashboard className="w-4 h-4" />
-                  Command Center
-                </Link>
-              ) : (
-                <Link href="/login" className="text-sm font-medium text-gray-300 hover:text-white px-4 py-2 rounded-md hover:bg-white/5 transition-colors">
-                  Log in
-                </Link>
-              )}
-              
-              {!userId && (
-                  <Link href="#apply" className="bg-white text-black hover:bg-gray-200 font-semibold rounded-full px-5 py-2 transition-all hover:scale-105 active:scale-95">
-                    Get Access
-                  </Link>
-              )}
-            </div>
+            <AuthButtons />
           </div>
         </div>
       </header>
