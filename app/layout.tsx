@@ -14,6 +14,11 @@ export const metadata: Metadata = {
     ],
     apple: '/logo.png',
   },
+  other: {
+    // Performance optimization: Prefetch Clerk resources
+    'dns-prefetch': 'https://clerk.belooprms.app',
+    'preconnect': 'https://clerk.belooprms.app',
+  }
 }
 
 export default function RootLayout({
