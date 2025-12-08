@@ -32,17 +32,19 @@ export class MailService {
         return { success: true, mock: true };
       }
 
-      await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev', // Use Env or Default
+      const result = await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
         to: email,
         subject: `Complete your setup for ${brandName}`,
         html: html,
       });
 
       console.log(`[MailService] Brand invite sent to ${email}`);
-      return { success: true };
+      console.log(`[MailService] Resend response:`, JSON.stringify(result, null, 2));
+      return { success: true, data: result };
     } catch (error) {
       console.error('[MailService] Error sending email:', error);
+      console.error('[MailService] Error details:', JSON.stringify(error, null, 2));
       return { success: false, error };
     }
   }
@@ -126,7 +128,7 @@ export class MailService {
         return { success: true, mock: true };
       }
 
-      await resend.emails.send({
+      const result = await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
         to: email,
         subject: `You've been invited to join ${outletName}`,
@@ -137,9 +139,11 @@ export class MailService {
               `
       });
       console.log(`[MailService] User invite sent to ${email}`);
-      return { success: true };
+      console.log(`[MailService] Resend response:`, JSON.stringify(result, null, 2));
+      return { success: true, data: result };
     } catch (error) {
       console.error('[MailService] Error:', error);
+      console.error('[MailService] Error details:', JSON.stringify(error, null, 2));
       return { success: false, error };
     }
   }
