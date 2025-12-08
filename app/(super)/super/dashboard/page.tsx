@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 import { Suspense } from 'react';
 import { trpc } from "@/lib/trpc";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
     TrendingUp,
     Users,
@@ -10,22 +11,29 @@ import {
     CreditCard,
     Activity,
     ArrowUpRight,
-    ArrowDownRight,
-    MoreHorizontal,
-    RefreshCw
+    RefreshCw,
+    AlertCircle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { RevenueChart } from "@/components/admin/RevenueChart";
 
 export default function SuperDashboardPage() {
+    return (
+        <ErrorBoundary>
+            <DashboardContent />
+        </ErrorBoundary>
+    );
+}
+
+function DashboardContent() {
     const utils = trpc.useContext();
-    const { data: stats, isLoading: statsLoading } = trpc.superAnalytics.getPlatformStats.useQuery();
-    const { data: revenueTrend, isLoading: trendsLoading } = trpc.superAnalytics.getRevenueTrend.useQuery({ days: 30 });
-    const { data: activities, isLoading: activitiesLoading } = trpc.superAnalytics.getRecentActivity.useQuery({ limit: 5 });
+    const { data: stats, isLoading: statsLoading, isError: statsError, error: statsErrorDetails } = trpc.superAnalytics.getPlatformStats.useQuery();
+    const { data: revenueTrend, isLoading: trendsLoading, isError: trendsError } = trpc.superAnalytics.getRevenueTrend.useQuery({ days: 30 });
+    const { data: activities, isLoading: activitiesLoading, isError: activitiesError } = trpc.superAnalytics.getRecentActivity.useQuery({ limit: 5 });
 
     const isLoading = statsLoading || trendsLoading || activitiesLoading;
+    const isError = statsError || trendsError || activitiesError;
 
     // Premium Skeleton Loader
     if (isLoading) {
@@ -37,25 +45,42 @@ export default function SuperDashboardPage() {
                         <div className="h-8 w-48 bg-stone-800 rounded-lg"></div>
                         <div className="h-4 w-64 bg-stone-800/60 rounded"></div>
                     </div>
-                    <div className="flex gap-2">
-                        <div className="h-10 w-10 bg-stone-800 rounded-lg"></div>
-                        <div className="h-10 w-32 bg-stone-800 rounded-lg"></div>
-                        <div className="h-10 w-40 bg-stone-800 rounded-lg"></div>
-                    </div>
                 </div>
-
                 {/* KPI Grid Skeleton */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     {[1, 2, 3, 4].map((i) => (
                         <div key={i} className="h-32 bg-stone-800 rounded-xl border border-stone-800/50"></div>
                     ))}
                 </div>
+            </div>
+        );
+    }
 
-                {/* Main Content Skeleton */}
-                <div className="grid gap-4 md:grid-cols-7">
-                    <div className="col-span-4 h-[400px] bg-stone-800 rounded-xl border border-stone-800/50"></div>
-                    <div className="col-span-3 h-[400px] bg-stone-800 rounded-xl border border-stone-800/50"></div>
-                </div>
+    if (isError) {
+        console.error("Dashboard Data Error:", statsErrorDetails);
+        return (
+            <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 bg-red-50/50 rounded-2xl border border-red-100 text-center">
+                <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+                <h3 className="text-xl font-bold text-red-900 mb-2">Failed to load dashboard data</h3>
+                <p className="text-red-600 mb-6 max-w-md">
+                    We couldn't fetch the latest analytics. This might be a temporary server issue.
+                </p>
+                {statsErrorDetails && (
+                    <div className="bg-white p-3 rounded border border-red-200 text-xs font-mono text-red-800 mb-6 w-full max-w-lg overflow-auto">
+                        {statsErrorDetails.message}
+                    </div>
+                )}
+                <Button
+                    variant="outline"
+                    className="border-red-200 text-red-700 hover:bg-red-50"
+                    onClick={() => {
+                        utils.superAnalytics.getPlatformStats.invalidate();
+                        utils.superAnalytics.getRevenueTrend.invalidate();
+                        utils.superAnalytics.getRecentActivity.invalidate();
+                    }}
+                >
+                    Try Again
+                </Button>
             </div>
         );
     }
@@ -71,6 +96,8 @@ export default function SuperDashboardPage() {
                 <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => {
                         utils.superAnalytics.getPlatformStats.invalidate();
+                        utils.superAnalytics.getRevenueTrend.invalidate();
+                        utils.superAnalytics.getRecentActivity.invalidate();
                         toast.success("Refreshed data");
                     }}>
                         <RefreshCw className="mr-2 h-4 w-4" />
@@ -123,7 +150,7 @@ export default function SuperDashboardPage() {
                     </CardHeader>
                     <CardContent className="pl-2">
                         <div className="h-[350px] w-full">
-                            <RevenueChart data={revenueTrend} title="" description="" />
+                            <RevenueChart data={revenueTrend || []} title="" description="" />
                         </div>
                     </CardContent>
                 </Card>
