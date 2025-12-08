@@ -412,9 +412,9 @@ model Invitation {
 
   @@index([token])
   @@index([status, expiresAt])
+  @@index([email])
   @@index([tenantId])
   @@index([outletId])
-  @@unique([email, inviteRole, outletId, status])
 }
 
 model TemporaryPassword {
