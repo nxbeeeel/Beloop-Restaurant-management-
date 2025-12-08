@@ -26,7 +26,14 @@ export default clerkMiddleware(async (auth, req) => {
 
     // 2. CHECK IF PUBLIC ROUTE
     if (isPublicRoute(req)) {
-        return NextResponse.next();
+        // If user IS logged in and trying to access public auth pages or root, 
+        // let them fall through to role-based redirection so they get sent to dashboard.
+        if (userId && (currentPath === '/' || currentPath.startsWith('/login') || currentPath.startsWith('/signup'))) {
+            console.log(`[MIDDLEWARE-${requestId}] ℹ️ Authenticated user on public route (${currentPath}). Checking logic...`);
+            // Fall through to Role Logic
+        } else {
+            return NextResponse.next();
+        }
     }
 
     // 3. ENFORCE AUTHENTICATION (All non-public routes require login)
