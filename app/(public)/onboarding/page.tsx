@@ -113,22 +113,13 @@ export default async function OnboardingPage() {
         data: { status: 'ACCEPTED' }
       });
 
-      // Sync Clerk Metadata so middleware passes next time
-      // Note: We can't easily sync Clerk Metadata from server component without using Clerk API client 
-      // but the "Backdoor" logic above (cookie) and middleware DB check might handle it.
-      // Ideally we set the cookie here too.
-
-      (await cookies()).set('onboarding_complete', 'true', {
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60 * 24 * 30
-      });
+      // Sync Clerk Metadata - handled by middleware DB check
+      // Cookie setting removed - causes production error in Next.js 15
 
       // Redirect based on role
       if (invite.inviteRole === 'BRAND_ADMIN') redirect('/brand/dashboard');
       if (invite.inviteRole === 'OUTLET_MANAGER') redirect('/outlet/dashboard');
-      if (invite.inviteRole === 'STAFF') redirect('/outlet/orders'); // or relevant staff page
+      if (invite.inviteRole === 'STAFF') redirect('/outlet/orders');
       redirect('/');
     }
   }
