@@ -3,6 +3,8 @@ import { prisma } from "@/server/db";
 import { auth } from "@clerk/nextjs/server";
 import { Sidebar } from "@/components/outlet/Sidebar";
 
+export const dynamic = 'force-dynamic';
+
 export default async function OutletLayout({
     children,
 }: {
