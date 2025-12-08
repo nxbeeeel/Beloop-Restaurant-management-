@@ -16,7 +16,7 @@ export default function SuperDashboard() {
 
             {/* Tagline */}
             <p className="text-xl mb-8 text-gray-300">
-                &quot;Super Admin is the god&quot; – you control every brand, outlet, and user.
+                Central Command Center: Manage Users, Tenants, and Platform Settings.
             </p>
 
             {/* Action Cards */}
