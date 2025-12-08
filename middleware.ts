@@ -25,6 +25,29 @@ export default clerkMiddleware(async (auth, req) => {
         const onboardingCookie = req.cookies.get('onboarding_complete');
         const isCookieSet = onboardingCookie?.value === 'true';
 
+        // FAST PATH: If user has SUPER role in metadata, redirect directly to super dashboard
+        if (
+            userId &&
+            sessionClaims?.metadata?.role === 'SUPER' &&
+            req.nextUrl.pathname === '/onboarding'
+        ) {
+            console.log('Middleware: SUPER user detected, redirecting to /super/dashboard');
+            const superUrl = new URL('/super/dashboard', req.url);
+            return NextResponse.redirect(superUrl);
+        }
+
+        // FAST PATH: If user has BRAND_ADMIN role and onboardingComplete, skip onboarding
+        if (
+            userId &&
+            sessionClaims?.metadata?.role === 'BRAND_ADMIN' &&
+            sessionClaims?.metadata?.onboardingComplete === true &&
+            req.nextUrl.pathname === '/onboarding'
+        ) {
+            console.log('Middleware: BRAND_ADMIN user detected, redirecting to /brand/dashboard');
+            const brandUrl = new URL('/brand/dashboard', req.url);
+            return NextResponse.redirect(brandUrl);
+        }
+
         // Catch users who do not have `onboardingComplete: true` in their metadata AND no cookie
         // Redirect them to the /onboarding route to complete onboarding
         if (
