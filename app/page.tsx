@@ -15,6 +15,22 @@ import Link from "next/link";
 import Image from "next/image";
 import { BrandApplicationForm } from "@/components/forms/BrandApplicationForm";
 import { AuthButtons } from "@/components/home/AuthButtons";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+function RedirectToDashboard() {
+  const { isSignedIn, isLoaded } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.push('/super/dashboard');
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  return null;
+}
 
 export default function HomePage() {
   // const { userId } = await auth();
@@ -65,6 +81,7 @@ export default function HomePage() {
       </header>
 
       <main className="relative z-10 pt-32">
+        <RedirectToDashboard />
         {/* Hero Section */}
         <section className="container mx-auto px-6 pb-24 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">

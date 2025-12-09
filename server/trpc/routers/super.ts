@@ -370,7 +370,6 @@ export const superRouter = router({
             return payment;
         }),
 
-    // Invite Brand manually
     inviteBrand: requireSuper
         .input(z.object({
             brandName: z.string().min(1),
@@ -397,12 +396,8 @@ export const superRouter = router({
                     name: input.brandName,
                     slug: slug,
                     pricePerOutlet: 250,
-                    status: 'ACTIVE',
-                    subscriptionStatus: 'TRIAL', // give them a trial initially or ACTIVE? Let's say TRIAL or waiting for payment. ACTIVE is fine for now as per prompt "setup payment plan" implied but "keep one shop fees 250".
-                    // Prompt said "super admin invite brand with like setup payment plan".
-                    // We'll set them as ACTIVE and maybe nextBillingDate as now + 1 month (free month?) or now (due immediately)?
-                    // Let's set nextBillingDate to NOW so they appear as Due if we want, or month + 1. 
-                    // Let's go with month + 1 trial.
+                    status: 'PENDING', // Wait for them to accept
+                    subscriptionStatus: 'TRIAL',
                     nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 },
             });
@@ -422,8 +417,9 @@ export const superRouter = router({
                 },
             });
 
-            // Send Email
-            await MailService.sendBrandInvite(input.email, invite.token, input.brandName);
+            // Send Email (Welcome to existing tenant)
+            // Points to /invite/user
+            await MailService.sendBrandWelcomeInvite(input.email, invite.token, input.brandName);
 
             return { tenant, invite };
         }),
@@ -496,7 +492,8 @@ export const superRouter = router({
             });
 
             // 3. Send Email
-            await MailService.sendBrandInvite(input.email, token, input.brandName);
+            // Points to /invite/brand
+            await MailService.sendBrandCreationInvite(input.email, token, input.brandName);
 
             // 4. Return Link (for UI backup)
             const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
