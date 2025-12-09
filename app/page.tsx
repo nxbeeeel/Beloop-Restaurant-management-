@@ -1,4 +1,3 @@
-import { auth } from "@clerk/nextjs/server";
 import { Button } from "@/components/ui/button";
 import {
   Building2,
@@ -15,9 +14,11 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { BrandApplicationForm } from "@/components/forms/BrandApplicationForm";
+import { AuthButtons } from "@/components/home/AuthButtons";
 
-export default async function HomePage() {
-  const { userId } = await auth();
+export default function HomePage() {
+  // const { userId } = await auth();
+
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-rose-500/30 font-sans">
