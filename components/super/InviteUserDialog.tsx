@@ -118,8 +118,8 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
                                     <Copy className="h-4 w-4" />
                                 </Button>
                             </div>
-                            <p className="text-xs text-stone-400">
-                                Needs to be sent manually as email service is not configured.
+                            <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Invitation email sent automatically.
                             </p>
                         </div>
 

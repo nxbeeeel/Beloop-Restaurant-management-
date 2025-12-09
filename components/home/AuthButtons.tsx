@@ -1,6 +1,6 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { useUser, SignOutButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { LayoutDashboard, Loader2 } from "lucide-react";
 
@@ -19,13 +19,20 @@ export function AuthButtons() {
     return (
         <div className="flex items-center gap-3">
             {isSignedIn ? (
-                <Link
-                    href="/super/dashboard"
-                    className="text-sm font-medium text-white bg-white/10 border border-white/10 hover:bg-white/20 px-4 py-2 rounded-md transition-colors flex items-center gap-2"
-                >
-                    <LayoutDashboard className="w-4 h-4" />
-                    Command Center
-                </Link>
+                <div className="flex items-center gap-3">
+                    <Link
+                        href="/super/dashboard"
+                        className="text-sm font-medium text-white bg-white/10 border border-white/10 hover:bg-white/20 px-4 py-2 rounded-md transition-colors flex items-center gap-2"
+                    >
+                        <LayoutDashboard className="w-4 h-4" />
+                        Command Center
+                    </Link>
+                    <SignOutButton>
+                        <button className="text-xs text-gray-500 hover:text-white transition-colors">
+                            Switch
+                        </button>
+                    </SignOutButton>
+                </div>
             ) : (
                 <Link
                     href="/login"

@@ -91,48 +91,67 @@ function BrandInviteContent() {
 
     if (!token) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-stone-50 p-4">
-                <Card className="max-w-md w-full border-red-200">
-                    <CardHeader>
-                        <CardTitle className="text-red-600 flex items-center gap-2">
-                            <AlertCircle /> Invalid Link
-                        </CardTitle>
-                        <CardDescription>
-                            This invitation link is missing a token. Please check the URL and try again.
-                        </CardDescription>
-                    </CardHeader>
-                </Card>
+            <div className="min-h-screen flex items-center justify-center bg-[#09090b] text-white p-4 font-sans selection:bg-rose-500/30">
+                <div className="max-w-md w-full text-center space-y-6 animate-in fade-in zoom-in duration-500">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 mb-4">
+                        <AlertCircle className="w-8 h-8 text-rose-500" />
+                    </div>
+                    <h1 className="text-2xl font-bold tracking-tight">Invalid Invitation Link</h1>
+                    <p className="text-gray-400 text-lg">
+                        This invitation link is either missing a token or has expired.
+                    </p>
+                    <div className="pt-4">
+                        <Button
+                            variant="outline"
+                            className="border-white/10 hover:bg-white/5 text-white"
+                            onClick={() => router.push('/')}
+                        >
+                            Return to Home
+                        </Button>
+                    </div>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-stone-50 p-4">
-            <div className="w-full max-w-lg space-y-8 animate-in fade-in zoom-in duration-500">
-                <div className="text-center">
-                    <h1 className="text-3xl font-bold tracking-tight text-stone-900">Welcome to Beloop</h1>
-                    <p className="mt-2 text-stone-600">You've been invited to set up your brand.</p>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-[#09090b] text-white p-4 font-sans selection:bg-rose-500/30">
+            {/* Background Effects */}
+            <div className="fixed inset-0 z-0 pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-900/20 rounded-full blur-[120px] opacity-20" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-rose-900/20 rounded-full blur-[120px] opacity-20" />
+                <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay"></div>
+            </div>
+
+            <div className="w-full max-w-lg space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 relative z-10">
+                <div className="text-center space-y-2">
+                    <h1 className="text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/50">
+                        Welcome to Beloop
+                    </h1>
+                    <p className="text-lg text-gray-400">You've been invited to set up your brand.</p>
                 </div>
 
-                <Card className="border-stone-200 shadow-xl overflow-hidden">
-                    <CardHeader className="bg-gradient-to-r from-stone-50 to-stone-100 border-b border-stone-100 pb-6">
-                        <CardTitle className="text-xl">Accept Invitation</CardTitle>
-                        <CardDescription>
+                <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl overflow-hidden">
+                    <div className="p-6 border-b border-white/5 bg-white/5">
+                        <h2 className="text-xl font-semibold text-white">Accept Invitation</h2>
+                        <p className="text-sm text-gray-400 mt-1">
                             Customize your brand profile before activating.
-                        </CardDescription>
-                    </CardHeader>
+                        </p>
+                    </div>
 
-                    <CardContent className="space-y-6 pt-6">
+                    <div className="p-8 space-y-8">
                         {!isUserLoaded ? (
-                            <div className="flex justify-center py-4">
-                                <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
+                            <div className="flex justify-center py-8">
+                                <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
                             </div>
                         ) : !user ? (
-                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-                                <p className="font-semibold mb-1">Authentication Required</p>
-                                <p>You must be signed in to accept this invitation.</p>
+                            <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-6 text-rose-200">
+                                <p className="font-semibold mb-2 flex items-center gap-2">
+                                    <AlertCircle className="w-4 h-4" /> Authentication Required
+                                </p>
+                                <p className="text-sm opacity-90 mb-4">You must be signed in to accept this invitation.</p>
                                 <Button
-                                    className="mt-3 w-full bg-stone-900 hover:bg-stone-800 text-white"
+                                    className="w-full bg-rose-600 hover:bg-rose-700 text-white border-0"
                                     onClick={() => router.push(`/sign-in?redirect_url=${encodeURIComponent(window.location.href)}`)}
                                 >
                                     Sign In / Sign Up
@@ -141,67 +160,69 @@ function BrandInviteContent() {
                         ) : (
                             <>
                                 {/* User Profile */}
-                                <div className="flex items-center gap-3 p-3 bg-stone-100 rounded-lg border border-stone-200">
-                                    <div className="h-10 w-10 rounded-full bg-stone-200 flex items-center justify-center text-stone-500 font-bold border border-stone-300">
+                                <div className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/5">
+                                    <div className="h-12 w-12 rounded-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center text-white font-bold text-lg border border-white/10">
                                         {user.firstName?.charAt(0) || user.emailAddresses[0].emailAddress.charAt(0)}
                                     </div>
-                                    <div className="overflow-hidden">
-                                        <p className="text-sm font-medium text-stone-900 truncate">
+                                    <div className="overflow-hidden flex-1">
+                                        <p className="text-base font-medium text-white truncate">
                                             {user.fullName || 'User'}
                                         </p>
-                                        <p className="text-xs text-stone-500 truncate">
+                                        <p className="text-sm text-gray-400 truncate">
                                             {user.primaryEmailAddress?.emailAddress}
                                         </p>
                                     </div>
-                                    <div className="ml-auto">
-                                        <button className="text-xs text-rose-600 hover:text-rose-700 underline font-medium" onClick={() => signOut()}>
-                                            Switch Account
-                                        </button>
-                                    </div>
+                                    <button
+                                        className="text-xs text-rose-400 hover:text-rose-300 font-medium px-3 py-1.5 rounded-full bg-rose-500/10 hover:bg-rose-500/20 transition-colors"
+                                        onClick={() => signOut()}
+                                    >
+                                        Switch
+                                    </button>
                                 </div>
 
-                                <div className="space-y-5">
+                                <div className="space-y-6">
                                     <div className="relative">
                                         <div className="absolute inset-0 flex items-center">
-                                            <span className="w-full border-t border-stone-200" />
+                                            <span className="w-full border-t border-white/10" />
                                         </div>
-                                        <div className="relative flex justify-center text-xs uppercase">
-                                            <span className="bg-white px-2 text-stone-500 font-medium">Customize Your Brand</span>
+                                        <div className="relative flex justify-center text-xs uppercase tracking-wider">
+                                            <span className="bg-[#121215] px-3 text-gray-500 font-medium">Customize Your Brand</span>
                                         </div>
                                     </div>
 
                                     {/* Logo Upload */}
-                                    <div className="space-y-3">
-                                        <Label className="text-sm font-medium flex items-center gap-2 text-stone-700">
-                                            <Upload className="w-4 h-4" /> Brand Logo (Optional)
+                                    <div className="space-y-4">
+                                        <Label className="text-sm font-medium flex items-center gap-2 text-gray-300">
+                                            <Upload className="w-4 h-4" /> Brand Logo
                                         </Label>
                                         <div className="flex items-center gap-4">
-                                            <div className="h-16 w-16 rounded-md border-2 border-dashed border-stone-300 flex items-center justify-center bg-stone-50 overflow-hidden shrink-0">
+                                            <div className="h-20 w-20 rounded-2xl border border-white/10 bg-black/20 flex items-center justify-center overflow-hidden shrink-0 group relative">
                                                 {logoPreview ? (
                                                     // eslint-disable-next-line @next/next/no-img-element
                                                     <img src={logoPreview} alt="Logo" className="w-full h-full object-contain" />
                                                 ) : (
-                                                    <Upload className="w-6 h-6 text-stone-300" />
+                                                    <Upload className="w-8 h-8 text-gray-600 group-hover:text-gray-500 transition-colors" />
                                                 )}
                                             </div>
                                             <div className="flex-1">
                                                 <Input
                                                     id="logo" type="file" accept="image/*" onChange={handleLogoUpload}
-                                                    className="cursor-pointer file:text-stone-600 text-stone-600 text-sm"
+                                                    className="cursor-pointer file:text-white text-gray-400 bg-white/5 border-white/10 hover:bg-white/10 transition-colors"
                                                 />
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Brand Color */}
-                                    <div className="space-y-3">
-                                        <Label className="text-sm font-medium flex items-center gap-2 text-stone-700">
+                                    <div className="space-y-4">
+                                        <Label className="text-sm font-medium flex items-center gap-2 text-gray-300">
                                             <Palette className="w-4 h-4" /> Brand Theme Color
                                         </Label>
                                         <div className="flex items-center gap-3">
                                             {/* eslint-disable-next-line */}
                                             <div
-                                                className="h-10 w-10 rounded-full border-2 border-stone-200 shadow-sm cursor-pointer overflow-hidden relative"
+                                                className="h-11 w-11 rounded-full border-2 border-white/10 shadow-lg cursor-pointer overflow-hidden relative"
+                                                // eslint-disable-next-line
                                                 style={colorPreviewStyle}
                                             >
                                                 <input
@@ -217,12 +238,12 @@ function BrandInviteContent() {
                                                 type="text"
                                                 value={primaryColor}
                                                 onChange={(e) => setPrimaryColor(e.target.value)}
-                                                className="font-mono uppercase w-32"
+                                                className="font-mono uppercase w-32 bg-white/5 border-white/10 text-white"
                                                 placeholder="#E11D48"
                                                 maxLength={7}
                                             />
                                             {/* eslint-disable-next-line */}
-                                            <div className="h-10 flex-1 rounded-md flex items-center px-3 text-white text-sm font-medium shadow-sm" style={colorPreviewStyle}>
+                                            <div className="h-11 flex-1 rounded-lg flex items-center px-4 text-white text-sm font-medium shadow-lg" style={colorPreviewStyle}>
                                                 Preview Button
                                             </div>
                                         </div>
@@ -230,12 +251,13 @@ function BrandInviteContent() {
                                 </div>
                             </>
                         )}
-                    </CardContent>
-                    <CardFooter className="bg-stone-50/50 pt-6 border-t border-stone-100">
+                    </div>
+                    <div className="p-6 bg-white/5 border-t border-white/5">
                         {/* eslint-disable-next-line */}
                         <Button
-                            className="w-full text-lg h-12 shadow-md transition-all hover:scale-[1.01]"
-                            style={buttonStyle}
+                            className="w-full text-lg h-14 shadow-xl transition-all hover:scale-[1.02] bg-rose-600 hover:bg-rose-700 text-white rounded-xl"
+                            // eslint-disable-next-line
+                            style={user ? { backgroundColor: primaryColor } : {}}
                             disabled={!user || isActivating || activateMutation.isPending}
                             onClick={handleActivate}
                         >
@@ -249,8 +271,8 @@ function BrandInviteContent() {
                                 </>
                             )}
                         </Button>
-                    </CardFooter>
-                </Card>
+                    </div>
+                </div>
             </div>
         </div>
     );

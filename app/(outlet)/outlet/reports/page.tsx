@@ -138,6 +138,7 @@ export default function ReportsPage() {
                                             <div
                                                 key={t.date}
                                                 className="flex flex-col items-center flex-1 group relative"
+                                                // eslint-disable-next-line
                                                 style={{ '--chart-height': `${heightPercent}%` } as React.CSSProperties}
                                             >
                                                 <div className="chart-bar w-full bg-primary/10 rounded-t hover:bg-primary/20 transition-all relative group-hover:scale-y-105 origin-bottom">

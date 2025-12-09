@@ -114,4 +114,93 @@ export const publicRouter = router({
         return { success: true, tenantId: tenant.id, slug: tenant.slug };
       });
     }),
+
+  /**
+   * Accept User Invitation (Staff/Manager/Existing Brand Admin)
+   */
+  acceptInvite: publicProcedure
+    .input(z.object({
+      token: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // 1. Transactional Acceptance
+      return await prisma.$transaction(async (tx) => {
+        // Fetch Clerk User
+        const clerkUser = await currentUser();
+        if (!clerkUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to accept an invitation." });
+        }
+
+        const userEmail = clerkUser.emailAddresses[0]?.emailAddress;
+        if (!userEmail) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Your account must have an email address." });
+        }
+
+        // 2. Validate Token (Table: Invitation)
+        const invite = await tx.invitation.findUnique({
+          where: { token: input.token },
+          include: { tenant: true, outlet: true }
+        });
+
+        if (!invite) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Invalid invitation token." });
+        }
+
+        if (invite.status !== "PENDING") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation already accepted or expired." });
+        }
+
+        if (invite.expiresAt < new Date()) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation has expired." });
+        }
+
+        // 3. Email Security Check
+        if (userEmail !== invite.email) {
+          throw new TRPCError({ code: "FORBIDDEN", message: `This invitation is for ${invite.email}, but you are signed in as ${userEmail}.` });
+        }
+
+        // 4. Create/Update User Linked to Tenant/Outlet
+        const existingUser = await tx.user.findUnique({ where: { email: userEmail } });
+
+        if (existingUser) {
+          // Update existing user's role and association
+          await tx.user.update({
+            where: { id: existingUser.id },
+            data: {
+              role: invite.inviteRole,
+              tenantId: invite.tenantId, // Link to new tenant
+              outletId: invite.outletId, // Link to specific outlet if applicable
+              clerkId: clerkUser.id,
+              isActive: true,
+              name: existingUser.name || `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim()
+            }
+          });
+        } else {
+          // Create new user
+          await tx.user.create({
+            data: {
+              email: userEmail,
+              name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || 'Staff Member',
+              clerkId: clerkUser.id,
+              role: invite.inviteRole,
+              tenantId: invite.tenantId,
+              outletId: invite.outletId,
+              isActive: true,
+            }
+          });
+        }
+
+        // 5. Mark Token Used
+        await tx.invitation.update({
+          where: { id: invite.id },
+          data: { status: "ACCEPTED" }
+        });
+
+        return {
+          success: true,
+          tenantName: invite.tenant?.name,
+          role: invite.inviteRole
+        };
+      });
+    }),
 });

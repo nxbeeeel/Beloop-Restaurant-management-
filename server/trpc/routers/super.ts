@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { router, requireSuper } from '../trpc';
 import { TRPCError } from '@trpc/server';
+import { MailService } from '@/server/services/mail.service';
 
 export const superRouter = router({
     // List all tenants
@@ -421,6 +422,9 @@ export const superRouter = router({
                 },
             });
 
+            // Send Email
+            await MailService.sendBrandInvite(input.email, invite.token, input.brandName);
+
             return { tenant, invite };
         }),
     // Generic Invite User (Super Admin capable of inviting anyone)
@@ -458,7 +462,15 @@ export const superRouter = router({
                     createdByRole: 'SUPER',
                     metadata: { name: input.name }
                 },
+                include: {
+                    tenant: { select: { name: true } },
+                    outlet: { select: { name: true } }
+                }
             });
+
+            // Send Email
+            const entityName = invite.outlet?.name || invite.tenant?.name || 'Beloop Platform';
+            await MailService.sendUserInvite(input.email, invite.token, input.role, entityName);
 
             return invite;
         }),
@@ -483,7 +495,10 @@ export const superRouter = router({
                 },
             });
 
-            // 3. Return Link
+            // 3. Send Email
+            await MailService.sendBrandInvite(input.email, token, input.brandName);
+
+            // 4. Return Link (for UI backup)
             const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
             return {
                 link: `${baseUrl}/invite/brand?token=${token}`,
