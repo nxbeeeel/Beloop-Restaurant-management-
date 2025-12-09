@@ -15,22 +15,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { BrandApplicationForm } from "@/components/forms/BrandApplicationForm";
 import { AuthButtons } from "@/components/home/AuthButtons";
-import { useUser } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-
-function RedirectToDashboard() {
-  const { isSignedIn, isLoaded } = useUser();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      router.push('/super/dashboard');
-    }
-  }, [isLoaded, isSignedIn, router]);
-
-  return null;
-}
+import { RedirectToDashboard } from "@/components/home/RedirectToDashboard";
 
 export default function HomePage() {
   // const { userId } = await auth();
