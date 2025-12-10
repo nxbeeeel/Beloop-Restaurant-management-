@@ -23,9 +23,10 @@ interface SidebarProps {
     brandLogo?: string | null;
     brandColor: string;
     userName?: string | null;
+    slug: string;
 }
 
-export function Sidebar({ brandName, brandLogo, brandColor, userName }: SidebarProps) {
+export function Sidebar({ brandName, brandLogo, brandColor, userName, slug }: SidebarProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const pathname = usePathname();
 
@@ -34,12 +35,12 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName }: SidebarP
     const toggleSidebar = () => setIsCollapsed(!isCollapsed);
 
     const navItems = [
-        { href: "/brand/dashboard", label: "Overview", icon: LayoutDashboard },
-        { href: "/brand/outlets", label: "Outlets", icon: Store },
-        { href: "/brand/products", label: "Menu", icon: Utensils },
-        { href: "/brand/staff", label: "Staff", icon: Users },
-        { href: "/brand/reports", label: "Reports", icon: FileBarChart },
-        { href: "/brand/settings", label: "Settings", icon: Settings },
+        { href: `/brand/${slug}/dashboard`, label: "Overview", icon: LayoutDashboard },
+        { href: `/brand/${slug}/outlets`, label: "Outlets", icon: Store },
+        { href: `/brand/${slug}/products`, label: "Menu", icon: Utensils },
+        { href: `/brand/${slug}/staff`, label: "Staff", icon: Users },
+        { href: `/brand/${slug}/reports`, label: "Reports", icon: FileBarChart },
+        { href: `/brand/${slug}/settings`, label: "Settings", icon: Settings },
     ];
 
     return (
@@ -85,7 +86,7 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName }: SidebarP
                                 exit={{ opacity: 0, width: 0 }}
                                 className="overflow-hidden whitespace-nowrap"
                             >
-                                {/* eslint-disable-next-line */}
+                                {/* eslint-disable-next-line react-dom/no-unsafe-inline-style */}
                                 <h2 className="text-lg font-bold truncate" style={brandStyle}>
                                     {brandName}
                                 </h2>

@@ -29,6 +29,7 @@ model Tenant {
   features            Json?
   stripeCustomerId    String?            @unique
   stripePriceId       String?
+  clerkOrgId          String?            @unique
   subscriptionStatus  SubscriptionStatus @default(TRIAL)
   trialEndsAt         DateTime?
   sheetsSpreadsheetId String?

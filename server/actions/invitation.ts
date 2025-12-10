@@ -71,7 +71,7 @@ export async function createInvitation(formData: FormData) {
     const token = crypto.randomUUID();
 
     // Create invitation
-    await prisma.invitation.create({
+    const newInvite = await prisma.invitation.create({
         data: {
             token,
             email,
@@ -84,7 +84,44 @@ export async function createInvitation(formData: FormData) {
         }
     });
 
-    // Send Email
+    // CLERK ORGANIZATION INTEGRATION
+    if (dbUser.tenant?.clerkOrgId) {
+        try {
+            const client = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+
+            // Map internal role to Clerk Org Role
+            // BRAND_ADMIN -> org:admin
+            // OUTLET_MANAGER / STAFF -> org:member
+            const clerkRole = role === 'BRAND_ADMIN' ? 'org:admin' : 'org:member';
+
+            await client.organizations.createOrganizationInvitation({
+                organizationId: dbUser.tenant.clerkOrgId,
+                emailAddress: email,
+                role: clerkRole,
+                redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/accept-invite`,
+                publicMetadata: {
+                    internalInviteId: newInvite.id // Link back to our DB
+                }
+            });
+
+            // We let Clerk handle the email delivery.
+            return { success: true, message: "Invitation sent via Clerk!" };
+
+        } catch (error: any) {
+            console.error("Clerk Invitation Failed:", error);
+
+            // Rollback Prisma Invitation if Clerk fails (to maintain consistency)
+            await prisma.invitation.delete({ where: { id: newInvite.id } });
+
+            let errorMsg = "Failed to send invitation.";
+            if (error.errors && error.errors[0]?.message) {
+                errorMsg = error.errors[0].message;
+            }
+            throw new Error(errorMsg);
+        }
+    }
+
+    // LEGACY: Send Custom Email (if no Clerk Org)
     if (outletId) {
         // Fetch outlet name for email context
         const outlet = await prisma.outlet.findUnique({ where: { id: outletId }, select: { name: true } });

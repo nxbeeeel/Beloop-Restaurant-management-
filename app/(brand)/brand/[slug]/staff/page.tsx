@@ -9,16 +9,18 @@ import { SearchInput } from "@/components/common/SearchInput";
 import { InviteActions } from "./InviteActions";
 
 export default async function StaffPage({ searchParams }: { searchParams: { search?: string } }) {
-    const { userId } = await auth();
+    const { userId, orgSlug } = await auth();
     if (!userId) return null;
 
     const user = await prisma.user.findUnique({
         where: { clerkId: userId },
-        select: { tenantId: true }
+        select: { tenantId: true, tenant: true }
     });
 
     if (!user?.tenantId) return <div>No tenant found</div>;
 
+    // Use orgSlug from auth if available, else fallback to db slug
+    const activeSlug = orgSlug || user.tenant?.slug || "demo";
     const search = searchParams.search;
 
     const staff = await prisma.user.findMany({
@@ -60,7 +62,7 @@ export default async function StaffPage({ searchParams }: { searchParams: { sear
                 </div>
                 <div className="flex items-center gap-4">
                     <SearchInput placeholder="Search staff..." />
-                    <Link href="/brand/staff/invite">
+                    <Link href={`/brand/${activeSlug}/staff/invite`}>
                         <Button className="shadow-lg hover:shadow-xl transition-all duration-200">
                             <Plus className="mr-2 h-4 w-4" /> Invite User
                         </Button>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Send, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { createInvitation } from "@/server/actions/invitation";
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 
 interface Outlet {
     id: string;
@@ -19,6 +19,7 @@ interface InviteUserFormProps {
 
 export function InviteUserForm({ outlets, brandColor = '#e11d48' }: InviteUserFormProps) {
     const router = useRouter();
+    const params = useParams();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [role, setRole] = useState("STAFF");
 
@@ -31,7 +32,7 @@ export function InviteUserForm({ outlets, brandColor = '#e11d48' }: InviteUserFo
 
             if (result.success) {
                 toast.success(result.message);
-                router.push('/brand/staff');
+                router.push(`/brand/${params.slug}/staff`);
                 router.refresh();
             } else {
                 // Should not happen with new action response structure but good to handle

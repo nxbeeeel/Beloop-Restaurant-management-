@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { router, requireSuper } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { MailService } from '@/server/services/mail.service';
+import { ProvisioningService } from '@/server/services/provisioning.service';
+import crypto from 'crypto';
 
 export const superRouter = router({
     // List all tenants
@@ -229,6 +231,7 @@ export const superRouter = router({
             ],
         };
     }),
+
     // List all payments
     listPayments: requireSuper.query(async ({ ctx }) => {
         const payments = await ctx.prisma.payment.findMany({
@@ -370,6 +373,7 @@ export const superRouter = router({
             return payment;
         }),
 
+    // Invite Brand (Uses ProvisioningService)
     inviteBrand: requireSuper
         .input(z.object({
             brandName: z.string().min(1),
@@ -396,41 +400,32 @@ export const superRouter = router({
                     name: input.brandName,
                     slug: slug,
                     pricePerOutlet: 250,
-                    status: 'PENDING', // Wait for them to accept
+                    status: 'PENDING',
                     subscriptionStatus: 'TRIAL',
                     nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 },
             });
 
-            // Create Invitation
-            const invite = await ctx.prisma.invitation.create({
-                data: {
-                    token: crypto.randomUUID(),
-                    email: input.email,
-                    tenantId: tenant.id,
-                    inviteRole: 'BRAND_ADMIN',
-                    status: 'PENDING',
-                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                    createdById: ctx.user.id,
-                    createdByRole: 'SUPER',
-                    metadata: { contactName: input.contactName }
-                },
+            // Transactional Provisioning (Invite Brand Admin)
+            await ProvisioningService.inviteBrandAdmin({
+                email: input.email,
+                name: input.contactName || 'Brand Admin',
+                brandName: input.brandName,
+                tenantId: tenant.id,
+                superAdminId: ctx.user.id
             });
 
-            // Send Email (Welcome to existing tenant)
-            // Points to /invite/user
-            await MailService.sendBrandWelcomeInvite(input.email, invite.token, input.brandName);
-
-            return { tenant, invite };
+            return { success: true, tenantId: tenant.id };
         }),
-    // Generic Invite User (Super Admin capable of inviting anyone)
+
+    // Generic Invite User
     inviteUser: requireSuper
         .input(z.object({
             email: z.string().email(),
             name: z.string().min(1),
             role: z.enum(['SUPER', 'BRAND_ADMIN', 'OUTLET_MANAGER', 'STAFF']),
-            tenantId: z.string().optional(), // Required if not SUPER
-            outletId: z.string().optional(), // Optional, for specific outlet assignment
+            tenantId: z.string().optional(),
+            outletId: z.string().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
             // 1. Validation
@@ -440,7 +435,6 @@ export const superRouter = router({
             }
 
             if (input.role !== 'SUPER' && !input.tenantId) {
-                // If not creating a super admin, must attach to a tenant
                 throw new TRPCError({ code: 'BAD_REQUEST', message: 'Tenant ID is required for non-super roles' });
             }
 
@@ -450,7 +444,7 @@ export const superRouter = router({
                     token: crypto.randomUUID(),
                     email: input.email,
                     inviteRole: input.role,
-                    tenantId: input.tenantId, // Can be null if SUPER
+                    tenantId: input.tenantId,
                     outletId: input.outletId,
                     status: 'PENDING',
                     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -492,10 +486,9 @@ export const superRouter = router({
             });
 
             // 3. Send Email
-            // Points to /invite/brand
             await MailService.sendBrandCreationInvite(input.email, token, input.brandName);
 
-            // 4. Return Link (for UI backup)
+            // 4. Return Link
             const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
             return {
                 link: `${baseUrl}/invite/brand?token=${token}`,

@@ -20,9 +20,11 @@ export const brandAnalyticsRouter = router({
 
         // Try cache first
         const cacheKey = `brand:${user.tenantId}:overview`;
-        const cached = await redis.get(cacheKey);
-        if (cached) {
-            return JSON.parse(cached);
+        if (redis) {
+            const cached = await redis.get(cacheKey);
+            if (typeof cached === 'string') {
+                return JSON.parse(cached);
+            }
         }
 
         // Query data
@@ -57,7 +59,10 @@ export const brandAnalyticsRouter = router({
         };
 
         // Cache for 6 hours
-        await redis.setex(cacheKey, 21600, JSON.stringify(data));
+
+        if (redis) {
+            await redis.setex(cacheKey, 21600, JSON.stringify(data));
+        }
 
         return data;
     }),
@@ -78,9 +83,11 @@ export const brandAnalyticsRouter = router({
 
         // Try cache first
         const cacheKey = `brand:${user.tenantId}:outlets`;
-        const cached = await redis.get(cacheKey);
-        if (cached) {
-            return JSON.parse(cached);
+        if (redis) {
+            const cached = await redis.get(cacheKey);
+            if (typeof cached === 'string') {
+                return JSON.parse(cached);
+            }
         }
 
         // Query outlet performance data
@@ -115,7 +122,9 @@ export const brandAnalyticsRouter = router({
         }));
 
         // Cache for 6 hours
-        await redis.setex(cacheKey, 21600, JSON.stringify(data));
+        if (redis) {
+            await redis.setex(cacheKey, 21600, JSON.stringify(data));
+        }
 
         return data;
     }),
@@ -126,10 +135,12 @@ export const brandAnalyticsRouter = router({
     invalidateCache: protectedProcedure
         .input(z.object({ tenantId: z.string() }))
         .mutation(async ({ input }) => {
-            await Promise.all([
-                redis.del(`brand:${input.tenantId}:overview`),
-                redis.del(`brand:${input.tenantId}:outlets`)
-            ]);
+            if (redis) {
+                await Promise.all([
+                    redis.del(`brand:${input.tenantId}:overview`),
+                    redis.del(`brand:${input.tenantId}:outlets`)
+                ]);
+            }
             return { success: true };
         })
 });

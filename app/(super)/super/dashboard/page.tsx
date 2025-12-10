@@ -175,7 +175,7 @@ function DashboardContent() {
                                             {activity.description}
                                         </p>
                                         <p className="text-xs text-stone-500">
-                                            {new Date(activity.createdAt).toLocaleDateString()}
+                                            {new Date(activity.timestamp).toLocaleDateString()}
                                         </p>
                                     </div>
                                     <div className="ml-auto font-medium text-xs text-stone-500">

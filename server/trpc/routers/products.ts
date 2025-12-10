@@ -9,6 +9,19 @@ export const productsRouter = router({
         .use(enforceTenant)
         .input(z.object({ outletId: z.string() }))
         .query(async ({ ctx, input }) => {
+            // Zero Trust: Verify outlet belongs to the user's tenant
+            if (ctx.role !== 'SUPER') {
+                const count = await ctx.prisma.outlet.count({
+                    where: {
+                        id: input.outletId,
+                        tenantId: ctx.user.tenantId || ''
+                    }
+                });
+                if (count === 0) {
+                    throw new TRPCError({ code: 'FORBIDDEN', message: "You do not have access to this outlet" });
+                }
+            }
+
             return CacheService.getOrSet(
                 CacheService.keys.inventoryList(input.outletId),
                 async () => {

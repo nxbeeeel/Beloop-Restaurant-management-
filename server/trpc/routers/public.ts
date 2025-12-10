@@ -3,7 +3,8 @@ import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/server/db";
-import { currentUser } from '@clerk/nextjs/server';
+import { currentUser, clerkClient } from '@clerk/nextjs/server';
+import { ProvisioningService } from "@/server/services/provisioning.service";
 
 export const publicRouter = router({
   activateBrand: publicProcedure
@@ -123,84 +124,59 @@ export const publicRouter = router({
       token: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
-      // 1. Transactional Acceptance
-      return await prisma.$transaction(async (tx) => {
-        // Fetch Clerk User
-        const clerkUser = await currentUser();
-        if (!clerkUser) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to accept an invitation." });
-        }
+      // Fetch Clerk User
+      const clerkUser = await currentUser();
+      if (!clerkUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to accept an invitation." });
+      }
 
-        const userEmail = clerkUser.emailAddresses[0]?.emailAddress;
-        if (!userEmail) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Your account must have an email address." });
-        }
+      const userEmail = clerkUser.emailAddresses[0]?.emailAddress;
+      if (!userEmail) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Your account must have an email address." });
+      }
 
-        // 2. Validate Token (Table: Invitation)
-        const invite = await tx.invitation.findUnique({
-          where: { token: input.token },
-          include: { tenant: true, outlet: true }
+      // Use Atomic Provisioning Service
+      try {
+        const { user: appUser, invite } = await ProvisioningService.provisionUserFromInvite({
+          userId: clerkUser.id,
+          email: userEmail,
+          name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim(),
+          inviteToken: input.token
         });
 
-        if (!invite) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Invalid invitation token." });
-        }
-
-        if (invite.status !== "PENDING") {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation already accepted or expired." });
-        }
-
-        if (invite.expiresAt < new Date()) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation has expired." });
-        }
-
-        // 3. Email Security Check
-        if (userEmail !== invite.email) {
-          throw new TRPCError({ code: "FORBIDDEN", message: `This invitation is for ${invite.email}, but you are signed in as ${userEmail}.` });
-        }
-
-        // 4. Create/Update User Linked to Tenant/Outlet
-        const existingUser = await tx.user.findUnique({ where: { email: userEmail } });
-
-        if (existingUser) {
-          // Update existing user's role and association
-          await tx.user.update({
-            where: { id: existingUser.id },
-            data: {
-              role: invite.inviteRole,
-              tenantId: invite.tenantId, // Link to new tenant
-              outletId: invite.outletId, // Link to specific outlet if applicable
-              clerkId: clerkUser.id,
-              isActive: true,
-              name: existingUser.name || `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim()
+        // SYNC CLERK METADATA (Outside Transaction to avoid blocking/timeouts/external failures rolling back DB)
+        try {
+          const client = await clerkClient();
+          await client.users.updateUserMetadata(appUser.clerkId, {
+            publicMetadata: {
+              role: appUser.role,
+              tenantId: appUser.tenantId,
+              outletId: appUser.outletId,
+              onboardingComplete: true
             }
           });
-        } else {
-          // Create new user
-          await tx.user.create({
-            data: {
-              email: userEmail,
-              name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || 'Staff Member',
-              clerkId: clerkUser.id,
-              role: invite.inviteRole,
-              tenantId: invite.tenantId,
-              outletId: invite.outletId,
-              isActive: true,
-            }
-          });
+          console.log(`[Public] Synced Clerk Metadata for ${appUser.clerkId} -> ${appUser.role}`);
+        } catch (err) {
+          console.error("[Public] Failed to sync Clerk metadata (Non-critical)", err);
         }
-
-        // 5. Mark Token Used
-        await tx.invitation.update({
-          where: { id: invite.id },
-          data: { status: "ACCEPTED" }
-        });
 
         return {
           success: true,
           tenantName: invite.tenant?.name,
-          role: invite.inviteRole
+          role: invite.inviteRole,
+          userId: appUser.clerkId,
+          meta: {
+            role: appUser.role,
+            tenantId: appUser.tenantId,
+            outletId: appUser.outletId
+          }
         };
-      });
+      } catch (error: any) {
+        console.error("Provisioning Error:", error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || "Failed to provision user."
+        });
+      }
     }),
 });

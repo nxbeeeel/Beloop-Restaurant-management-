@@ -222,7 +222,7 @@ function BrandInviteContent() {
                                             {/* eslint-disable-next-line */}
                                             <div
                                                 className="h-11 w-11 rounded-full border-2 border-white/10 shadow-lg cursor-pointer overflow-hidden relative"
-                                                // eslint-disable-next-line
+                                                // eslint-disable-next-line react-dom/no-unsafe-inline-style
                                                 style={colorPreviewStyle}
                                             >
                                                 <input
@@ -242,7 +242,7 @@ function BrandInviteContent() {
                                                 placeholder="#E11D48"
                                                 maxLength={7}
                                             />
-                                            {/* eslint-disable-next-line */}
+                                            {/* eslint-disable-next-line react-dom/no-unsafe-inline-style */}
                                             <div className="h-11 flex-1 rounded-lg flex items-center px-4 text-white text-sm font-medium shadow-lg" style={colorPreviewStyle}>
                                                 Preview Button
                                             </div>
@@ -256,7 +256,7 @@ function BrandInviteContent() {
                         {/* eslint-disable-next-line */}
                         <Button
                             className="w-full text-lg h-14 shadow-xl transition-all hover:scale-[1.02] bg-rose-600 hover:bg-rose-700 text-white rounded-xl"
-                            // eslint-disable-next-line
+                            // eslint-disable-next-line react-dom/no-unsafe-inline-style
                             style={user ? { backgroundColor: primaryColor } : {}}
                             disabled={!user || isActivating || activateMutation.isPending}
                             onClick={handleActivate}

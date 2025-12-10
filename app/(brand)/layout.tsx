@@ -17,30 +17,40 @@ export default async function BrandLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const { userId } = await auth();
+    const { userId, orgId, orgSlug } = await auth();
     if (!userId) return null;
 
-    // Get user with tenant info
-    const user = await prisma.user.findUnique({
-        where: { clerkId: userId },
-        include: {
-            tenant: {
-                select: {
-                    name: true,
-                    logoUrl: true,
-                    primaryColor: true,
-                }
+    let tenant = null;
+
+    if (orgId) {
+        // Fetch Tenant by Clerk Org ID
+        tenant = await prisma.tenant.findUnique({
+            where: { clerkOrgId: orgId },
+            include: {
+                users: { where: { clerkId: userId }, take: 1 } // Optional: Link verification
             }
-        }
-    });
+        });
+    }
+
+    // Fallback: Legacy / Metadata check
+    if (!tenant) {
+        // Get user with tenant info (legacy single-tenant mode)
+        const user = await prisma.user.findUnique({
+            where: { clerkId: userId },
+            include: { tenant: true }
+        });
+        tenant = user?.tenant || null;
+    }
 
     // 🛡️ Security Check: handled by Middleware.
     // Middleware ensures only BRAND_ADMIN access this route.
 
-    const brandName = (user as any)?.tenant?.name || "Beloop";
-    const brandLogo = (user as any)?.tenant?.logoUrl;
-    const brandColor = (user as any)?.tenant?.primaryColor || "#e11d48";
+    const brandName = tenant?.name || "Beloop";
+    const brandLogo = tenant?.logoUrl;
+    const brandColor = tenant?.primaryColor || "#e11d48";
 
+    // Determine slug for navigation
+    const activeSlug = orgSlug || tenant?.slug || "demo";
 
 
     return (
@@ -49,7 +59,8 @@ export default async function BrandLayout({
                 brandName={brandName}
                 brandLogo={brandLogo}
                 brandColor={brandColor}
-                userName={(user as any)?.name}
+                userName={"Brand Admin"} // We can fetch name if needed, but for speed just static or from clerk
+                slug={activeSlug}
             />
             <main className="flex-1 p-8">
                 <PageTransition>

@@ -9,16 +9,17 @@ import { OutletExportButton } from "@/components/brand/OutletExportButton";
 import { SearchInput } from "@/components/common/SearchInput";
 
 export default async function OutletsPage({ searchParams }: { searchParams: { search?: string } }) {
-    const { userId } = await auth();
+    const { userId, orgSlug } = await auth();
     if (!userId) return null;
 
     const user = await prisma.user.findUnique({
         where: { clerkId: userId },
-        select: { tenantId: true }
+        select: { tenantId: true, tenant: true }
     });
 
     if (!user?.tenantId) return <div>No tenant found</div>;
 
+    const activeSlug = orgSlug || user.tenant?.slug || "demo";
     const search = searchParams.search;
 
     const outlets = await prisma.outlet.findMany({
@@ -49,7 +50,7 @@ export default async function OutletsPage({ searchParams }: { searchParams: { se
                 </div>
                 <div className="flex items-center gap-4">
                     <SearchInput placeholder="Search outlets..." />
-                    <Link href="/brand/outlets/new">
+                    <Link href={`/brand/${activeSlug}/outlets/new`}>
                         <Button className="shadow-lg hover:shadow-xl transition-all duration-200">
                             <Plus className="mr-2 h-4 w-4" /> Add Outlet
                         </Button>
@@ -97,7 +98,7 @@ export default async function OutletsPage({ searchParams }: { searchParams: { se
                                     <span className="font-medium">{outlet._count.users} Staff</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Link href={`/brand/outlets/${outlet.id}`}>
+                                    <Link href={`/brand/${activeSlug}/outlets/${outlet.id}`}>
                                         <Button variant="ghost" size="sm" className="h-8">
                                             View Details
                                         </Button>
@@ -118,7 +119,7 @@ export default async function OutletsPage({ searchParams }: { searchParams: { se
                         <p className="text-muted-foreground mb-6 text-center max-w-sm">
                             Get started by adding your first restaurant location to the platform.
                         </p>
-                        <Link href="/brand/outlets/new">
+                        <Link href={`/brand/${activeSlug}/outlets/new`}>
                             <Button>Create Outlet</Button>
                         </Link>
                     </div>

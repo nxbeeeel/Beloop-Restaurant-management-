@@ -49,6 +49,24 @@ export class MailService {
     }
   }
 
+
+  /**
+   * Send invitation to create a new Brand (Self-Serve/Acid Flow).
+   * Link points to /invite/brand to create the tenant.
+   */
+  static async sendBrandCreationInvite(email: string, token: string, brandName: string) {
+    // Reuse logic from sendBrandInvite or just alias it
+    return this.sendBrandInvite(email, token, brandName);
+  }
+
+  /**
+   * Alias for sendBrandInvite to resolve runtime errors where this method is expected.
+   * @deprecated Use sendBrandInvite or sendBrandCreationInvite instead.
+   */
+  static async sendBrandWelcomeInvite(email: string, token: string, brandName: string) {
+    return this.sendBrandInvite(email, token, brandName);
+  }
+
   /**
    * Rate limiting helper using Redis.
    * Returns true if email can be sent, false if limited.

@@ -66,7 +66,7 @@ export default function HomePage() {
       </header>
 
       <main className="relative z-10 pt-32">
-        <RedirectToDashboard />
+        {/* Client Logic Extracted - Now Handled by Middleware */}
         {/* Hero Section */}
         <section className="container mx-auto px-6 pb-24 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">

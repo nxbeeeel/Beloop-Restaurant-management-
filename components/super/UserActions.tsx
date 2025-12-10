@@ -8,8 +8,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Shieldalert, ShieldCheck, Trash2, Ban } from "lucide-react"; // Note: Shieldalert might fail if not in lucide-react version, checking imports
-import { Shield, CheckCircle } from "lucide-react"; // Safe imports
+import { MoreHorizontal, Trash2, Ban, Shield, CheckCircle } from "lucide-react";
+
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useState } from "react";
