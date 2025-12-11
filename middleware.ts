@@ -98,7 +98,10 @@ export default clerkMiddleware(async (auth, req) => {
     }
 
     // C. STAFF & OUTLET MANAGER (Metadata Based / Org Agnostic for now)
-    if (role === 'OUTLET_MANAGER' || role === 'STAFF') {
+    // CRITICAL FIX: If orgId is present, they are a member of the tenant.
+    // If they try to access /outlet, we let them through to let Layout handle Role Checks.
+    // This solves the loop where Metadata.role is missing but they are in the Org.
+    if ((role === 'OUTLET_MANAGER' || role === 'STAFF') || (orgId && currentPath.startsWith('/outlet'))) {
         if (currentPath.startsWith('/outlet')) {
             return NextResponse.next();
         }
