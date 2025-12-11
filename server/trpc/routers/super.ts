@@ -311,10 +311,28 @@ export const superRouter = router({
             return { success: true };
         }),
 
-    // Delete User
+    // Delete User (Full Cleanup including Clerk)
     deleteUser: requireSuper
         .input(z.object({ userId: z.string() }))
         .mutation(async ({ ctx, input }) => {
+            const user = await ctx.prisma.user.findUnique({
+                where: { id: input.userId },
+                select: { clerkId: true }
+            });
+
+            if (user?.clerkId) {
+                // Try to delete from Clerk first
+                try {
+                    const { clerkClient } = await import('@clerk/nextjs/server');
+                    const client = await clerkClient();
+                    await client.users.deleteUser(user.clerkId);
+                    console.log(`[SUPER] Deleted Clerk User: ${user.clerkId}`);
+                } catch (error) {
+                    console.error("[SUPER] Warning: Failed to delete user from Clerk (might not exist):", error);
+                    // Continue to delete from DB even if Clerk fails
+                }
+            }
+
             await ctx.prisma.user.delete({
                 where: { id: input.userId },
             });
