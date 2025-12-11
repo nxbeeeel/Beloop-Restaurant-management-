@@ -27,91 +27,124 @@ export const publicRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "Your account must have an email address." });
         }
 
-        // A. Validate Token
-        const invitation = await tx.brandInvitation.findUnique({
+        // A. Validate Token (Check BrandInvitation first, then generic Invitation)
+        let brandInvitation = await tx.brandInvitation.findUnique({
           where: { token: input.token },
         });
 
-        if (!invitation) {
+        // Fallback: Check generic Invitation (Super Admin pre-provisioned flow)
+        let genericInvitation = null;
+        if (!brandInvitation) {
+          genericInvitation = await tx.invitation.findUnique({
+            where: { token: input.token },
+            include: { tenant: true }
+          });
+        }
+
+        if (!brandInvitation && !genericInvitation) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Invalid invitation token" });
         }
 
-        if (invitation.status !== "PENDING") {
+        // Common Validations
+        const inviteStatus = brandInvitation ? brandInvitation.status : genericInvitation!.status;
+        const inviteExpires = brandInvitation ? brandInvitation.expiresAt : genericInvitation!.expiresAt;
+        const inviteEmail = brandInvitation ? brandInvitation.email : genericInvitation!.email;
+        const inviteBrandName = brandInvitation ? brandInvitation.brandName : genericInvitation!.tenant!.name;
+
+        if (inviteStatus !== "PENDING") {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation already used or expired" });
         }
 
-        if (invitation.expiresAt < new Date()) {
+        if (inviteExpires < new Date()) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation expired" });
         }
 
         // B. Secure Email Check
-        // Ensure the person clicking the link owns the email it was sent to.
-        if (userEmail !== invitation.email) {
-          throw new TRPCError({ code: "FORBIDDEN", message: `This invitation is for ${invitation.email}, but you are signed in as ${userEmail}.` });
+        if (userEmail !== inviteEmail) {
+          throw new TRPCError({ code: "FORBIDDEN", message: `This invitation is for ${inviteEmail}, but you are signed in as ${userEmail}.` });
         }
 
-        // C. Create Tenant
-        let slug = invitation.brandName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-        // Simple collision handling inside transaction
-        const existingSlug = await tx.tenant.findUnique({ where: { slug } });
-        if (existingSlug) {
-          slug = `${slug}-${Date.now().toString().slice(-4)}`;
+        let tenantId: string;
+        let tenantSlug: string;
+
+        // Path A: New Tenant (BrandInvitation)
+        if (brandInvitation) {
+          let slug = inviteBrandName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+          const existingSlug = await tx.tenant.findUnique({ where: { slug } });
+          if (existingSlug) {
+            slug = `${slug}-${Date.now().toString().slice(-4)}`;
+          }
+
+          const tenant = await tx.tenant.create({
+            data: {
+              name: inviteBrandName,
+              slug: slug,
+              status: "ACTIVE",
+              pricePerOutlet: 250,
+              subscriptionStatus: "TRIAL",
+              nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              logoUrl: input.logoUrl,
+              primaryColor: input.primaryColor || '#e11d48',
+            },
+          });
+          tenantId = tenant.id;
+          tenantSlug = tenant.slug;
+
+          // Consume BrandInvitation
+          await tx.brandInvitation.update({
+            where: { id: brandInvitation.id },
+            data: { status: "USED" },
+          });
+        } else {
+          // Path B: Existing Tenant (genericInvitation)
+          tenantId = genericInvitation!.tenantId!;
+          const tenant = await tx.tenant.update({
+            where: { id: tenantId },
+            data: {
+              status: 'ACTIVE', // Activate if it was pending
+              logoUrl: input.logoUrl, // User can still customize logo
+              primaryColor: input.primaryColor || '#e11d48',
+            }
+          });
+          tenantSlug = tenant.slug;
+
+          // Consume Generic Invitation
+          await tx.invitation.update({
+            where: { id: genericInvitation!.id },
+            data: { status: "ACCEPTED", acceptedAt: new Date(), acceptedBy: clerkUser.id },
+          });
         }
 
-        const tenant = await tx.tenant.create({
-          data: {
-            name: invitation.brandName,
-            slug: slug,
-            status: "ACTIVE",
-            pricePerOutlet: 250, // Default
-            subscriptionStatus: "TRIAL", // Trial for new brands
-            nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
-            logoUrl: input.logoUrl,
-            primaryColor: input.primaryColor || '#e11d48',
-          },
-        });
-
-        // D. Atomic User Link/Create (Zero Dual-Creation)
-        // 1. Check for existing user by Email (User could exist from previous invite or just created by Clerk)
+        // D. Atomic User Link/Create
         const existingUser = await tx.user.findUnique({
           where: { email: userEmail }
         });
 
         if (existingUser) {
-          // User exists: Link them to new Tenant and ensure Clerk ID is synced
-          // If they were already in another tenant, this moves them. (Assuming Brand Admin belongs to one tenant)
-          // If they were 'PENDING' user, this activates them.
           await tx.user.update({
             where: { id: existingUser.id },
             data: {
               role: "BRAND_ADMIN",
-              tenantId: tenant.id,
-              clerkId: clerkUser.id, // Ensure Clerk ID is synced if it was missing
+              tenantId: tenantId,
+              clerkId: clerkUser.id,
               isActive: true,
               name: existingUser.name || `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim()
             },
           });
         } else {
-          // User does not exist: Create new User record linked to Tenant
           await tx.user.create({
             data: {
               email: userEmail,
               name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || 'Brand Admin',
               clerkId: clerkUser.id,
               role: "BRAND_ADMIN",
-              tenantId: tenant.id,
+              tenantId: tenantId,
               isActive: true,
             }
           });
         }
 
-        // E. Consume Token
-        await tx.brandInvitation.update({
-          where: { id: invitation.id },
-          data: { status: "USED" },
-        });
-
-        return { success: true, tenantId: tenant.id, slug: tenant.slug };
+        return { success: true, tenantId: tenantId, slug: tenantSlug };
       });
 
       // F. Sync Clerk Metadata (Crucial for Middleware)
