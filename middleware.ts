@@ -31,12 +31,17 @@ export default clerkMiddleware(async (auth, req) => {
         }
     }
 
+
     // 3. ENFORCE AUTHENTICATION
     if (!userId) {
         const signInUrl = new URL('/login', req.url);
         signInUrl.searchParams.set('redirect_url', req.url);
         return NextResponse.redirect(signInUrl);
     }
+
+    // UNIVERSAL AUTHENTICATED ROUTES
+    if (currentPath.startsWith('/support')) return NextResponse.next();
+
 
     // 4. ROLE & ORG EXTRACTION
     const metadata = sessionClaims?.metadata as CustomJwtSessionClaims['metadata'] | undefined;
