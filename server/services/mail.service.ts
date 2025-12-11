@@ -22,7 +22,13 @@ export class MailService {
     }
 
     // 2. Generate Link & HTML
-    const link = `${process.env.NEXT_PUBLIC_APP_URL}/invite/brand?token=${token}`;
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? 'https://belooprms.app'
+      : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+
+    // Remove trailing slash if present to avoid double slash
+    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
+    const link = `${cleanBaseUrl}/invite/brand?token=${token}`;
     const html = this.getBrandInviteTemplate(brandName, link);
 
     // 3. Send Email
@@ -137,8 +143,12 @@ export class MailService {
     if (!canSend) return { success: false, error: 'RATE_LIMIT_EXCEEDED' };
 
     // Ensure we handle local vs prod URL correctly
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const link = `${baseUrl}/invite/user?token=${token}`;
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? 'https://belooprms.app'
+      : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+
+    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
+    const link = `${cleanBaseUrl}/invite/user?token=${token}`;
 
     try {
       if (!process.env.RESEND_API_KEY) {
