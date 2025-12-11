@@ -63,20 +63,10 @@ export class ProvisioningService {
             // We forcefully send our own email because Clerk's email might fail or lack DB token context.
             await MailService.sendBrandInvite(input.email, invite.token, input.brandName);
 
-            // 5. Send Clerk Invitation (OPTIONAL/REDUNDANT)
-            // We still create the organization invitation so Clerk knows about this user pending...
-            try {
-                // Using admin role for the brand admin
-                await client.organizations.createOrganizationInvitation({
-                    organizationId: org.id,
-                    emailAddress: input.email,
-                    role: 'org:admin', 
-                    inviterUserId: input.superAdminClerkId, // Explicitly set inviter
-                    redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/invite/brand` // Direct to brand acceptance
-                });
-            } catch (err) {
-                 console.warn("[Provisioning] Clerk Invite API failed (non-critical)", err);
-            }
+            // 5. Skip Clerk Invitation to prevent Double Emails
+            // We do NOT send the Clerk invitation. The user will be added to the DB flow.
+            // If they need to be in the Clerk Org, we can add them via API upon activation in `activateBrand`.
+            console.log(`[Provisioning] Clerk Org created (${org.id}). Clerk Invite skipped to avoid duplicate emails.`);
 
             console.log(`[Provisioning] Clerk Org created (${org.id}) and Invite sent to ${input.email}`);
 
