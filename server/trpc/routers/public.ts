@@ -27,47 +27,50 @@ export const publicRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "Your account must have an email address." });
         }
 
-        // A. Validate Token (Check BrandInvitation first, then generic Invitation)
-        let brandInvitation = await tx.brandInvitation.findUnique({
-          where: { token: input.token },
-        });
+        const safeToken = input.token.trim();
+        console.log(`[ActivateBrand] Attempting activation with token: ${safeToken}`);
 
-        // Fallback: Check generic Invitation (Super Admin pre-provisioned flow)
-        let genericInvitation = null;
-        if (!brandInvitation) {
-          genericInvitation = await tx.invitation.findUnique({
-            where: { token: input.token },
-            include: { tenant: true }
-          });
-        }
+        // A. Validate Token - Check both tables
+        const [brandInvitation, genericInvitation] = await Promise.all([
+          tx.brandInvitation.findUnique({ where: { token: safeToken } }),
+          tx.invitation.findUnique({ where: { token: safeToken }, include: { tenant: true } })
+        ]);
 
         if (!brandInvitation && !genericInvitation) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Invalid invitation token" });
+          console.error(`[ActivateBrand] Token not found in either table: ${safeToken}`);
+          throw new TRPCError({ code: "NOT_FOUND", message: "Invalid invitation token. Please check the link or ask your admin." });
         }
 
         // Common Validations
         const inviteStatus = brandInvitation ? brandInvitation.status : genericInvitation!.status;
         const inviteExpires = brandInvitation ? brandInvitation.expiresAt : genericInvitation!.expiresAt;
         const inviteEmail = brandInvitation ? brandInvitation.email : genericInvitation!.email;
-        const inviteBrandName = brandInvitation ? brandInvitation.brandName : genericInvitation!.tenant!.name;
+        // Robust name handling
+        const inviteBrandName = brandInvitation
+          ? brandInvitation.brandName
+          : (genericInvitation?.tenant?.name || (genericInvitation?.metadata as any)?.contactName || "New Brand");
 
         if (inviteStatus !== "PENDING") {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation already used or expired" });
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation has already been used." });
         }
 
         if (inviteExpires < new Date()) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation expired" });
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation has expired." });
         }
 
         // B. Secure Email Check
-        if (userEmail !== inviteEmail) {
-          throw new TRPCError({ code: "FORBIDDEN", message: `This invitation is for ${inviteEmail}, but you are signed in as ${userEmail}.` });
+        if (inviteEmail && userEmail !== inviteEmail) {
+          // Allow fuzzy match? No, strictly secure.
+          // But what if casing differs?
+          if (userEmail.toLowerCase() !== inviteEmail.toLowerCase()) {
+            throw new TRPCError({ code: "FORBIDDEN", message: `This invitation is for ${inviteEmail}, but you are signed in as ${userEmail}.` });
+          }
         }
 
         let tenantId: string;
         let tenantSlug: string;
 
-        // Path A: New Tenant (BrandInvitation)
+        // Path A: New Tenant (BrandInvitation - Self Serve)
         if (brandInvitation) {
           let slug = inviteBrandName.toLowerCase().replace(/[^a-z0-9]/g, '-');
           const existingSlug = await tx.tenant.findUnique({ where: { slug } });
@@ -96,14 +99,21 @@ export const publicRouter = router({
             data: { status: "USED" },
           });
         } else {
-          // Path B: Existing Tenant (genericInvitation)
+          // Path B: Existing Tenant (genericInvitation - Admin Invite)
+          // Ensure tenant exists
+          if (!genericInvitation!.tenantId) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Invitation is missing tenant association." });
+          }
+
           tenantId = genericInvitation!.tenantId!;
+
+          // Normalize slug if needed or just use existing
           const tenant = await tx.tenant.update({
             where: { id: tenantId },
             data: {
-              status: 'ACTIVE', // Activate if it was pending
-              logoUrl: input.logoUrl, // User can still customize logo
-              primaryColor: input.primaryColor || '#e11d48',
+              status: 'ACTIVE',
+              logoUrl: input.logoUrl || undefined, // Only update if provided
+              primaryColor: input.primaryColor || undefined,
             }
           });
           tenantSlug = tenant.slug;
