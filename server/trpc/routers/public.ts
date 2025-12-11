@@ -14,8 +14,7 @@ export const publicRouter = router({
       primaryColor: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      // 1. Transactional Atomic Activation
-      return await prisma.$transaction(async (tx) => {
+      const txResult = await prisma.$transaction(async (tx) => {
         // Fetch Clerk User (Authentic Source of Truth)
         const clerkUser = await currentUser();
 
@@ -114,6 +113,29 @@ export const publicRouter = router({
 
         return { success: true, tenantId: tenant.id, slug: tenant.slug };
       });
+
+      // F. Sync Clerk Metadata (Crucial for Middleware)
+      try {
+        const client = await clerkClient();
+        const clerkUserContext = await currentUser();
+
+        if (clerkUserContext && txResult?.tenantId) {
+          await client.users.updateUserMetadata(clerkUserContext.id, {
+            publicMetadata: {
+              role: 'BRAND_ADMIN',
+              tenantId: txResult.tenantId,
+              onboardingComplete: true
+            }
+          });
+          console.log(`[Activate] Synced Clerk Metadata for ${clerkUserContext.id} -> BRAND_ADMIN`);
+        }
+
+      } catch (err) {
+        console.error("[Activate] Failed to sync Clerk metadata", err);
+        // Don't fail the request, user is created in DB.
+      }
+
+      return txResult;
     }),
 
   /**
