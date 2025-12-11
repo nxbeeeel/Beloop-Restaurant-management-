@@ -407,7 +407,7 @@ export const superRouter = router({
             });
 
             // Transactional Provisioning (Invite Brand Admin)
-            await ProvisioningService.inviteBrandAdmin({
+            const invite = await ProvisioningService.inviteBrandAdmin({
                 email: input.email,
                 name: input.contactName || 'Brand Admin',
                 brandName: input.brandName,
@@ -416,7 +416,7 @@ export const superRouter = router({
                 superAdminDbId: ctx.user.id
             });
 
-            return { success: true, tenantId: tenant.id };
+            return { success: true, tenant, invite };
         }),
 
     // Generic Invite User
