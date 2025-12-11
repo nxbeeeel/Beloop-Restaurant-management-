@@ -40,7 +40,17 @@ export default clerkMiddleware(async (auth, req) => {
 
     // 4. ROLE & ORG EXTRACTION
     const metadata = sessionClaims?.metadata as CustomJwtSessionClaims['metadata'] | undefined;
-    const role = metadata?.role;
+    let role = metadata?.role;
+
+    // EMERGENCY OVERRIDE: Check email directly in case JWT metadata is missing
+    // This unblocks the user while JWT template propagates
+    // EMERGENCY OVERRIDE: Check User ID directly (100% reliable)
+    // This unblocks the user while JWT template propagates
+    const superAdminId = 'user_36YCfDC2SUMzvSvFyPhhtLE1Jmv';
+    if (userId === superAdminId) {
+        console.log(`[MIDDLEWARE] 🚨 Emergency Grant: SUPER role for ${userId}`);
+        role = 'SUPER';
+    }
 
     console.log(`[MIDDLEWARE-${requestId}] 👤 User: ${userId} | Role: ${role || 'NONE'} | Org: ${orgSlug || 'NONE'} | Path: ${currentPath}`);
 
@@ -49,7 +59,11 @@ export default clerkMiddleware(async (auth, req) => {
     // A. SUPER ADMIN
     if (role === 'SUPER') {
         if (currentPath.startsWith('/super')) return NextResponse.next();
+        if (currentPath.startsWith('/brand')) return NextResponse.next();
+        if (currentPath.startsWith('/outlet')) return NextResponse.next();
         if (currentPath === '/super/dashboard') return NextResponse.next();
+
+        // Allow public pages while logged in as SUPER? Maybe just dashboard.
 
         console.log(`[MIDDLEWARE-${requestId}] 🛡️ SUPER -> /super/dashboard`);
         return NextResponse.redirect(new URL('/super/dashboard', req.url));

@@ -21,25 +21,25 @@ export default function SuperDashboard() {
 
             {/* Action Cards */}
             <div className="grid md:grid-cols-3 gap-8">
-                {/* Brands */}
-                <Link href="/brand/dashboard" className="block">
+                {/* Brands & Tenants */}
+                <Link href="/super/tenants" className="block">
                     <div className="bg-gray-800 rounded-xl p-6 hover:bg-gray-700 transition-colors border border-gray-600">
                         <div className="flex items-center gap-3 mb-4">
                             <Building2 className="w-6 h-6 text-indigo-400" />
-                            <h2 className="text-2xl font-semibold">Brands</h2>
+                            <h2 className="text-2xl font-semibold">Brands & Tenants</h2>
                         </div>
                         <p className="text-gray-400">View and manage all tenant brands.</p>
                     </div>
                 </Link>
 
-                {/* Outlets */}
-                <Link href="/outlet/dashboard" className="block">
+                {/* Applications */}
+                <Link href="/super/applications" className="block">
                     <div className="bg-gray-800 rounded-xl p-6 hover:bg-gray-700 transition-colors border border-gray-600">
                         <div className="flex items-center gap-3 mb-4">
                             <Users className="w-6 h-6 text-green-400" />
-                            <h2 className="text-2xl font-semibold">Outlets</h2>
+                            <h2 className="text-2xl font-semibold">Applications</h2>
                         </div>
-                        <p className="text-gray-400">Manage every outlet across brands.</p>
+                        <p className="text-gray-400">Review new brand applications.</p>
                     </div>
                 </Link>
 
