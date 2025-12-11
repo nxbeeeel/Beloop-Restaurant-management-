@@ -85,17 +85,9 @@ export default async function OnboardingPage() {
                     </p>
 
                     <div className="flex justify-center py-4 border-t border-b border-gray-100">
-                        <OrganizationSwitcher
-                            afterCreateOrganizationUrl="/brand/:slug/dashboard"
-                            afterSelectOrganizationUrl="/brand/:slug/dashboard"
-                            hidePersonal
-                            appearance={{
-                                elements: {
-                                    rootBox: "w-full flex justify-center",
-                                    organizationSwitcherTrigger: "w-full justify-center px-4 py-2 border rounded-md hover:bg-gray-50"
-                                }
-                            }}
-                        />
+                        <p className="text-sm font-medium text-gray-500 italic">
+                            Waiting for invitation acceptance...
+                        </p>
                     </div>
 
                     <p className="text-xs text-gray-400">

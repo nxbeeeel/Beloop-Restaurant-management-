@@ -126,12 +126,21 @@ export default async function AcceptInvitePage() {
                         onboardingComplete: true
                     }
                 });
+
+                // 4. Redirect Based on Role
+                if (role === 'OUTLET_MANAGER') {
+                    redirect('/outlet/dashboard');
+                } else if (role === 'STAFF') {
+                    redirect('/outlet/orders');
+                } else {
+                    redirect(`/brand/${orgSlug}/dashboard`);
+                }
             }
         }
     } catch (e) {
         console.error("Failed to sync user on acceptance:", e);
     }
 
-    // 4. Redirect to Dashboard
+    // Fallback if loop falls through (should be unreachable on success)
     redirect(`/brand/${orgSlug}/dashboard`);
 }
