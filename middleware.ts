@@ -61,59 +61,56 @@ export default clerkMiddleware(async (auth, req) => {
 
     // 5. ROUTING LOGIC (Zero-Trust)
 
+    // 5. ROUTING LOGIC (Zero-Trust Priority)
+
     // A. SUPER ADMIN
     if (role === 'SUPER') {
         if (currentPath.startsWith('/super')) return NextResponse.next();
         if (currentPath.startsWith('/brand')) return NextResponse.next();
         if (currentPath.startsWith('/outlet')) return NextResponse.next();
         if (currentPath === '/super/dashboard') return NextResponse.next();
-
-        // Allow public pages while logged in as SUPER? Maybe just dashboard.
-
-        console.log(`[MIDDLEWARE-${requestId}] 🛡️ SUPER -> /super/dashboard`);
         return NextResponse.redirect(new URL('/super/dashboard', req.url));
     }
 
-    // B. BRAND/ORG MEMBER
-    if (orgId && orgSlug) {
-        if (currentPath.startsWith(`/brand/${orgSlug}`)) {
-            return NextResponse.next();
-        }
-
-        if (currentPath === '/brand/dashboard' || currentPath === '/') {
-            return NextResponse.redirect(new URL(`/brand/${orgSlug}/dashboard`, req.url));
-        }
-
-        if (currentPath.startsWith('/super')) {
-            return NextResponse.redirect(new URL(`/brand/${orgSlug}/dashboard`, req.url));
-        }
-
-        if (currentPath.startsWith('/brand/')) {
-            const pathSlug = currentPath.split('/')[2];
-            if (pathSlug !== orgSlug) {
-                console.log(`[MIDDLEWARE] ⛔ URL Slug (${pathSlug}) mismatch with Active Org (${orgSlug}). Redirecting.`);
-                return NextResponse.redirect(new URL(`/brand/${orgSlug}/dashboard`, req.url));
-            }
-        }
-    }
-
-    // C. STAFF & OUTLET MANAGER (Metadata Based / Org Agnostic for now)
-    // CRITICAL FIX: If orgId is present, they are a member of the tenant.
-    // If they try to access /outlet, we let them through to let Layout handle Role Checks.
-    // This solves the loop where Metadata.role is missing but they are in the Org.
+    // B. OUTLET MANAGER & STAFF (Priority over Brand Admin)
+    // If user has OUTLET_MANAGER/STAFF role OR is accessing /outlet with an Org Context.
+    // This MUST come before the generic Brand check to prevent them being sucked into /brand/...
     if ((role === 'OUTLET_MANAGER' || role === 'STAFF') || (orgId && currentPath.startsWith('/outlet'))) {
+
         if (currentPath.startsWith('/outlet')) {
             return NextResponse.next();
         }
 
-        if (currentPath === '/') {
+        if (currentPath === '/' || currentPath === '/dashboard') {
             const dest = role === 'OUTLET_MANAGER' ? '/outlet/dashboard' : '/outlet/orders';
-            console.log(`[MIDDLEWARE-${requestId}] 🛡️ STAFF/MANAGER -> ${dest}`);
+            console.log(`[MIDDLEWARE] 🛡️ STAFF/MANAGER -> ${dest}`);
             return NextResponse.redirect(new URL(dest, req.url));
         }
 
+        // Redirect away from Brand/Super pages
         if (currentPath.startsWith('/brand') || currentPath.startsWith('/super')) {
-            return NextResponse.redirect(new URL('/', req.url));
+            const dest = role === 'OUTLET_MANAGER' ? '/outlet/dashboard' : '/outlet/orders';
+            return NextResponse.redirect(new URL(dest, req.url));
+        }
+    }
+
+    // C. BRAND ADMIN / GENERIC ORG MEMBER
+    if (orgId && orgSlug) {
+        // Enforce Slug Match
+        if (currentPath.startsWith('/brand/')) {
+            const pathSlug = currentPath.split('/')[2];
+            // Allow if path matches active slug
+            if (pathSlug === orgSlug) {
+                return NextResponse.next();
+            }
+            // If mismatch, redirect to correct slug (Data Leak Prevention)
+            console.log(`[MIDDLEWARE] ⛔ URL Slug (${pathSlug}) mismatch with Active Org (${orgSlug}). Redirecting.`);
+            return NextResponse.redirect(new URL(`/brand/${orgSlug}/dashboard`, req.url));
+        }
+
+        // Redirect root/others to Brand Dashboard
+        if (currentPath === '/brand/dashboard' || currentPath === '/' || currentPath.startsWith('/super')) {
+            return NextResponse.redirect(new URL(`/brand/${orgSlug}/dashboard`, req.url));
         }
     }
 
