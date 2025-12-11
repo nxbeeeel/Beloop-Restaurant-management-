@@ -1,26 +1,39 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
+import { prisma } from "@/server/db";
 
 export default async function OnboardingPage() {
-    const { userId, orgId } = await auth();
+    const { userId } = await auth();
 
     if (!userId) {
         return redirect("/login");
     }
 
-    // If they have an Org, why are they here? Middleware should have sent them to dashboard.
-    // Unless they have an Org but Middleware sent them here because they tried to access a *different* org's route?
-    // Or they manually navigated here.
-    if (orgId) {
-        // Offer to go to dashboard
-        // We can fetch the slug if needed, but we don't have it easily without DB call or claims.
-        // Let's assume Middleware works and if they are here, they might want to switch orgs or check status.
-    }
-
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
     const firstName = user.firstName || "User";
+
+    // CHECK METADATA FIRST - Auto Redirect if already setup
+    const metadata = user.publicMetadata as any;
+    if (metadata?.onboardingComplete && metadata?.role && metadata?.tenantId) {
+        // Fetch tenant slug for safe redirect
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: metadata.tenantId },
+            select: { slug: true }
+        });
+
+        if (tenant?.slug) {
+            console.log("User already onboarded, redirecting to dashboard...");
+            if (metadata.role === 'BRAND_ADMIN' || metadata.role === 'SUPER') {
+                return redirect(`/brand/${tenant.slug}/dashboard`);
+            } else if (metadata.outletId) { // Staff/Manager
+                return redirect(`/outlet/dashboard`); // Outlet dashboard routes are simpler or dependent on outletId
+                // Actually outlet routes usually need validation. Simple root redirect is safer:
+                // return redirect('/'); 
+            }
+        }
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col items-center pt-20 px-4">
