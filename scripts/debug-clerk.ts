@@ -25,8 +25,7 @@ async function main() {
         const slug = `debug-test-${Date.now()}`;
 
         const org = await client.organizations.createOrganization({
-            name: "Debug Test Brand",
-            slug: slug,
+            name: "Debug Test Brand No Slug",
             createdBy: 'user_36YCfDC2SUMzvSvFyPhhtLE1Jmv'
         });
 
