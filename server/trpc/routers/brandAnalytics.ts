@@ -9,12 +9,9 @@ export const brandAnalyticsRouter = router({
      * Cached for 6 hours in Redis
      */
     getBrandOverview: protectedProcedure.query(async ({ ctx }) => {
-        const user = await prisma.user.findUnique({
-            where: { clerkId: ctx.userId },
-            select: { tenantId: true, role: true }
-        });
+        const { user } = ctx;
 
-        if (!user?.tenantId || (user.role !== 'BRAND_ADMIN' && user.role !== 'SUPER')) {
+        if (!user.tenantId || (user.role !== 'BRAND_ADMIN' && user.role !== 'SUPER')) {
             throw new Error('Unauthorized');
         }
 
@@ -72,12 +69,9 @@ export const brandAnalyticsRouter = router({
      * Cached for 6 hours in Redis
      */
     getOutletPerformance: protectedProcedure.query(async ({ ctx }) => {
-        const user = await prisma.user.findUnique({
-            where: { clerkId: ctx.userId },
-            select: { tenantId: true, role: true }
-        });
+        const { user } = ctx;
 
-        if (!user?.tenantId || (user.role !== 'BRAND_ADMIN' && user.role !== 'SUPER')) {
+        if (!user.tenantId || (user.role !== 'BRAND_ADMIN' && user.role !== 'SUPER')) {
             throw new Error('Unauthorized');
         }
 
