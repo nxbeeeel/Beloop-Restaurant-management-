@@ -295,8 +295,8 @@ export const superRouter = router({
                 where: { tenantId: input.tenantId, role: 'BRAND_ADMIN' }
             });
 
-            // 2. Delete tenant (cascading delete might handle some things, but cleaning users ensures email is freed)
-            await ctx.prisma.tenant.delete({
+            // 2. Delete tenant (Use deleteMany to avoid error if it's already gone or missing)
+            await ctx.prisma.tenant.deleteMany({
                 where: { id: input.tenantId },
             });
 
