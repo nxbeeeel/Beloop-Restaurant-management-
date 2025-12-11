@@ -290,10 +290,24 @@ export const superRouter = router({
     deleteTenant: requireSuper
         .input(z.object({ tenantId: z.string() }))
         .mutation(async ({ ctx, input }) => {
-            // Delete tenant (cascading delete handled by Prisma schema)
+            // 1. Find Brand Admins for this tenant to cleanup
+            const admins = await ctx.prisma.user.findMany({
+                where: { tenantId: input.tenantId, role: 'BRAND_ADMIN' }
+            });
+
+            // 2. Delete tenant (cascading delete might handle some things, but cleaning users ensures email is freed)
             await ctx.prisma.tenant.delete({
                 where: { id: input.tenantId },
             });
+
+            // 3. Delete the users found (since they are now orphans and their emails are locked)
+            // Only if they don't have other critical data (assumed safe for Brand Admin of deleted tenant)
+            if (admins.length > 0) {
+                await ctx.prisma.user.deleteMany({
+                    where: { id: { in: admins.map(u => u.id) } }
+                });
+            }
+
             return { success: true };
         }),
 

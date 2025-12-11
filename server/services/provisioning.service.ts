@@ -59,15 +59,24 @@ export class ProvisioningService {
                 data: { clerkOrgId: org.id }
             });
 
-            // 4. Send Clerk Invitation
-            // Using admin role for the brand admin
-            await client.organizations.createOrganizationInvitation({
-                organizationId: org.id,
-                emailAddress: input.email,
-                role: 'org:admin',
-                inviterUserId: input.superAdminClerkId, // Explicitly set inviter
-                redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/invite/brand` // Direct to brand acceptance
-            });
+            // 4. Send Custom Invitation Email (RELIABLE)
+            // We forcefully send our own email because Clerk's email might fail or lack DB token context.
+            await MailService.sendBrandInvite(input.email, invite.token, input.brandName);
+
+            // 5. Send Clerk Invitation (OPTIONAL/REDUNDANT)
+            // We still create the organization invitation so Clerk knows about this user pending...
+            try {
+                // Using admin role for the brand admin
+                await client.organizations.createOrganizationInvitation({
+                    organizationId: org.id,
+                    emailAddress: input.email,
+                    role: 'org:admin', 
+                    inviterUserId: input.superAdminClerkId, // Explicitly set inviter
+                    redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/invite/brand` // Direct to brand acceptance
+                });
+            } catch (err) {
+                 console.warn("[Provisioning] Clerk Invite API failed (non-critical)", err);
+            }
 
             console.log(`[Provisioning] Clerk Org created (${org.id}) and Invite sent to ${input.email}`);
 
