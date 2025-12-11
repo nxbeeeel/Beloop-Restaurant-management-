@@ -2,6 +2,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import { prisma } from "@/server/db";
+import { LaunchDashboardButton } from "./LaunchDashboardButton";
 
 export default async function OnboardingPage() {
     const { userId } = await auth();
@@ -52,9 +53,7 @@ export default async function OnboardingPage() {
                         Your account is set up and ready to go.
                     </p>
 
-                    <a href={targetUrl} className="block w-full py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg transition-colors shadow-md">
-                        Launch Dashboard
-                    </a>
+                    <LaunchDashboardButton targetUrl={targetUrl} />
 
                     <p className="text-xs text-gray-400 mt-4">
                         If you are stuck in a loop, please strict refresh (Ctrl+F5) or sign out and sign back in.
