@@ -114,6 +114,13 @@ export default clerkMiddleware(async (auth, req) => {
         }
     }
 
+    // C2. BRAND ADMIN FALLBACK (Metadata-based)
+    // If we missed Block B (No Active Org), but user IS a Brand Admin, allow access to /brand routes.
+    // The Layout will enforce actual ownership. This prevents Redirect Loops for new Brands.
+    if (role === 'BRAND_ADMIN' && currentPath.startsWith('/brand/')) {
+        return NextResponse.next();
+    }
+
     // D. PENDING / NO ORGANIZATION
     if (currentPath.startsWith('/onboarding')) {
         return NextResponse.next();
