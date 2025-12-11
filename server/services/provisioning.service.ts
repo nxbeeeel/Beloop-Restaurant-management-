@@ -25,7 +25,8 @@ export class ProvisioningService {
         name: string;
         brandName: string;
         tenantId: string;
-        superAdminId: string;
+        superAdminClerkId: string;
+        superAdminDbId: string;
     }) {
         console.log(`[Provisioning] Starting atomic CLERK invite for ${input.email}`);
 
@@ -39,7 +40,7 @@ export class ProvisioningService {
                 inviteRole: 'BRAND_ADMIN',
                 status: 'PENDING',
                 expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                createdById: input.superAdminId,
+                createdById: input.superAdminDbId,
                 createdByRole: 'SUPER',
                 metadata: { contactName: input.name }
             }
@@ -57,7 +58,7 @@ export class ProvisioningService {
             const org = await client.organizations.createOrganization({
                 name: input.brandName,
                 slug: uniqueSlug,
-                createdBy: input.superAdminId, // The Super Admin creates it
+                createdBy: input.superAdminClerkId, // The Super Admin creates it using Clerk ID
             });
 
             // 3. Update DB Tenant with Clerk Org ID

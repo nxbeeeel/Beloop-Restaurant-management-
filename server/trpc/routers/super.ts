@@ -412,7 +412,8 @@ export const superRouter = router({
                 name: input.contactName || 'Brand Admin',
                 brandName: input.brandName,
                 tenantId: tenant.id,
-                superAdminId: ctx.user.id
+                superAdminClerkId: ctx.userId!, // Validated by middleware
+                superAdminDbId: ctx.user.id
             });
 
             return { success: true, tenantId: tenant.id };
