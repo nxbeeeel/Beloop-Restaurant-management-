@@ -323,9 +323,9 @@ export const superRouter = router({
                         where: { outletId: { in: outletIds } }
                     });
 
-                    // Suppliers
+                    // Suppliers (belongs to tenant, not outlet)
                     await tx.supplier.deleteMany({
-                        where: { outletId: { in: outletIds } }
+                        where: { tenantId }
                     });
 
                     // Daily Closures
