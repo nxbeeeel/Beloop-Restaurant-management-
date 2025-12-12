@@ -4,6 +4,11 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
     enabled: process.env.ANALYZE === 'true',
 });
 
+// Sentry configuration (optional - only if SENTRY_DSN is set)
+const { withSentryConfig } = process.env.NEXT_PUBLIC_SENTRY_DSN
+    ? require("@sentry/nextjs")
+    : { withSentryConfig: (config) => config };
+
 const nextConfig = {
     reactStrictMode: true,
     transpilePackages: ['lucide-react'],
@@ -75,4 +80,17 @@ const nextConfig = {
     }
 };
 
-module.exports = withBundleAnalyzer(nextConfig);
+// Sentry options (only used if DSN is set)
+const sentryWebpackPluginOptions = {
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    silent: true, // Suppresses source map upload logs
+    hideSourceMaps: true,
+};
+
+// Chain the configs
+const configWithAnalyzer = withBundleAnalyzer(nextConfig);
+module.exports = process.env.NEXT_PUBLIC_SENTRY_DSN
+    ? withSentryConfig(configWithAnalyzer, sentryWebpackPluginOptions)
+    : configWithAnalyzer;
+
