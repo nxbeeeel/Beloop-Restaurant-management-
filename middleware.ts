@@ -15,144 +15,104 @@ const isPublicRoute = createRouteMatcher([
     '/api/inngest',
     '/api/create-super-admin',
     '/api/emergency-fix-super-admin',
+    '/invite(.*)',
+    '/accept-invite(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
     const { userId, sessionClaims, orgId, orgSlug } = await auth();
     const currentPath = req.nextUrl.pathname;
 
-    const requestId = Math.random().toString(36).substring(7);
-
-    // 2. CHECK IF PUBLIC ROUTE
+    // 1. PUBLIC ROUTES - Allow all
     if (isPublicRoute(req)) {
+        // Redirect authenticated users away from login/signup
         if (userId && (currentPath === '/' || currentPath.startsWith('/login') || currentPath.startsWith('/signup'))) {
-            // Fall through to strict checking
+            // Let middleware decide where to send them
         } else {
             return NextResponse.next();
         }
     }
 
-
-    // 3. ENFORCE AUTHENTICATION
+    // 2. NOT AUTHENTICATED - Redirect to login
     if (!userId) {
         const signInUrl = new URL('/login', req.url);
         signInUrl.searchParams.set('redirect_url', req.url);
         return NextResponse.redirect(signInUrl);
     }
 
-    // UNIVERSAL AUTHENTICATED ROUTES
-    if (currentPath.startsWith('/support')) return NextResponse.next();
-
-
-    // 4. ROLE & ORG EXTRACTION
-    const metadata = sessionClaims?.metadata as CustomJwtSessionClaims['metadata'] | undefined;
+    // 3. EXTRACT ROLE FROM METADATA
+    const metadata = sessionClaims?.metadata as { role?: string; tenantId?: string; outletId?: string } | undefined;
     let role = metadata?.role;
 
     // 🔒 LOCKED SUPER ADMIN (mnabeelca123@gmail.com)
     if (userId === 'user_36YCfDC2SUMzvSvFyPhhtLE1Jmv') {
         role = 'SUPER';
-        console.log(`[MIDDLEWARE] 🔒 Enforcing LOCKED SUPER ADMIN for ${userId}`);
     }
 
+    // Universal routes (support, etc.)
+    if (currentPath.startsWith('/support')) return NextResponse.next();
 
-
-    console.log(`[MIDDLEWARE-${requestId}] 👤 User: ${userId} | Role: ${role || 'NONE'} | Org: ${orgSlug || 'NONE'} | Path: ${currentPath}`);
-
-    // 5. ROUTING LOGIC (Zero-Trust)
-
-    // 5. ROUTING LOGIC (Zero-Trust Priority)
+    // ============================================================
+    // 4. ROLE-BASED ROUTING (Zero-Trust, No Loops)
+    // ============================================================
 
     // A. SUPER ADMIN
     if (role === 'SUPER') {
-        if (currentPath.startsWith('/super')) return NextResponse.next();
-        if (currentPath.startsWith('/brand')) return NextResponse.next();
-        if (currentPath.startsWith('/outlet')) return NextResponse.next();
-        if (currentPath === '/super/dashboard') return NextResponse.next();
+        // Allow access to all admin areas
+        if (currentPath.startsWith('/super') || currentPath.startsWith('/brand') || currentPath.startsWith('/outlet')) {
+            return NextResponse.next();
+        }
+        // Redirect to super dashboard
         return NextResponse.redirect(new URL('/super/dashboard', req.url));
     }
 
-    // B. OUTLET MANAGER & STAFF (Priority over Brand Admin)
-    // If user has OUTLET_MANAGER/STAFF role OR is accessing /outlet with an Org Context.
-    // This MUST come before the generic Brand check to prevent them being sucked into /brand/...
-    if ((role === 'OUTLET_MANAGER' || role === 'STAFF') || (orgId && currentPath.startsWith('/outlet'))) {
-
+    // B. OUTLET MANAGER
+    if (role === 'OUTLET_MANAGER') {
         if (currentPath.startsWith('/outlet')) {
             return NextResponse.next();
         }
-
-        if (currentPath === '/' || currentPath === '/dashboard') {
-            const dest = role === 'OUTLET_MANAGER' ? '/outlet/dashboard' : '/outlet/orders';
-            console.log(`[MIDDLEWARE] 🛡️ STAFF/MANAGER -> ${dest}`);
-            return NextResponse.redirect(new URL(dest, req.url));
-        }
-
-        // Redirect away from Brand/Super pages
-        if (currentPath.startsWith('/brand') || currentPath.startsWith('/super')) {
-            const dest = role === 'OUTLET_MANAGER' ? '/outlet/dashboard' : '/outlet/orders';
-            return NextResponse.redirect(new URL(dest, req.url));
-        }
+        return NextResponse.redirect(new URL('/outlet/dashboard', req.url));
     }
 
-    // C. BRAND ADMIN / GENERIC ORG MEMBER
+    // C. STAFF
+    if (role === 'STAFF') {
+        if (currentPath.startsWith('/outlet')) {
+            return NextResponse.next();
+        }
+        return NextResponse.redirect(new URL('/outlet/orders', req.url));
+    }
+
+    // D. BRAND ADMIN (with or without Clerk org context)
+    if (role === 'BRAND_ADMIN') {
+        // Allow all /brand routes
+        if (currentPath.startsWith('/brand')) {
+            return NextResponse.next();
+        }
+        // Redirect to brand dashboard resolver
+        return NextResponse.redirect(new URL('/brand/dashboard', req.url));
+    }
+
+    // E. HAS CLERK ORG CONTEXT (Generic org member)
     if (orgId && orgSlug) {
-        // Enforce Slug Match
         if (currentPath.startsWith('/brand/')) {
             const pathSlug = currentPath.split('/')[2];
-            // Allow if path matches active slug
             if (pathSlug === orgSlug) {
                 return NextResponse.next();
             }
-            // If mismatch, redirect to correct slug (Data Leak Prevention)
-            console.log(`[MIDDLEWARE] ⛔ URL Slug (${pathSlug}) mismatch with Active Org (${orgSlug}). Redirecting.`);
+            // Redirect to correct org
             return NextResponse.redirect(new URL(`/brand/${orgSlug}/dashboard`, req.url));
         }
-
-        // Redirect root/others to Brand Dashboard
-        if (currentPath === '/brand/dashboard' || currentPath === '/' || currentPath.startsWith('/super')) {
-            return NextResponse.redirect(new URL(`/brand/${orgSlug}/dashboard`, req.url));
-        }
-    }
-
-    // C2. BRAND ADMIN FALLBACK (Metadata-based)
-    // If no Active Org, but user IS a Brand Admin with tenantId, redirect to brand dashboard
-    if (role === 'BRAND_ADMIN') {
-        const tenantId = metadata?.tenantId;
-
-        // Allow access to /brand routes
-        if (currentPath.startsWith('/brand/')) {
-            return NextResponse.next();
-        }
-
-        // Redirect to onboarding if no tenantId (they need to complete setup)
-        if (!tenantId) {
-            if (currentPath.startsWith('/onboarding')) {
-                return NextResponse.next();
-            }
-            return NextResponse.redirect(new URL('/onboarding', req.url));
-        }
-
-        // If at root or onboarding with tenantId, redirect to brand (will be handled by layout)
         if (currentPath === '/' || currentPath.startsWith('/onboarding')) {
-            // We can't fetch DB in middleware easily, so redirect to a generic brand entry point
-            // The brand layout will use the tenantId from metadata to find the correct slug
-            return NextResponse.redirect(new URL('/brand/dashboard', req.url));
+            return NextResponse.redirect(new URL(`/brand/${orgSlug}/dashboard`, req.url));
         }
     }
 
-    // D. PENDING / NO ORGANIZATION
+    // F. NO ROLE / PENDING - Allow onboarding
     if (currentPath.startsWith('/onboarding')) {
         return NextResponse.next();
     }
 
-    if (currentPath.startsWith('/accept-invite')) {
-        return NextResponse.next();
-    }
-
-    if (currentPath.startsWith('/invite')) {
-        return NextResponse.next();
-    }
-
-    console.log(`[MIDDLEWARE-${requestId}] ⚠️ No Role/Org. -> /onboarding`);
+    // G. FALLBACK - Redirect to onboarding
     return NextResponse.redirect(new URL('/onboarding', req.url));
 });
 
