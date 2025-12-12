@@ -31,18 +31,6 @@ export default clerkMiddleware(async (auth, req) => {
     const { userId, sessionClaims, orgSlug } = await auth();
     const pathname = req.nextUrl.pathname;
 
-    // ============================================================
-    // STEP 0: LOOP BREAKER (Must be first)
-    // If user is authenticated and already on a dashboard, LET THEM STAY
-    // ============================================================
-    if (userId) {
-        if (pathname.startsWith('/super/') ||
-            pathname.startsWith('/brand/') ||
-            pathname.startsWith('/outlet/')) {
-            return NextResponse.next();
-        }
-    }
-
     // 1. API ROUTES - Always allow
     if (isApiRoute(req)) {
         return NextResponse.next();
@@ -59,15 +47,37 @@ export default clerkMiddleware(async (auth, req) => {
     }
 
     // 4. GET USER ROLE FROM SESSION CLAIMS
-    const metadata = sessionClaims?.metadata as { role?: string } | undefined;
+    const metadata = sessionClaims?.metadata as { role?: string; tenantId?: string } | undefined;
     let role = metadata?.role;
+    const tenantId = metadata?.tenantId;
 
     // Locked Super Admin
     if (userId === 'user_36YCfDC2SUMzvSvFyPhhtLE1Jmv') {
         role = 'SUPER';
     }
 
-    // 5. ROLE-BASED REDIRECTS (Only if not already on correct page)
+    // ============================================================
+    // 5. LOOP BREAKER - Check if user is ALREADY on their correct dashboard
+    // ============================================================
+
+    // Super Admin on Super pages - OK
+    if (role === 'SUPER' && pathname.startsWith('/super/')) {
+        return NextResponse.next();
+    }
+
+    // Brand Admin on Brand pages - OK
+    if (role === 'BRAND_ADMIN' && pathname.startsWith('/brand/')) {
+        return NextResponse.next();
+    }
+
+    // Outlet Manager or Staff on Outlet pages - OK
+    if ((role === 'OUTLET_MANAGER' || role === 'STAFF') && pathname.startsWith('/outlet/')) {
+        return NextResponse.next();
+    }
+
+    // ============================================================
+    // 6. ROLE-BASED REDIRECTS - Send to correct dashboard
+    // ============================================================
 
     if (role === 'SUPER') {
         return NextResponse.redirect(new URL('/super/dashboard', req.url));
@@ -85,12 +95,12 @@ export default clerkMiddleware(async (auth, req) => {
         return NextResponse.redirect(new URL('/outlet/orders', req.url));
     }
 
-    // Has Clerk Organization context
+    // Has Clerk Organization context but no role set
     if (orgSlug) {
         return NextResponse.redirect(new URL(`/brand/${orgSlug}/dashboard`, req.url));
     }
 
-    // 6. FALLBACK - Onboarding
+    // 7. FALLBACK - Onboarding
     return NextResponse.redirect(new URL('/onboarding', req.url));
 });
 
