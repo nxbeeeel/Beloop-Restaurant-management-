@@ -66,18 +66,18 @@ export function DataTable<TData, TValue>({
                         onChange={(event) =>
                             table.getColumn(searchKey)?.setFilterValue(event.target.value)
                         }
-                        className="max-w-sm bg-white"
+                        className="max-w-sm bg-background text-foreground border-input"
                     />
                 </div>
             )}
-            <div className="rounded-md border bg-white overflow-hidden shadow-sm">
+            <div className="rounded-md border bg-card text-card-foreground overflow-hidden shadow-sm">
                 <Table>
-                    <TableHeader className="bg-gray-50 sticky top-0 z-10">
+                    <TableHeader className="bg-muted/50 sticky top-0 z-10">
                         {table.getHeaderGroups().map((headerGroup) => (
                             <TableRow key={headerGroup.id} className="hover:bg-transparent">
                                 {headerGroup.headers.map((header) => {
                                     return (
-                                        <TableHead key={header.id} className="text-gray-900 font-medium">
+                                        <TableHead key={header.id} className="text-foreground font-medium">
                                             {header.isPlaceholder
                                                 ? null
                                                 : flexRender(
@@ -96,7 +96,7 @@ export function DataTable<TData, TValue>({
                                 <TableRow
                                     key={row.id}
                                     data-state={row.getIsSelected() && "selected"}
-                                    className="hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors"
+                                    className="hover:bg-muted/50 border-b border-border/50 last:border-0 transition-colors"
                                 >
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell key={cell.id} className="py-4">
