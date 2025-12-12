@@ -114,10 +114,29 @@ export default clerkMiddleware(async (auth, req) => {
     }
 
     // C2. BRAND ADMIN FALLBACK (Metadata-based)
-    // If we missed Block B (No Active Org), but user IS a Brand Admin, allow access to /brand routes.
-    // The Layout will enforce actual ownership. This prevents Redirect Loops for new Brands.
-    if (role === 'BRAND_ADMIN' && currentPath.startsWith('/brand/')) {
-        return NextResponse.next();
+    // If no Active Org, but user IS a Brand Admin with tenantId, redirect to brand dashboard
+    if (role === 'BRAND_ADMIN') {
+        const tenantId = metadata?.tenantId;
+
+        // Allow access to /brand routes
+        if (currentPath.startsWith('/brand/')) {
+            return NextResponse.next();
+        }
+
+        // Redirect to onboarding if no tenantId (they need to complete setup)
+        if (!tenantId) {
+            if (currentPath.startsWith('/onboarding')) {
+                return NextResponse.next();
+            }
+            return NextResponse.redirect(new URL('/onboarding', req.url));
+        }
+
+        // If at root or onboarding with tenantId, redirect to brand (will be handled by layout)
+        if (currentPath === '/' || currentPath.startsWith('/onboarding')) {
+            // We can't fetch DB in middleware easily, so redirect to a generic brand entry point
+            // The brand layout will use the tenantId from metadata to find the correct slug
+            return NextResponse.redirect(new URL('/brand/dashboard', req.url));
+        }
     }
 
     // D. PENDING / NO ORGANIZATION
