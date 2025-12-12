@@ -245,14 +245,110 @@ export default function TenantManagementPage() {
                 </Dialog>
             </div>
 
-            {/* Data Table */}
-            <div className="rounded-md border bg-card text-card-foreground shadow-sm">
-                <DataTable
-                    columns={columns}
-                    data={tenants || []}
-                    searchKey="name"
-                    searchPlaceholder="Search tenants..."
-                />
+            {/* Filter Bar */}
+            <div className="flex items-center gap-4 bg-stone-900 p-4 rounded-xl border border-stone-800">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
+                    <Input
+                        placeholder="Search tenants..."
+                        className="pl-9 bg-stone-950 border-stone-800 text-white placeholder:text-stone-600 focus-visible:ring-rose-500"
+                    />
+                </div>
+            </div>
+
+            {/* Tenant List */}
+            <div className="grid gap-4">
+                {isLoading ? (
+                    <div className="space-y-4">
+                        {[1, 2, 3].map((i) => (
+                            <div key={i} className="h-20 w-full bg-stone-900 rounded-xl animate-pulse" />
+                        ))}
+                    </div>
+                ) : (
+                    tenants?.map((tenant) => (
+                        <div key={tenant.id} className="bg-stone-900 border border-stone-800 rounded-xl hover:bg-stone-800/50 transition-colors group">
+                            <div className="p-6 flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-lg bg-stone-800 border border-stone-700 flex items-center justify-center">
+                                        {tenant.logoUrl ? (
+                                            <img src={tenant.logoUrl} alt={tenant.name} className="w-8 h-8 object-contain" />
+                                        ) : (
+                                            <Building2 className="w-6 h-6 text-stone-500" />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-base text-white">{tenant.name}</h3>
+                                        <p className="text-sm text-stone-500 font-mono">{tenant.slug}</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-6">
+                                    {/* Stats */}
+                                    <div className="hidden md:flex items-center gap-8 text-center">
+                                        <div>
+                                            <p className="text-lg font-bold text-white">{tenant._count?.users || 0}</p>
+                                            <p className="text-xs text-stone-500">Users</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-lg font-bold text-white">{tenant._count?.outlets || 0}</p>
+                                            <p className="text-xs text-stone-500">Outlets</p>
+                                        </div>
+                                    </div>
+
+                                    <Badge variant="outline" className={`
+                                        ${tenant.status === 'ACTIVE' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500' : ''}
+                                        ${tenant.status === 'SUSPENDED' ? 'border-red-500/20 bg-red-500/10 text-red-500' : ''}
+                                        ${tenant.status === 'PENDING' ? 'border-yellow-500/20 bg-yellow-500/10 text-yellow-500' : ''}
+                                        ${tenant.status === 'TRIAL' ? 'border-blue-500/20 bg-blue-500/10 text-blue-500' : ''}
+                                    `}>
+                                        {tenant.status}
+                                    </Badge>
+
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-stone-400 hover:text-white hover:bg-stone-800">
+                                                <MoreHorizontal className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="bg-stone-900 border-stone-800 text-stone-300">
+                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                            <DropdownMenuSeparator className="bg-stone-800" />
+                                            {tenant.status !== 'ACTIVE' && (
+                                                <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ tenantId: tenant.id, status: 'ACTIVE' })} className="hover:bg-stone-800 cursor-pointer text-emerald-500">
+                                                    <CheckCircle className="w-4 h-4 mr-2" /> Activate
+                                                </DropdownMenuItem>
+                                            )}
+                                            {tenant.status === 'ACTIVE' && (
+                                                <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ tenantId: tenant.id, status: 'SUSPENDED' })} className="hover:bg-stone-800 cursor-pointer text-yellow-500">
+                                                    <Ban className="w-4 h-4 mr-2" /> Suspend
+                                                </DropdownMenuItem>
+                                            )}
+                                            <DropdownMenuSeparator className="bg-stone-800" />
+                                            <DropdownMenuItem
+                                                onClick={() => {
+                                                    if (confirm('Delete this tenant and ALL its data?')) {
+                                                        deleteTenantMutation.mutate({ tenantId: tenant.id });
+                                                    }
+                                                }}
+                                                className="hover:bg-stone-800 cursor-pointer text-red-500 focus:text-red-500"
+                                            >
+                                                <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                )}
+
+                {(!isLoading && (!tenants || tenants.length === 0)) && (
+                    <div className="text-center py-20 bg-stone-900 rounded-xl border border-stone-800 border-dashed">
+                        <Building2 className="w-12 h-12 text-stone-600 mx-auto mb-4" />
+                        <h3 className="text-xl font-bold text-white mb-2">No Tenants Found</h3>
+                        <p className="text-stone-500">Create your first tenant to get started.</p>
+                    </div>
+                )}
             </div>
 
             {/* Success Dialog */}
