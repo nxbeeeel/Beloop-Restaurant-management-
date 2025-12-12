@@ -303,15 +303,7 @@ export const superRouter = router({
 
                 // 2. Delete data tied to outlets (in order of dependencies)
                 if (outletIds.length > 0) {
-                    // Order Items -> Orders
-                    await tx.orderItem.deleteMany({
-                        where: { order: { outletId: { in: outletIds } } }
-                    });
-                    await tx.order.deleteMany({
-                        where: { outletId: { in: outletIds } }
-                    });
-
-                    // Products
+                    // Products first (they might have FK to other tables)
                     await tx.product.deleteMany({
                         where: { outletId: { in: outletIds } }
                     });
@@ -340,6 +332,11 @@ export const superRouter = router({
                     await tx.dailyClosure.deleteMany({
                         where: { outletId: { in: outletIds } }
                     });
+
+                    // Invitations (outlet-level)
+                    await tx.invitation.deleteMany({
+                        where: { outletId: { in: outletIds } }
+                    });
                 }
 
                 // 3. Delete users belonging to this tenant
@@ -352,8 +349,8 @@ export const superRouter = router({
                     where: { tenantId }
                 });
 
-                // 5. Delete invites
-                await tx.invite.deleteMany({
+                // 5. Delete tenant-level invitations
+                await tx.invitation.deleteMany({
                     where: { tenantId }
                 });
 

@@ -1,25 +1,24 @@
 'use client';
 
 import { trpc } from '@/lib/trpc';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Activity, Database, Zap, Server } from 'lucide-react';
+import { Loader2, Activity, Database, Zap, Server, Users, Building2, ShoppingCart } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function SystemHealthPage() {
     const { data, isLoading } = trpc.super.getSystemHealth.useQuery(undefined, {
-        refetchInterval: 30000, // Refetch every 30 seconds
+        refetchInterval: 30000,
     });
 
     if (isLoading) {
         return (
             <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
             </div>
         );
     }
 
-    if (!data) return <div>No data available</div>;
+    if (!data) return <div className="text-stone-400">No data available</div>;
 
     const formatUptime = (seconds: number) => {
         const days = Math.floor(seconds / 86400);
@@ -29,90 +28,82 @@ export default function SystemHealthPage() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">System Health</h1>
-                <p className="text-muted-foreground">Monitor platform performance and status</p>
+                <h1 className="text-3xl font-bold tracking-tight text-white">System Health</h1>
+                <p className="text-stone-400">Monitor platform performance and status</p>
             </div>
 
             {/* Overall Status */}
-            <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <CardTitle>System Status</CardTitle>
-                        <Badge variant="default" className="bg-green-500 hover:bg-green-500">
-                            <Activity className="h-3 w-3 mr-1" />
-                            {data.status.toUpperCase()}
-                        </Badge>
+            <div className="bg-stone-900 border border-stone-800 rounded-xl p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-white">System Status</h2>
+                    <Badge className="bg-emerald-500/20 text-emerald-500 border-emerald-500/30">
+                        <Activity className="h-3 w-3 mr-1" />
+                        {data.status.toUpperCase()}
+                    </Badge>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-stone-800/50 rounded-lg p-4 border border-stone-700">
+                        <p className="text-sm text-stone-400 mb-1">Uptime</p>
+                        <p className="text-2xl font-bold text-white">{formatUptime(data.uptime)}</p>
                     </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <p className="text-sm text-muted-foreground">Uptime</p>
-                            <p className="text-2xl font-bold">{formatUptime(data.uptime)}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">DB Latency</p>
-                            <p className="text-2xl font-bold">{data.dbLatency}ms</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">Last Check</p>
-                            <p className="text-2xl font-bold">{format(new Date(data.timestamp), 'HH:mm:ss')}</p>
-                        </div>
+                    <div className="bg-stone-800/50 rounded-lg p-4 border border-stone-700">
+                        <p className="text-sm text-stone-400 mb-1">DB Latency</p>
+                        <p className="text-2xl font-bold text-white">{data.dbLatency}ms</p>
                     </div>
-                </CardContent>
-            </Card>
+                    <div className="bg-stone-800/50 rounded-lg p-4 border border-stone-700">
+                        <p className="text-sm text-stone-400 mb-1">Last Check</p>
+                        <p className="text-2xl font-bold text-white">{format(new Date(data.timestamp), 'HH:mm:ss')}</p>
+                    </div>
+                </div>
+            </div>
 
             {/* Services Status */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Services</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        {data.services.map((service) => (
-                            <div key={service.name} className="flex justify-between items-center p-4 border rounded-lg">
-                                <div className="flex items-center gap-3">
-                                    {service.name === 'Database' && <Database className="h-5 w-5 text-blue-500" />}
-                                    {service.name === 'API' && <Server className="h-5 w-5 text-purple-500" />}
-                                    {service.name === 'Cache' && <Zap className="h-5 w-5 text-yellow-500" />}
-                                    <div>
-                                        <p className="font-medium">{service.name}</p>
-                                        <p className="text-sm text-muted-foreground">Latency: {service.latency}</p>
-                                    </div>
+            <div className="bg-stone-900 border border-stone-800 rounded-xl p-6">
+                <h2 className="text-xl font-bold text-white mb-6">Services</h2>
+                <div className="grid gap-4">
+                    {data.services.map((service) => (
+                        <div key={service.name} className="flex justify-between items-center p-4 bg-stone-800/50 border border-stone-700 rounded-lg">
+                            <div className="flex items-center gap-3">
+                                {service.name === 'Database' && <Database className="h-5 w-5 text-blue-500" />}
+                                {service.name === 'API' && <Server className="h-5 w-5 text-purple-500" />}
+                                {service.name === 'Cache' && <Zap className="h-5 w-5 text-yellow-500" />}
+                                <div>
+                                    <p className="font-medium text-white">{service.name}</p>
+                                    <p className="text-sm text-stone-500">Latency: {service.latency}</p>
                                 </div>
-                                <Badge variant="default" className="bg-green-500 hover:bg-green-500">
-                                    {service.status.toUpperCase()}
-                                </Badge>
                             </div>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
+                            <Badge className="bg-emerald-500/20 text-emerald-500 border-emerald-500/30">
+                                {service.status.toUpperCase()}
+                            </Badge>
+                        </div>
+                    ))}
+                </div>
+            </div>
 
             {/* Platform Statistics */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Platform Statistics</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="text-center p-4 border rounded-lg">
-                            <p className="text-sm text-muted-foreground mb-2">Total Tenants</p>
-                            <p className="text-3xl font-bold">{data.stats.tenants}</p>
-                        </div>
-                        <div className="text-center p-4 border rounded-lg">
-                            <p className="text-sm text-muted-foreground mb-2">Total Users</p>
-                            <p className="text-3xl font-bold">{data.stats.users}</p>
-                        </div>
-                        <div className="text-center p-4 border rounded-lg">
-                            <p className="text-sm text-muted-foreground mb-2">Total Sales Records</p>
-                            <p className="text-3xl font-bold">{data.stats.totalSales.toLocaleString()}</p>
-                        </div>
+            <div className="bg-stone-900 border border-stone-800 rounded-xl p-6">
+                <h2 className="text-xl font-bold text-white mb-6">Platform Statistics</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center p-6 bg-stone-800/50 border border-stone-700 rounded-lg">
+                        <Building2 className="h-8 w-8 text-rose-500 mx-auto mb-3" />
+                        <p className="text-sm text-stone-400 mb-2">Total Tenants</p>
+                        <p className="text-4xl font-bold text-white">{data.stats.tenants}</p>
                     </div>
-                </CardContent>
-            </Card>
+                    <div className="text-center p-6 bg-stone-800/50 border border-stone-700 rounded-lg">
+                        <Users className="h-8 w-8 text-blue-500 mx-auto mb-3" />
+                        <p className="text-sm text-stone-400 mb-2">Total Users</p>
+                        <p className="text-4xl font-bold text-white">{data.stats.users}</p>
+                    </div>
+                    <div className="text-center p-6 bg-stone-800/50 border border-stone-700 rounded-lg">
+                        <ShoppingCart className="h-8 w-8 text-emerald-500 mx-auto mb-3" />
+                        <p className="text-sm text-stone-400 mb-2">Total Sales Records</p>
+                        <p className="text-4xl font-bold text-white">{data.stats.totalSales.toLocaleString()}</p>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
