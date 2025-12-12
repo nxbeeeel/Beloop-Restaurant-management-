@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,8 @@ type FormErrors = Partial<Record<keyof OutletFormData, string>>;
 
 export default function NewOutletPage() {
     const router = useRouter();
+    const params = useParams();
+    const slug = params.slug as string;
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState<FormErrors>({});
 
@@ -60,7 +62,7 @@ export default function NewOutletPage() {
             await createOutlet(formData);
 
             toast.success("Outlet created successfully!");
-            router.push("/brand/outlets");
+            router.push(`/brand/${slug}/outlets`);
             router.refresh();
         } catch (error) {
             console.error("Error creating outlet:", error);
@@ -73,7 +75,7 @@ export default function NewOutletPage() {
     return (
         <div className="max-w-2xl mx-auto space-y-6">
             <div className="flex items-center gap-4">
-                <Link href="/brand/outlets">
+                <Link href={`/brand/${slug}/outlets`}>
                     <Button variant="ghost" size="sm">
                         <ArrowLeft className="w-4 h-4 mr-2" />
                         Back
@@ -152,7 +154,7 @@ export default function NewOutletPage() {
                                 {isLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                                 {isLoading ? "Creating..." : "Create Outlet"}
                             </Button>
-                            <Link href="/brand/outlets">
+                            <Link href={`/brand/${slug}/outlets`}>
                                 <Button type="button" variant="outline" disabled={isLoading}>
                                     Cancel
                                 </Button>
