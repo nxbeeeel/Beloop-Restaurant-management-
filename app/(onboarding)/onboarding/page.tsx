@@ -1,52 +1,28 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { prisma } from "@/server/db";
 
+/**
+ * ONBOARDING PAGE
+ * - NO REDIRECTS (middleware handles all routing)
+ * - Only shows pending state for users without role
+ * - Uses premium dark theme
+ */
 export default async function OnboardingPage() {
     const { userId } = await auth();
 
+    // Not authenticated - middleware will handle
     if (!userId) {
-        return redirect("/login");
+        return null;
     }
 
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
     const firstName = user.firstName || "User";
-    const metadata = user.publicMetadata as any;
-
-    // AUTO-REDIRECT BASED ON ROLE (No button needed)
-
-    // SUPER ADMIN - Direct redirect
-    if (metadata?.role === 'SUPER') {
-        return redirect('/super/dashboard');
-    }
-
-    // BRAND ADMIN - Fetch tenant slug and redirect
-    if (metadata?.role === 'BRAND_ADMIN' && metadata?.tenantId) {
-        const tenant = await prisma.tenant.findUnique({
-            where: { id: metadata.tenantId },
-            select: { slug: true }
-        });
-        if (tenant?.slug) {
-            return redirect(`/brand/${tenant.slug}/dashboard`);
-        }
-    }
-
-    // OUTLET MANAGER - Direct redirect
-    if (metadata?.role === 'OUTLET_MANAGER') {
-        return redirect('/outlet/dashboard');
-    }
-
-    // STAFF - Direct redirect
-    if (metadata?.role === 'STAFF') {
-        return redirect('/outlet/orders');
-    }
-
-    // NO ROLE YET - Check if there's a pending invitation
     const email = user.emailAddresses[0]?.emailAddress;
-    let pendingInvite = null;
 
+    // Check for pending invitations
+    let pendingInvite = null;
     if (email) {
         pendingInvite = await prisma.invitation.findFirst({
             where: { email, status: 'PENDING' },
@@ -54,10 +30,15 @@ export default async function OnboardingPage() {
         });
     }
 
-    // Show pending state
     return (
         <div className="min-h-screen bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950 flex flex-col items-center pt-20 px-4">
-            <div className="w-full max-w-md bg-stone-900/80 backdrop-blur-xl border border-stone-800 rounded-2xl shadow-2xl p-8 text-center space-y-6">
+            {/* Background decoration */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-rose-500/10 rounded-full blur-3xl" />
+                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-rose-600/5 rounded-full blur-3xl" />
+            </div>
+
+            <div className="relative w-full max-w-md bg-stone-900/80 backdrop-blur-xl border border-stone-800 rounded-2xl shadow-2xl p-8 text-center space-y-6">
                 <div className="flex justify-center mb-4">
                     <UserButton afterSignOutUrl="/login" />
                 </div>
@@ -86,9 +67,11 @@ export default async function OnboardingPage() {
                     </div>
                 )}
 
-                <p className="text-xs text-stone-500">
-                    Need help? Contact <a href="mailto:support@beloop.app" className="text-rose-400 hover:underline">support@beloop.app</a>
-                </p>
+                <div className="pt-4 border-t border-stone-800">
+                    <p className="text-xs text-stone-500">
+                        Need help? Contact <a href="mailto:support@beloop.app" className="text-rose-400 hover:underline">support@beloop.app</a>
+                    </p>
+                </div>
             </div>
         </div>
     );

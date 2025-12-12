@@ -2,10 +2,10 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 /**
- * SIMPLE, STABLE MIDDLEWARE
- * - No complex branching that creates loops
- * - Each route type handled once
- * - Clear, predictable behavior
+ * ENTERPRISE MIDDLEWARE with Loop Breaker
+ * - Atomic session sync compatible
+ * - Loop prevention at the top
+ * - Clear role-based routing
  */
 
 // Routes that NEVER require authentication
@@ -13,6 +13,8 @@ const isPublicRoute = createRouteMatcher([
     '/',
     '/login(.*)',
     '/signup(.*)',
+    '/sign-in(.*)',
+    '/sign-up(.*)',
     '/onboarding(.*)',
     '/contact-admin',
     '/invite(.*)',
@@ -20,16 +22,28 @@ const isPublicRoute = createRouteMatcher([
     '/brand/dashboard',
 ]);
 
-// API routes - always allow (authentication handled by tRPC)
+// API routes - always allow
 const isApiRoute = createRouteMatcher([
     '/api/(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
     const { userId, sessionClaims, orgSlug } = await auth();
-    const path = req.nextUrl.pathname;
+    const pathname = req.nextUrl.pathname;
 
-    // 1. API ROUTES - Always allow, let tRPC handle auth
+    // ============================================================
+    // STEP 0: LOOP BREAKER (Must be first)
+    // If user is authenticated and already on a dashboard, LET THEM STAY
+    // ============================================================
+    if (userId) {
+        if (pathname.startsWith('/super/') ||
+            pathname.startsWith('/brand/') ||
+            pathname.startsWith('/outlet/')) {
+            return NextResponse.next();
+        }
+    }
+
+    // 1. API ROUTES - Always allow
     if (isApiRoute(req)) {
         return NextResponse.next();
     }
@@ -44,7 +58,7 @@ export default clerkMiddleware(async (auth, req) => {
         return NextResponse.redirect(new URL('/login', req.url));
     }
 
-    // 4. GET USER ROLE
+    // 4. GET USER ROLE FROM SESSION CLAIMS
     const metadata = sessionClaims?.metadata as { role?: string } | undefined;
     let role = metadata?.role;
 
@@ -53,46 +67,30 @@ export default clerkMiddleware(async (auth, req) => {
         role = 'SUPER';
     }
 
-    // 5. ROUTE ACCESS BY ROLE
+    // 5. ROLE-BASED REDIRECTS (Only if not already on correct page)
 
-    // Super Admin - access everything
     if (role === 'SUPER') {
-        if (path.startsWith('/super') || path.startsWith('/brand') || path.startsWith('/outlet')) {
-            return NextResponse.next();
-        }
         return NextResponse.redirect(new URL('/super/dashboard', req.url));
     }
 
-    // Brand Admin - access /brand/*
     if (role === 'BRAND_ADMIN') {
-        if (path.startsWith('/brand')) {
-            return NextResponse.next();
-        }
         return NextResponse.redirect(new URL('/brand/dashboard', req.url));
     }
 
-    // Outlet Manager - access /outlet/*
     if (role === 'OUTLET_MANAGER') {
-        if (path.startsWith('/outlet')) {
-            return NextResponse.next();
-        }
         return NextResponse.redirect(new URL('/outlet/dashboard', req.url));
     }
 
-    // Staff - access /outlet/*
     if (role === 'STAFF') {
-        if (path.startsWith('/outlet')) {
-            return NextResponse.next();
-        }
         return NextResponse.redirect(new URL('/outlet/orders', req.url));
     }
 
-    // Has Clerk Organization - access /brand/{slug}/*
-    if (orgSlug && path.startsWith('/brand')) {
-        return NextResponse.next();
+    // Has Clerk Organization context
+    if (orgSlug) {
+        return NextResponse.redirect(new URL(`/brand/${orgSlug}/dashboard`, req.url));
     }
 
-    // 6. FALLBACK - Send to onboarding
+    // 6. FALLBACK - Onboarding
     return NextResponse.redirect(new URL('/onboarding', req.url));
 });
 
