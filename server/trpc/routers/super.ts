@@ -691,7 +691,7 @@ export const superRouter = router({
             return ctx.prisma.auditLog.create({
                 data: {
                     userId: ctx.userId,
-                    userName: ctx.session?.user?.firstName || 'Super Admin',
+                    userName: 'Super Admin', // Called by requireSuper, always Super Admin
                     action: input.action,
                     tableName: input.tableName,
                     recordId: input.recordId,
