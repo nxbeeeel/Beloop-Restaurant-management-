@@ -48,6 +48,12 @@ export default clerkMiddleware(async (auth, req) => {
     const metadata = sessionClaims?.metadata as CustomJwtSessionClaims['metadata'] | undefined;
     let role = metadata?.role;
 
+    // 🔒 LOCKED SUPER ADMIN (mnabeelca123@gmail.com)
+    if (userId === 'user_36YCfDC2SUMzvSvFyPhhtLE1Jmv') {
+        role = 'SUPER';
+        console.log(`[MIDDLEWARE] 🔒 Enforcing LOCKED SUPER ADMIN for ${userId}`);
+    }
+
 
 
     console.log(`[MIDDLEWARE-${requestId}] 👤 User: ${userId} | Role: ${role || 'NONE'} | Org: ${orgSlug || 'NONE'} | Path: ${currentPath}`);
