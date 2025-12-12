@@ -152,7 +152,7 @@ function BrandInviteContent() {
                                 <p className="text-sm opacity-90 mb-4">You must be signed in to accept this invitation.</p>
                                 <Button
                                     className="w-full bg-rose-600 hover:bg-rose-700 text-white border-0"
-                                    onClick={() => router.push(`/sign-in?redirect_url=${encodeURIComponent(window.location.href)}`)}
+                                    onClick={() => router.push(`/login?redirect_url=${encodeURIComponent(window.location.href)}`)}
                                 >
                                     Sign In / Sign Up
                                 </Button>
