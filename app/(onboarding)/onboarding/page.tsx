@@ -19,21 +19,23 @@ export default async function OnboardingPage() {
     const metadata = user.publicMetadata as any;
     let targetUrl = null;
 
-    if (metadata?.onboardingComplete && metadata?.role && metadata?.tenantId) {
-        // Fetch tenant slug for safe redirect
+    // SUPER ADMIN - Direct to Super Dashboard
+    if (metadata?.role === 'SUPER') {
+        targetUrl = '/super/dashboard';
+    }
+    // BRAND ADMIN - Needs tenant slug
+    else if (metadata?.onboardingComplete && metadata?.role === 'BRAND_ADMIN' && metadata?.tenantId) {
         const tenant = await prisma.tenant.findUnique({
             where: { id: metadata.tenantId },
             select: { slug: true }
         });
-
         if (tenant?.slug) {
-            console.log("User already onboarded. Providing link to dashboard.");
-            if (metadata.role === 'BRAND_ADMIN' || metadata.role === 'SUPER') {
-                targetUrl = `/brand/${tenant.slug}/dashboard`;
-            } else if (metadata.outletId) { // Staff/Manager
-                targetUrl = `/outlet/dashboard`;
-            }
+            targetUrl = `/brand/${tenant.slug}/dashboard`;
         }
+    }
+    // OUTLET MANAGER / STAFF
+    else if (metadata?.onboardingComplete && metadata?.outletId) {
+        targetUrl = metadata.role === 'OUTLET_MANAGER' ? '/outlet/dashboard' : '/outlet/orders';
     }
 
     if (targetUrl) {
