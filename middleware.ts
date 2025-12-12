@@ -12,6 +12,7 @@ const isPublicRoute = createRouteMatcher([
     '/api/onboarding',
     '/api/debug(.*)',
     '/api/admin(.*)',
+    '/api/inngest',
     '/api/create-super-admin',
     '/api/emergency-fix-super-admin',
 ]);
