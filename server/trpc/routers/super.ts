@@ -3,7 +3,6 @@ import { router, requireSuper } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { MailService } from '@/server/services/mail.service';
 import { ProvisioningService } from '@/server/services/provisioning.service';
-import { inngest } from '@/lib/inngest';
 import crypto from 'crypto';
 
 export const superRouter = router({
@@ -539,15 +538,8 @@ export const superRouter = router({
                 superAdminDbId: ctx.user.id
             });
 
-            // Emit Inngest event to send email
-            await inngest.send({
-                name: 'mail/brand.invite',
-                data: {
-                    email: input.email,
-                    token: invite.token,
-                    name: input.brandName
-                }
-            });
+            // Send Email directly via MailService (no Inngest)
+            await MailService.sendBrandInvite(input.email, invite.token, input.brandName);
 
             return { success: true, tenant, invite };
         }),
@@ -592,17 +584,9 @@ export const superRouter = router({
                 }
             });
 
-            // Send Email via Inngest
+            // Send Email directly via MailService (no Inngest)
             const entityName = invite.outlet?.name || invite.tenant?.name || 'Beloop Platform';
-            await inngest.send({
-                name: 'mail/user.invite',
-                data: {
-                    email: input.email,
-                    token: invite.token,
-                    role: input.role,
-                    entityName: entityName
-                }
-            });
+            await MailService.sendUserInvite(input.email, invite.token, input.role, entityName);
 
             return invite;
         }),
