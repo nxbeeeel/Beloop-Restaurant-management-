@@ -369,64 +369,87 @@ export const superRouter = router({
         .mutation(async ({ ctx, input }) => {
             const user = await ctx.prisma.user.findUnique({
                 where: { id: input.userId },
-                select: { clerkId: true, id: true }
+                select: { clerkId: true, id: true, email: true }
             });
 
             if (!user) {
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
             }
 
-            // 1. Nullify FK references in related tables (keep data, just remove user ref)
-            await ctx.prisma.sale.updateMany({
-                where: { staffId: input.userId },
-                data: { staffId: null }
-            });
+            try {
+                // Use transaction for atomicity
+                await ctx.prisma.$transaction(async (tx) => {
+                    // 1. Nullify FK references in related tables (keep data, just remove user ref)
+                    await tx.sale.updateMany({
+                        where: { staffId: input.userId },
+                        data: { staffId: null }
+                    });
 
-            await ctx.prisma.expense.updateMany({
-                where: { staffId: input.userId },
-                data: { staffId: null }
-            });
+                    await tx.expense.updateMany({
+                        where: { staffId: input.userId },
+                        data: { staffId: null }
+                    });
 
-            await ctx.prisma.purchaseOrder.updateMany({
-                where: { createdBy: input.userId },
-                data: { createdBy: null }
-            });
+                    await tx.purchaseOrder.updateMany({
+                        where: { createdBy: input.userId },
+                        data: { createdBy: null }
+                    });
 
-            // 2. Delete records that would block user deletion (cascade might not work correctly)
-            await ctx.prisma.stockVerification.deleteMany({
-                where: { verifiedBy: input.userId }
-            });
+                    // 2. Delete records that would block user deletion
+                    await tx.stockVerification.deleteMany({
+                        where: { verifiedBy: input.userId }
+                    });
 
-            await ctx.prisma.stockCheck.deleteMany({
-                where: { performedBy: input.userId }
-            });
+                    await tx.stockCheck.deleteMany({
+                        where: { performedBy: input.userId }
+                    });
 
-            await ctx.prisma.ticket.deleteMany({
-                where: { userId: input.userId }
-            });
+                    await tx.ticket.deleteMany({
+                        where: { userId: input.userId }
+                    });
 
-            await ctx.prisma.ticketComment.deleteMany({
-                where: { userId: input.userId }
-            });
+                    await tx.ticketComment.deleteMany({
+                        where: { userId: input.userId }
+                    });
 
-            // 3. Delete from Clerk if exists
-            if (user.clerkId) {
-                try {
-                    const { clerkClient } = await import('@clerk/nextjs/server');
-                    const client = await clerkClient();
-                    await client.users.deleteUser(user.clerkId);
-                    console.log(`[SUPER] Deleted Clerk User: ${user.clerkId}`);
-                } catch (error) {
-                    console.error("[SUPER] Warning: Failed to delete user from Clerk (might not exist):", error);
+                    // 3. Delete AuditLog entries
+                    await tx.auditLog.deleteMany({
+                        where: { userId: input.userId }
+                    });
+
+                    // 4. Delete TemporaryPassword
+                    await tx.temporaryPassword.deleteMany({
+                        where: { userId: input.userId }
+                    });
+
+                    // 5. Delete user from DB
+                    await tx.user.delete({
+                        where: { id: input.userId },
+                    });
+                });
+
+                // 6. Delete from Clerk (after DB success, non-blocking)
+                if (user.clerkId) {
+                    try {
+                        const { clerkClient } = await import('@clerk/nextjs/server');
+                        const client = await clerkClient();
+                        await client.users.deleteUser(user.clerkId);
+                        console.log(`[SUPER] Deleted Clerk User: ${user.clerkId}`);
+                    } catch (clerkError) {
+                        // Clerk user might not exist - that's OK
+                        console.log(`[SUPER] Clerk user ${user.clerkId} may not exist, continuing...`);
+                    }
                 }
+
+                console.log(`[SUPER] Successfully deleted user: ${user.email}`);
+                return { success: true, message: `User ${user.email} deleted successfully` };
+            } catch (error) {
+                console.error(`[SUPER] Error deleting user ${user.email}:`, error);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`
+                });
             }
-
-            // 4. Delete user from DB
-            await ctx.prisma.user.delete({
-                where: { id: input.userId },
-            });
-
-            return { success: true };
         }),
 
     // Get Overdue Tenants
