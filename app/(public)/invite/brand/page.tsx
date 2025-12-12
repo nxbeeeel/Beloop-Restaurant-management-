@@ -35,12 +35,20 @@ function BrandInviteContent() {
 
     // Mutation to activate
     const activateMutation = trpc.public.activateBrand.useMutation({
-        onSuccess: (data: any) => {
+        onSuccess: async (data: any) => {
             toast.success("Brand Activated Successfully! 🎉");
-            // Redirect to dashboard
-            setTimeout(() => {
-                router.push('/brand/dashboard');
-            }, 1500);
+            toast.info("Refreshing your session...");
+
+            // CRITICAL: Force the JWT to refresh and pull the 'is_provisioned: true' claim
+            try {
+                // Wait for session to reload with new claims
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Small delay for Clerk sync
+                window.location.reload(); // Force full page reload to get new session
+            } catch (err) {
+                console.error("[Activate] Session reload failed:", err);
+                // Fallback to direct navigation
+                router.push(`/brand/${data.slug || 'dashboard'}/dashboard`);
+            }
         },
         onError: (err: any) => {
             toast.error(err.message || "Failed to activate brand");

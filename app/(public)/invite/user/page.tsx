@@ -19,14 +19,20 @@ function UserInviteContent() {
 
     // Mutation to accept invite
     const acceptMutation = trpc.public.acceptInvite.useMutation({
-        onSuccess: (data: any) => {
+        onSuccess: async (data: any) => {
             toast.success("Invitation Accepted! Welcome aboard. 🎉");
-            // Redirect based on response or default
-            setTimeout(() => {
-                // If brand admin, go to brand dashboard. If super, super. 
-                // For now, let's default to brand dashboard or main dashboard resolver.
+            toast.info("Refreshing your session...");
+            
+            // CRITICAL: Force the JWT to refresh and pull the 'is_provisioned: true' claim
+            try {
+                // Wait for Clerk to sync metadata
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Force full page reload to get new session with updated claims
+                window.location.href = '/';
+            } catch (err) {
+                console.error("[AcceptInvite] Session reload failed:", err);
                 router.push('/');
-            }, 1000);
+            }
         },
         onError: (err: any) => {
             toast.error(err.message || "Failed to accept invitation");

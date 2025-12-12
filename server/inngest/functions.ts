@@ -117,7 +117,7 @@ export const sendBrandInviteEmail = inngest.createFunction(
                         <div style="max-width: 560px; margin: 0 auto; padding: 40px 20px;">
                             <!-- Header with gradient -->
                             <div style="background: linear-gradient(135deg, #1c1917 0%, #292524 100%); border: 1px solid #44403c; border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
-                                <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); border-radius: 16px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                                <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); border-radius: 16px; margin: 0 auto 16px; line-height: 64px;">
                                     <span style="font-size: 28px;">🏪</span>
                                 </div>
                                 <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Brand Setup</h1>
@@ -125,7 +125,7 @@ export const sendBrandInviteEmail = inngest.createFunction(
                             </div>
                             
                             <!-- Content Card -->
-                            <div style="background: #1c1917; padding: 32px; border-radius: 0 0 16px 16px; border: 1px solid #44403c; border-top: none;">
+                            <div style="background: #1c1917; padding: 32px; border: 1px solid #44403c; border-top: none;">
                                 <h2 style="margin: 0 0 16px; color: #fafaf9; font-size: 20px; font-weight: 600;">Ready to launch <span style="color: #e11d48;">${name}</span>?</h2>
                                 <p style="margin: 0 0 24px; color: #a8a29e; font-size: 16px; line-height: 1.6;">
                                     Your brand workspace has been prepared. Click below to configure your settings, add outlets, and invite your team.
@@ -134,12 +134,17 @@ export const sendBrandInviteEmail = inngest.createFunction(
                                 <a href="${inviteUrl}" style="display: block; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: white; padding: 16px 32px; text-decoration: none; border-radius: 12px; text-align: center; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(225,29,72,0.3);">
                                     Initialize Brand →
                                 </a>
-                                
-                                <div style="margin-top: 24px; padding: 16px; background: #292524; border-radius: 8px; border: 1px solid #44403c;">
-                                    <p style="margin: 0; color: #78716c; font-size: 13px;">
-                                        🔒 This link is unique to you and expires in 7 days.
-                                    </p>
+                            </div>
+                            
+                            <!-- Copy Link Section -->
+                            <div style="background: #292524; padding: 24px; border: 1px solid #44403c; border-top: none; border-radius: 0 0 16px 16px;">
+                                <p style="margin: 0 0 12px; color: #78716c; font-size: 13px; font-weight: 600;">📋 COPY LINK</p>
+                                <div style="background: #1c1917; border: 1px solid #44403c; border-radius: 8px; padding: 12px; word-break: break-all;">
+                                    <code style="color: #a8a29e; font-size: 12px; font-family: monospace;">${inviteUrl}</code>
                                 </div>
+                                <p style="margin: 12px 0 0; color: #57534e; font-size: 11px;">
+                                    🔒 This link is unique to you and expires in 7 days. If the button doesn't work, copy and paste this link in your browser.
+                                </p>
                             </div>
                             
                             <!-- Footer -->

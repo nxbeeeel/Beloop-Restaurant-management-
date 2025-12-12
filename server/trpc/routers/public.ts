@@ -165,8 +165,11 @@ export const publicRouter = router({
         if (clerkUserContext && txResult?.tenantId) {
           await client.users.updateUserMetadata(clerkUserContext.id, {
             publicMetadata: {
+              app_role: 'BRAND_ADMIN',
               role: 'BRAND_ADMIN',
               tenantId: txResult.tenantId,
+              primary_org_slug: txResult.slug,
+              is_provisioned: true,
               onboardingComplete: true
             }
           });
@@ -214,9 +217,11 @@ export const publicRouter = router({
           const client = await clerkClient();
           await client.users.updateUserMetadata(appUser.clerkId, {
             publicMetadata: {
+              app_role: appUser.role,
               role: appUser.role,
               tenantId: appUser.tenantId,
               outletId: appUser.outletId,
+              is_provisioned: true,
               onboardingComplete: true
             }
           });
