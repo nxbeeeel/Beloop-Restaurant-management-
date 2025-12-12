@@ -366,17 +366,32 @@ export const superRouter = router({
             return { success: true };
         }),
 
-    // Delete User (Full Cleanup including Clerk)
+    // Delete User (removes user only, keeps data with null staffId)
     deleteUser: requireSuper
         .input(z.object({ userId: z.string() }))
         .mutation(async ({ ctx, input }) => {
             const user = await ctx.prisma.user.findUnique({
                 where: { id: input.userId },
-                select: { clerkId: true }
+                select: { clerkId: true, id: true }
             });
 
-            if (user?.clerkId) {
-                // Try to delete from Clerk first
+            if (!user) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+            }
+
+            // 1. Nullify FK references in related tables
+            await ctx.prisma.sale.updateMany({
+                where: { staffId: input.userId },
+                data: { staffId: null }
+            });
+
+            await ctx.prisma.expense.updateMany({
+                where: { staffId: input.userId },
+                data: { staffId: null }
+            });
+
+            // 2. Delete from Clerk if exists
+            if (user.clerkId) {
                 try {
                     const { clerkClient } = await import('@clerk/nextjs/server');
                     const client = await clerkClient();
@@ -388,9 +403,11 @@ export const superRouter = router({
                 }
             }
 
+            // 3. Delete user from DB
             await ctx.prisma.user.delete({
                 where: { id: input.userId },
             });
+
             return { success: true };
         }),
 
