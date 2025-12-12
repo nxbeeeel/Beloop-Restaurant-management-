@@ -10,4 +10,5 @@ export const { GET, POST, PUT } = serve({
         sendInviteEmail,
         sendBrandInviteEmail
     ],
+    signingKey: process.env.INNGEST_SIGNING_KEY,
 });

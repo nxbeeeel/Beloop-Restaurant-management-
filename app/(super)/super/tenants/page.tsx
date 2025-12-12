@@ -121,8 +121,8 @@ export default function TenantManagementPage() {
                             )}
                         </div>
                         <div>
-                            <div className="font-medium text-stone-200">{tenant.name}</div>
-                            <div className="text-xs text-stone-500 font-mono">{tenant.slug}</div>
+                            <div className="font-medium text-foreground">{tenant.name}</div>
+                            <div className="text-xs text-muted-foreground font-mono">{tenant.slug}</div>
                         </div>
                     </div>
                 );
@@ -246,7 +246,7 @@ export default function TenantManagementPage() {
             </div>
 
             {/* Data Table */}
-            <div className="bg-stone-900/50 border border-stone-800 rounded-xl overflow-hidden backdrop-blur-sm">
+            <div className="rounded-md border bg-card text-card-foreground shadow-sm">
                 <DataTable
                     columns={columns}
                     data={tenants || []}
