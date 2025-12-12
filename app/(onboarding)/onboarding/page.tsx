@@ -118,6 +118,18 @@ export default async function OnboardingPage() {
                     </div>
                 )}
 
+                {/* Debug Info - Shows what we know about the user */}
+                <details className="text-left bg-stone-800/50 rounded-lg p-3">
+                    <summary className="text-xs text-stone-500 cursor-pointer">Debug Info (tap to expand)</summary>
+                    <div className="mt-2 text-xs text-stone-400 space-y-1 font-mono">
+                        <p>Clerk ID: {userId?.slice(0, 20)}...</p>
+                        <p>Email: {email}</p>
+                        <p>DB User Found: {dbUser ? 'Yes' : 'No'}</p>
+                        <p>DB Role: {dbUser?.role || 'None'}</p>
+                        <p>DB TenantId: {dbUser?.tenantId || 'None'}</p>
+                    </div>
+                </details>
+
                 <div className="pt-4 border-t border-stone-800">
                     <p className="text-xs text-stone-500">
                         Need help? Contact <a href="mailto:support@beloop.app" className="text-rose-400 hover:underline">support@beloop.app</a>
