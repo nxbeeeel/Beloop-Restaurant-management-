@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
-import { enforceTenant } from "../middleware/roleCheck";
+import { router, protectedProcedure } from "@/server/trpc/trpc";
+import { enforceTenant } from "@/server/trpc/middleware/roleCheck";
 import { TRPCError } from "@trpc/server";
-import { CacheService } from "../../services/cache.service";
+import { CacheService } from "@/server/services/cache.service";
+import { createProductSchema, updateProductSchema, adjustStockSchema } from "@/lib/validations/product";
 
 export const productsRouter = router({
     list: protectedProcedure
@@ -27,10 +28,29 @@ export const productsRouter = router({
                 async () => {
                     return ctx.prisma.product.findMany({
                         where: { outletId: input.outletId },
-                        include: {
-                            supplier: true,
-                            category: true,
-                            recipeItems: { include: { ingredient: true } }
+                        select: {
+                            id: true,
+                            name: true,
+                            sku: true,
+                            unit: true,
+                            price: true,
+                            currentStock: true,
+                            minStock: true,
+                            imageUrl: true,
+                            description: true,
+                            outletId: true,
+
+                            supplier: { select: { id: true, name: true } },
+                            category: { select: { id: true, name: true } },
+                            supplierId: true,
+                            recipeItems: {
+                                select: {
+                                    id: true,
+                                    quantity: true,
+                                    unit: true,
+                                    ingredient: { select: { id: true, name: true } }
+                                }
+                            }
                         },
                         orderBy: { name: 'asc' }
                     });
@@ -41,24 +61,7 @@ export const productsRouter = router({
 
     create: protectedProcedure
         .use(enforceTenant)
-        .input(z.object({
-            outletId: z.string(),
-            name: z.string().min(1),
-            sku: z.string().min(1),
-            unit: z.string().min(1),
-            minStock: z.number().min(0).default(0),
-            supplierId: z.string().optional(),
-            price: z.number().min(0).default(0),
-            categoryId: z.string().optional(),
-            description: z.string().optional(),
-            imageUrl: z.string().optional(),
-            applyToAllOutlets: z.boolean().default(false),
-            recipe: z.array(z.object({
-                ingredientId: z.string(),
-                quantity: z.number().min(0),
-                unit: z.string().default("g")
-            })).optional(),
-        }))
+        .input(createProductSchema)
         .mutation(async ({ ctx, input }) => {
             const { applyToAllOutlets, recipe, ...productData } = input;
 
@@ -143,23 +146,7 @@ export const productsRouter = router({
 
     update: protectedProcedure
         .use(enforceTenant)
-        .input(z.object({
-            id: z.string(),
-            name: z.string().min(1).optional(),
-            unit: z.string().min(1).optional(),
-            minStock: z.number().min(0).optional(),
-            supplierId: z.string().optional().nullable(),
-            price: z.number().min(0).optional(),
-            categoryId: z.string().optional().nullable(),
-            description: z.string().optional(),
-            imageUrl: z.string().optional(),
-            applyToAllOutlets: z.boolean().default(false),
-            recipe: z.array(z.object({
-                ingredientId: z.string(),
-                quantity: z.number().min(0),
-                unit: z.string().default("g")
-            })).optional(),
-        }))
+        .input(updateProductSchema)
         .mutation(async ({ ctx, input }) => {
             const { applyToAllOutlets, id, recipe, ...updateData } = input;
 
@@ -267,13 +254,7 @@ export const productsRouter = router({
 
     adjustStock: protectedProcedure
         .use(enforceTenant)
-        .input(z.object({
-            productId: z.string(),
-            outletId: z.string(),
-            qty: z.number(),
-            type: z.enum(['PURCHASE', 'ADJUSTMENT', 'WASTE', 'SALE']),
-            notes: z.string().optional()
-        }))
+        .input(adjustStockSchema)
         .mutation(async ({ ctx, input }) => {
             const { InventoryService } = await import("../../services/inventory.service");
             return InventoryService.adjustStock(ctx.prisma, input);

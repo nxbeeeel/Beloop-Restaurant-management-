@@ -1,4 +1,9 @@
 /** @type {import('next').NextConfig} */
+require("./env.js");
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+    enabled: process.env.ANALYZE === 'true',
+});
+
 const nextConfig = {
     reactStrictMode: true,
     transpilePackages: ['lucide-react'],
@@ -10,6 +15,7 @@ const nextConfig = {
         ignoreBuildErrors: true,
     },
     experimental: {
+        optimizePackageImports: ['lucide-react', 'date-fns', 'recharts', '@radix-ui/react-icons', '@radix-ui/react-avatar', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
         // serverActions: true, // Enabled by default in Next 14
     },
     images: {
@@ -69,4 +75,4 @@ const nextConfig = {
     }
 };
 
-module.exports = nextConfig;
+module.exports = withBundleAnalyzer(nextConfig);

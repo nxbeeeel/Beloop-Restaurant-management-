@@ -38,10 +38,10 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName, slug }: Si
         { href: `/brand/${slug}/dashboard`, label: "Overview", icon: LayoutDashboard },
         { href: `/brand/${slug}/outlets`, label: "Outlets", icon: Store },
         { href: `/brand/${slug}/products`, label: "Menu", icon: Utensils },
-        { href: `/brand/${slug}/staff`, label: "Staff", icon: Users },
         { href: `/brand/${slug}/reports`, label: "Reports", icon: FileBarChart },
         { href: `/brand/${slug}/settings`, label: "Settings", icon: Settings },
     ];
+
 
     return (
         <motion.aside
@@ -86,8 +86,9 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName, slug }: Si
                                 exit={{ opacity: 0, width: 0 }}
                                 className="overflow-hidden whitespace-nowrap"
                             >
-                                {/* eslint-disable-next-line react-dom/no-unsafe-inline-style */}
-                                <h2 className="text-lg font-bold truncate" style={brandStyle}>
+                                {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
+                                {/* @ts-ignore */}
+                                <h2 className="text-lg font-bold truncate text-[var(--brand-color)]" style={{ '--brand-color': brandColor } as React.CSSProperties}>
                                     {brandName}
                                 </h2>
                                 <p className="text-xs text-gray-500">Brand Admin</p>

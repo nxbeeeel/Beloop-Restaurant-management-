@@ -88,13 +88,13 @@ export default function HomePage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
             <Button asChild size="lg" className="h-14 px-8 text-lg bg-rose-600 hover:bg-rose-700 text-white rounded-full shadow-lg shadow-rose-600/20 transition-all hover:-translate-y-1">
-              <Link href="#apply">
-                Request Demo <ArrowRight className="ml-2 w-5 h-5" />
+              <Link href="/login">
+                Login
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="h-14 px-8 text-lg border-white/10 bg-white/5 hover:bg-white/10 text-white rounded-full backdrop-blur-sm transition-all hover:-translate-y-1">
-              <Link href="/login">
-                Live Preview
+              <Link href="#apply">
+                Apply for Brand
               </Link>
             </Button>
           </div>

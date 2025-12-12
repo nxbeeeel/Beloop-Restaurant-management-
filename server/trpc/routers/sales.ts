@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { router, protectedProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
-import { enforceTenant } from "../middleware/roleCheck";
+import { enforceTenant } from "@/server/trpc/middleware/roleCheck";
 
 export const salesRouter = router({
     // Check if a sale already exists for this outlet and date
@@ -92,7 +92,7 @@ export const salesRouter = router({
             endDate: z.date()
         }))
         .query(async ({ ctx, input }) => {
-            return await ctx.prisma.sale.findMany({
+            const sales = await ctx.prisma.sale.findMany({
                 where: {
                     outletId: input.outletId,
                     date: {
@@ -102,12 +102,27 @@ export const salesRouter = router({
                     deletedAt: null
                 },
                 orderBy: { date: 'desc' },
-                include: {
+                select: {
+                    id: true,
+                    date: true,
+                    totalSale: true,
+                    cashSale: true,
+                    bankSale: true,
+                    swiggy: true,
+                    zomato: true,
+                    expenseCash: true,
+                    expenseBank: true,
+                    profit: true,
                     staff: {
                         select: { name: true }
                     }
                 }
             });
+
+            return sales.map(sale => ({
+                ...sale,
+                cashInHand: Number(sale.cashSale) - Number(sale.expenseCash)
+            }));
         }),
 
     getMonthly: protectedProcedure

@@ -98,7 +98,7 @@ export default function OutletLayoutClient({
                         <NavItem href="/outlet/sales" icon={FileText} label="Sales History" />
 
                         <SectionLabel label="Team & Settings" />
-                        <NavItem href="/outlet/staff" icon={Users} label="My Staff" />
+
                         <NavItem href="/outlet/settings/sheets" icon={Settings} label="Sheet Settings" />
                     </nav>
 

@@ -68,5 +68,9 @@ export class CacheService {
         fullMenu: (outletId: string) => `menu:full:${outletId}`,
 
         // Reports -> Keys managed in specific routers, but consistent naming preferred
+
+        // Outlets (Settings)
+        outletSettings: (outletId: string) => `outlet:settings:${outletId}`,
+        outletDetails: (outletId: string) => `outlet:details:${outletId}`,
     }
 }

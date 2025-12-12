@@ -1,4 +1,4 @@
-import { router, publicProcedure } from "../trpc";
+import { router, publicProcedure } from "@/server/trpc/trpc";
 import { salesRouter } from "./sales";
 import { expensesRouter } from "./expenses";
 import { dashboardRouter } from "./dashboard";
@@ -28,6 +28,7 @@ import { brandApplicationRouter } from "./brandApplication";
 import { billingRouter } from "./billing";
 import { publicRouter } from "./public";
 import { brandAnalyticsRouter } from "./brandAnalytics";
+import { auditRouter } from "./audit";
 
 export const appRouter = router({
     health: publicProcedure.query(() => ({ status: "ok" })),
@@ -60,6 +61,7 @@ export const appRouter = router({
     billing: billingRouter,
     public: publicRouter,
     brandAnalytics: brandAnalyticsRouter,
+    audit: auditRouter,
 });
 
 export type AppRouter = typeof appRouter;

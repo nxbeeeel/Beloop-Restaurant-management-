@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
-import { enforceTenant } from "../middleware/roleCheck";
+import { router, protectedProcedure } from "@/server/trpc/trpc";
+import { enforceTenant } from "@/server/trpc/middleware/roleCheck";
 
 export const dashboardRouter = router({
     getUser: protectedProcedure
@@ -12,7 +12,14 @@ export const dashboardRouter = router({
                 include: {
                     tenant: {
                         include: {
-                            outlets: true
+                            outlets: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    code: true,
+                                    status: true
+                                }
+                            }
                         }
                     },
                     outlet: true

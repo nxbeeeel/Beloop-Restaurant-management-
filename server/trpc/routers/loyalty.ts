@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, publicProcedure } from "../trpc";
+import { router, publicProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
 
 export const loyaltyRouter = router({

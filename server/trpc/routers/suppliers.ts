@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { router, protectedProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
-import { enforceTenant } from "../middleware/roleCheck";
+import { enforceTenant } from "@/server/trpc/middleware/roleCheck";
 
 export const suppliersRouter = router({
     list: protectedProcedure

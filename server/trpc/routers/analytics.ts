@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { router, protectedProcedure, requireRole } from "../trpc";
-import { enforceTenant } from "../middleware/roleCheck";
-import { redis } from "../../redis";
+import { router, protectedProcedure, requireRole } from "@/server/trpc/trpc";
+import { enforceTenant } from "@/server/trpc/middleware/roleCheck";
+import { redis } from "@/lib/redis";
 import { TRPCError } from "@trpc/server";
 
 const CACHE_TTL = 60 * 60 * 6; // 6 hours

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { SuperSidebar } from "@/components/admin/SuperSidebar";
+import { CommandMenu } from "@/components/admin/CommandMenu";
 import { MobileSidebar } from "@/components/admin/MobileSidebar"; // Keep mobile sidebar if improved later
 
 export const dynamic = 'force-dynamic';
@@ -28,8 +29,16 @@ export default async function SuperLayout({
                 </div>
 
                 {/* Main Content Area */}
-                <main className="flex-1 md:pl-72 w-full min-h-screen transition-all duration-300">
-                    <div className="p-4 md:p-8 pt-20 md:pt-8 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <main className="flex-1 md:pl-72 w-full min-h-screen transition-all duration-300 flex flex-col">
+                    {/* Sticky Top Bar (Desktop) */}
+                    <header className="hidden md:flex h-16 items-center justify-between px-8 sticky top-0 z-40 bg-stone-950/80 backdrop-blur-md border-b border-stone-800">
+                        <CommandMenu />
+                        <div className="flex items-center gap-4">
+                            {/* Future: UserNav / Notifs */}
+                        </div>
+                    </header>
+
+                    <div className="p-4 md:p-8 pt-20 md:pt-8 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 w-full flex-1">
                         {children}
                     </div>
                 </main>

@@ -3,6 +3,7 @@
 import { trpc } from '@/lib/trpc';
 import { KPICard } from '@/components/brand/KPICard';
 import { OutletPerformanceTable } from '@/components/brand/OutletPerformanceTable';
+import { SyncStatus } from '@/components/ui/sync-status';
 import { Store, Users, CreditCard } from 'lucide-react';
 
 export default function BrandDashboard() {
@@ -36,6 +37,9 @@ export default function BrandDashboard() {
                     <p className="text-muted-foreground">
                         Overview of your brand&apos;s performance across all outlets.
                     </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <SyncStatus />
                 </div>
             </div>
 

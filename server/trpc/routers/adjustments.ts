@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
-import { enforceTenant } from "../middleware/roleCheck";
+import { router, protectedProcedure } from "@/server/trpc/trpc";
+import { enforceTenant } from "@/server/trpc/middleware/roleCheck";
 import { TRPCError } from "@trpc/server";
 
 export const adjustmentsRouter = router({

@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { router, publicProcedure } from "../trpc";
+import { router, publicProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
-import { InventoryService } from "../../services/inventory.service";
-import { CacheService } from "../../services/cache.service";
+import { InventoryService } from "@/server/services/inventory.service";
+import { CacheService } from "@/server/services/cache.service";
 
 export const posRouter = router({
     // 1. Get Products (Pull)

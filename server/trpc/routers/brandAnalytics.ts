@@ -126,6 +126,9 @@ export const brandAnalyticsRouter = router({
     /**
      * Invalidate brand cache - Call after data updates
      */
+    /**
+     * Invalidate brand cache - Call after data updates
+     */
     invalidateCache: protectedProcedure
         .input(z.object({ tenantId: z.string() }))
         .mutation(async ({ input }) => {
@@ -136,5 +139,51 @@ export const brandAnalyticsRouter = router({
                 ]);
             }
             return { success: true };
+        }),
+
+    /**
+     * Trigger on-demand refresh of analytics
+     */
+    refresh: protectedProcedure
+        .mutation(async ({ ctx }) => {
+            if (!ctx.user.tenantId || (ctx.user.role !== 'BRAND_ADMIN' && ctx.user.role !== 'SUPER')) {
+                throw new Error('Unauthorized');
+            }
+
+            const { AggregationService } = await import("../../services/aggregation.service");
+            await AggregationService.refreshToday(ctx.user.tenantId);
+
+            // Invalidate cache
+            if (redis) {
+                await Promise.all([
+                    redis.del(`brand:${ctx.user.tenantId}:overview`),
+                    redis.del(`brand:${ctx.user.tenantId}:outlets`)
+                ]);
+            }
+
+            return { success: true };
+        }),
+
+    /**
+     * Get last sync status
+     */
+    getSyncStatus: protectedProcedure
+        .query(async ({ ctx }) => {
+            if (!ctx.user.tenantId) throw new Error('Unauthorized');
+
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+
+            const metric = await prisma.dailyBrandMetric.findUnique({
+                where: {
+                    tenantId_date: {
+                        tenantId: ctx.user.tenantId,
+                        date: today
+                    }
+                },
+                select: { updatedAt: true }
+            });
+
+            return { lastSyncedAt: metric?.updatedAt || null };
         })
 });

@@ -1,6 +1,6 @@
 
 import { z } from "zod";
-import { router, publicProcedure } from "../trpc";
+import { router, publicProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/server/db";
 import { currentUser, clerkClient } from '@clerk/nextjs/server';

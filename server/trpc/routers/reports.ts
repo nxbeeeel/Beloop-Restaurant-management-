@@ -1,5 +1,5 @@
-import { router, protectedProcedure } from "../trpc";
-import { enforceTenant } from "../middleware/roleCheck";
+import { router, protectedProcedure } from "@/server/trpc/trpc";
+import { enforceTenant } from "@/server/trpc/middleware/roleCheck";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 

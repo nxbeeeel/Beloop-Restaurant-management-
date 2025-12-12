@@ -47,15 +47,7 @@ export default clerkMiddleware(async (auth, req) => {
     const metadata = sessionClaims?.metadata as CustomJwtSessionClaims['metadata'] | undefined;
     let role = metadata?.role;
 
-    // EMERGENCY OVERRIDE: Check email directly in case JWT metadata is missing
-    // This unblocks the user while JWT template propagates
-    // EMERGENCY OVERRIDE: Check User ID directly (100% reliable)
-    // This unblocks the user while JWT template propagates
-    const superAdminId = 'user_36YCfDC2SUMzvSvFyPhhtLE1Jmv';
-    if (userId === superAdminId) {
-        console.log(`[MIDDLEWARE] 🚨 Emergency Grant: SUPER role for ${userId}`);
-        role = 'SUPER';
-    }
+
 
     console.log(`[MIDDLEWARE-${requestId}] 👤 User: ${userId} | Role: ${role || 'NONE'} | Org: ${orgSlug || 'NONE'} | Path: ${currentPath}`);
 

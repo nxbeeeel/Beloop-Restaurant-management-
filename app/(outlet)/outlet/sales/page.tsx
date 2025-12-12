@@ -1,8 +1,8 @@
 import { prisma } from "@/server/db";
 import { auth } from "@clerk/nextjs/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { format } from "date-fns";
 import { CalendarDays } from "lucide-react";
+import { SaleDataTable } from "@/components/outlet/sales/SaleDataTable";
 
 export default async function SalesHistoryPage() {
     const { userId } = await auth();
@@ -19,7 +19,15 @@ export default async function SalesHistoryPage() {
         where: { outletId: user.outletId, deletedAt: null },
         orderBy: { date: 'desc' },
         take: 30, // Last 30 entries
-        include: { staff: { select: { name: true } } }
+        select: {
+            id: true,
+            date: true,
+            totalSale: true,
+            profit: true,
+            staff: {
+                select: { name: true }
+            }
+        }
     });
 
     return (
@@ -42,48 +50,7 @@ export default async function SalesHistoryPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="rounded-md border overflow-hidden">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-muted/50 text-muted-foreground font-medium">
-                                <tr>
-                                    <th className="p-4">Date</th>
-                                    <th className="p-4 text-right">Total Sale</th>
-                                    <th className="p-4 text-right">Expenses</th>
-                                    <th className="p-4 text-right">Net Profit</th>
-                                    <th className="p-4">Submitted By</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                {sales.map((sale: any) => (
-                                    <tr key={sale.id} className="hover:bg-muted/50 transition-colors">
-                                        <td className="p-4 font-medium">
-                                            {format(new Date(sale.date), "MMM d, yyyy")}
-                                        </td>
-                                        <td className="p-4 text-right font-medium">
-                                            ₹{Number(sale.totalSale).toFixed(2)}
-                                        </td>
-                                        <td className="p-4 text-right text-orange-600">
-                                            ₹{Number(sale.totalExpense).toFixed(2)}
-                                        </td>
-                                        <td className="p-4 text-right font-bold text-green-600">
-                                            ₹{Number(sale.profit).toFixed(2)}
-                                        </td>
-                                        <td className="p-4 text-muted-foreground">
-                                            {sale.staff.name}
-                                        </td>
-                                    </tr>
-                                ))}
-                                {sales.length === 0 && (
-                                    <tr>
-                                        <td colSpan={5} className="p-8 text-center text-muted-foreground">
-                                            No sales records found.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                    <SaleDataTable data={sales} />
                 </CardContent>
             </Card>
         </div>

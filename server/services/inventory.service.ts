@@ -86,7 +86,19 @@ export class InventoryService {
 
 
         // Execute everything in a single transaction
+        // Execute everything in a single transaction
         return prisma.$transaction(async (tx) => {
+            // 0. Idempotency Check
+            const existingOrder = await tx.order.findUnique({
+                where: { id: params.id },
+                include: { items: true } // Optional: return items if needed
+            });
+
+            if (existingOrder) {
+                console.log(`[InventoryService] Verify Idempotency: Order ${params.id} already exists. Skipping side effects.`);
+                return existingOrder;
+            }
+
             let customerId: string | null = null;
 
             // 1. Customer & Loyalty Logic
@@ -139,17 +151,11 @@ export class InventoryService {
                 }
             }
 
-            // 2. Create Order
-            const order = await tx.order.upsert({
-                where: { id: params.id },
-                update: {
-                    status: params.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
-                    totalAmount: total,
-                    discount: params.discount,
-                    paymentMethod: paymentMethod,
-                },
-                create: {
+            // 2. Create Order (Using create instead of upsert since we checked existence)
+            const order = await tx.order.create({
+                data: {
                     id: params.id,
+                    tenantId, // Ensure tenantId is stored for order scoping
                     outletId,
                     customerId,
                     customerName,

@@ -1,0 +1,5 @@
+app/(super)/super/tenants/page.tsx(252,21): error TS2322: Type '({ _count: { users: number; outlets: number; }; } & { name: string; id: string; createdAt: Date; slug: string; logoUrl: string | null; primaryColor: string; isStockModule: boolean; features: JsonValue; ... 18 more ...; isPaymentDue: boolean; })[]' is not assignable to type 'Tenant[]'.
+  Type '{ _count: { users: number; outlets: number; }; } & { name: string; id: string; createdAt: Date; slug: string; logoUrl: string | null; primaryColor: string; isStockModule: boolean; features: JsonValue; ... 18 more ...; isPaymentDue: boolean; }' is not assignable to type 'Tenant'.
+    Types of property 'status' are incompatible.
+      Type 'TenantStatus' is not assignable to type '"TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "SUSPENDED" | "PENDING"'.
+        Type '"PAUSED"' is not assignable to type '"TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "SUSPENDED" | "PENDING"'.

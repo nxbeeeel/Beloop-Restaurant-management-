@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
-import { TRPCProvider } from "@/app/_providers/TRPCProvider";
+import { TRPCProvider } from "@/components/ui/TRPCProvider";
 import { Toaster } from 'sonner'
 import './globals.css'
 
