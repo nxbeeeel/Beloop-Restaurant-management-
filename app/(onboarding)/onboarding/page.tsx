@@ -1,8 +1,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import { prisma } from "@/server/db";
-import { LaunchDashboardButton } from "./LaunchDashboardButton";
 
 export default async function OnboardingPage() {
     const { userId } = await auth();
@@ -14,88 +13,82 @@ export default async function OnboardingPage() {
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
     const firstName = user.firstName || "User";
-
-    // CHECK METADATA FIRST - Auto Redirect or Show Button
     const metadata = user.publicMetadata as any;
-    let targetUrl = null;
 
-    // SUPER ADMIN - Direct to Super Dashboard
+    // AUTO-REDIRECT BASED ON ROLE (No button needed)
+
+    // SUPER ADMIN - Direct redirect
     if (metadata?.role === 'SUPER') {
-        targetUrl = '/super/dashboard';
+        return redirect('/super/dashboard');
     }
-    // BRAND ADMIN - Needs tenant slug
-    else if (metadata?.onboardingComplete && metadata?.role === 'BRAND_ADMIN' && metadata?.tenantId) {
+
+    // BRAND ADMIN - Fetch tenant slug and redirect
+    if (metadata?.role === 'BRAND_ADMIN' && metadata?.tenantId) {
         const tenant = await prisma.tenant.findUnique({
             where: { id: metadata.tenantId },
             select: { slug: true }
         });
         if (tenant?.slug) {
-            targetUrl = `/brand/${tenant.slug}/dashboard`;
+            return redirect(`/brand/${tenant.slug}/dashboard`);
         }
     }
-    // OUTLET MANAGER / STAFF
-    else if (metadata?.onboardingComplete && metadata?.outletId) {
-        targetUrl = metadata.role === 'OUTLET_MANAGER' ? '/outlet/dashboard' : '/outlet/orders';
+
+    // OUTLET MANAGER - Direct redirect
+    if (metadata?.role === 'OUTLET_MANAGER') {
+        return redirect('/outlet/dashboard');
     }
 
-    if (targetUrl) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex flex-col items-center pt-20 px-4">
-                <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 text-center space-y-6">
-                    <div className="flex justify-center mb-4">
-                        <UserButton afterSignOutUrl="/login" />
-                    </div>
-
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    </div>
-
-                    <h1 className="text-2xl font-bold text-gray-900">Welcome back, {firstName}!</h1>
-                    <p className="text-gray-600">
-                        Your account is set up and ready to go.
-                    </p>
-
-                    <LaunchDashboardButton targetUrl={targetUrl} />
-
-                    <p className="text-xs text-gray-400 mt-4">
-                        If you are stuck in a loop, please strict refresh (Ctrl+F5) or sign out and sign back in.
-                    </p>
-                </div>
-            </div>
-        );
+    // STAFF - Direct redirect
+    if (metadata?.role === 'STAFF') {
+        return redirect('/outlet/orders');
     }
 
+    // NO ROLE YET - Check if there's a pending invitation
+    const email = user.emailAddresses[0]?.emailAddress;
+    let pendingInvite = null;
+
+    if (email) {
+        pendingInvite = await prisma.invitation.findFirst({
+            where: { email, status: 'PENDING' },
+            include: { tenant: { select: { name: true } } }
+        });
+    }
+
+    // Show pending state
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col items-center pt-20 px-4">
-            <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 text-center space-y-6">
+        <div className="min-h-screen bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950 flex flex-col items-center pt-20 px-4">
+            <div className="w-full max-w-md bg-stone-900/80 backdrop-blur-xl border border-stone-800 rounded-2xl shadow-2xl p-8 text-center space-y-6">
                 <div className="flex justify-center mb-4">
                     <UserButton afterSignOutUrl="/login" />
                 </div>
 
-                <h1 className="text-2xl font-bold text-gray-900">Welcome, {firstName}!</h1>
+                <h1 className="text-2xl font-bold text-white">Welcome, {firstName}!</h1>
 
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-left">
-                    <h3 className="font-semibold text-yellow-800 mb-2">Pending Setup</h3>
-                    <p className="text-sm text-yellow-700">
-                        You do not have access to any Brand Organizations yet.
-                    </p>
-                </div>
-
-                <div className="space-y-4">
-                    <p className="text-gray-600">
-                        If you were invited to join a team, please check your email for the invitation link, or accept the invitation below if available.
-                    </p>
-
-                    <div className="flex justify-center py-4 border-t border-b border-gray-100">
-                        <p className="text-sm font-medium text-gray-500 italic">
-                            Waiting for invitation acceptance...
+                {pendingInvite ? (
+                    <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 text-left">
+                        <h3 className="font-semibold text-rose-400 mb-2">Pending Invitation</h3>
+                        <p className="text-sm text-stone-300">
+                            You have a pending invitation to join <strong className="text-white">{pendingInvite.tenant?.name}</strong>.
+                        </p>
+                        <a
+                            href={`/invite/user?token=${pendingInvite.token}`}
+                            className="mt-4 block w-full py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg transition-colors text-center"
+                        >
+                            Accept Invitation
+                        </a>
+                    </div>
+                ) : (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-left">
+                        <h3 className="font-semibold text-amber-400 mb-2">Pending Setup</h3>
+                        <p className="text-sm text-stone-300">
+                            You do not have access to any organizations yet. If you were invited, please check your email for the invitation link.
                         </p>
                     </div>
+                )}
 
-                    <p className="text-xs text-gray-400">
-                        Need help? Contact your administrator at <a href="mailto:support@beloop.app" className="text-blue-500 hover:underline">support@beloop.app</a>
-                    </p>
-                </div>
+                <p className="text-xs text-stone-500">
+                    Need help? Contact <a href="mailto:support@beloop.app" className="text-rose-400 hover:underline">support@beloop.app</a>
+                </p>
             </div>
         </div>
     );
