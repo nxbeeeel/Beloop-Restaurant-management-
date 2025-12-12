@@ -1,71 +1,51 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
+/**
+ * SIMPLE, STABLE MIDDLEWARE
+ * - No complex branching that creates loops
+ * - Each route type handled once
+ * - Clear, predictable behavior
+ */
+
+// Routes that NEVER require authentication
 const isPublicRoute = createRouteMatcher([
     '/',
     '/login(.*)',
     '/signup(.*)',
     '/onboarding(.*)',
     '/contact-admin',
-    '/api/webhooks(.*)',
-    '/api/trpc(.*)',
-    '/api/onboarding',
-    '/api/debug(.*)',
-    '/api/admin(.*)',
-    '/api/inngest',
-    '/api/create-super-admin',
-    '/api/emergency-fix-super-admin',
     '/invite(.*)',
     '/accept-invite(.*)',
     '/brand/dashboard',
 ]);
 
+// API routes - always allow (authentication handled by tRPC)
+const isApiRoute = createRouteMatcher([
+    '/api/(.*)',
+]);
+
 export default clerkMiddleware(async (auth, req) => {
-    const { userId, sessionClaims, orgId, orgSlug } = await auth();
-    const currentPath = req.nextUrl.pathname;
+    const { userId, sessionClaims, orgSlug } = await auth();
+    const path = req.nextUrl.pathname;
 
-    // 1. ALWAYS allow these routes (no redirects)
-    if (currentPath.startsWith('/onboarding') ||
-        currentPath.startsWith('/invite') ||
-        currentPath.startsWith('/accept-invite') ||
-        currentPath.startsWith('/api/') ||
-        currentPath === '/brand/dashboard') {
+    // 1. API ROUTES - Always allow, let tRPC handle auth
+    if (isApiRoute(req)) {
         return NextResponse.next();
     }
 
-    // 2. PUBLIC ROUTES
-    if (isPublicRoute(req) && !userId) {
+    // 2. PUBLIC ROUTES - Allow without auth
+    if (isPublicRoute(req)) {
         return NextResponse.next();
     }
 
-    // 3. LANDING PAGE - Redirect authenticated users
-    if (currentPath === '/' && userId) {
-        const metadata = sessionClaims?.metadata as any;
-        const role = metadata?.role;
-
-        // Locked Super Admin
-        if (userId === 'user_36YCfDC2SUMzvSvFyPhhtLE1Jmv') {
-            return NextResponse.redirect(new URL('/super/dashboard', req.url));
-        }
-
-        if (role === 'SUPER') return NextResponse.redirect(new URL('/super/dashboard', req.url));
-        if (role === 'BRAND_ADMIN') return NextResponse.redirect(new URL('/brand/dashboard', req.url));
-        if (role === 'OUTLET_MANAGER') return NextResponse.redirect(new URL('/outlet/dashboard', req.url));
-        if (role === 'STAFF') return NextResponse.redirect(new URL('/outlet/orders', req.url));
-
-        // No role - go to onboarding
-        return NextResponse.redirect(new URL('/onboarding', req.url));
-    }
-
-    // 4. NOT AUTHENTICATED - Redirect to login
+    // 3. NOT AUTHENTICATED - Send to login
     if (!userId) {
-        const signInUrl = new URL('/login', req.url);
-        signInUrl.searchParams.set('redirect_url', req.url);
-        return NextResponse.redirect(signInUrl);
+        return NextResponse.redirect(new URL('/login', req.url));
     }
 
-    // 5. EXTRACT ROLE
-    const metadata = sessionClaims?.metadata as any;
+    // 4. GET USER ROLE
+    const metadata = sessionClaims?.metadata as { role?: string } | undefined;
     let role = metadata?.role;
 
     // Locked Super Admin
@@ -73,55 +53,51 @@ export default clerkMiddleware(async (auth, req) => {
         role = 'SUPER';
     }
 
-    // 6. ROLE-BASED ACCESS
+    // 5. ROUTE ACCESS BY ROLE
 
-    // SUPER - Full access
+    // Super Admin - access everything
     if (role === 'SUPER') {
-        if (currentPath.startsWith('/super') || currentPath.startsWith('/brand') || currentPath.startsWith('/outlet')) {
+        if (path.startsWith('/super') || path.startsWith('/brand') || path.startsWith('/outlet')) {
             return NextResponse.next();
         }
         return NextResponse.redirect(new URL('/super/dashboard', req.url));
     }
 
-    // BRAND ADMIN
+    // Brand Admin - access /brand/*
     if (role === 'BRAND_ADMIN') {
-        if (currentPath.startsWith('/brand')) {
+        if (path.startsWith('/brand')) {
             return NextResponse.next();
         }
         return NextResponse.redirect(new URL('/brand/dashboard', req.url));
     }
 
-    // OUTLET MANAGER
+    // Outlet Manager - access /outlet/*
     if (role === 'OUTLET_MANAGER') {
-        if (currentPath.startsWith('/outlet')) {
+        if (path.startsWith('/outlet')) {
             return NextResponse.next();
         }
         return NextResponse.redirect(new URL('/outlet/dashboard', req.url));
     }
 
-    // STAFF
+    // Staff - access /outlet/*
     if (role === 'STAFF') {
-        if (currentPath.startsWith('/outlet')) {
+        if (path.startsWith('/outlet')) {
             return NextResponse.next();
         }
         return NextResponse.redirect(new URL('/outlet/orders', req.url));
     }
 
-    // HAS ORG CONTEXT
-    if (orgId && orgSlug) {
-        if (currentPath.startsWith('/brand/')) {
-            return NextResponse.next();
-        }
-        return NextResponse.redirect(new URL(`/brand/${orgSlug}/dashboard`, req.url));
+    // Has Clerk Organization - access /brand/{slug}/*
+    if (orgSlug && path.startsWith('/brand')) {
+        return NextResponse.next();
     }
 
-    // NO ROLE - Already allowed onboarding above
+    // 6. FALLBACK - Send to onboarding
     return NextResponse.redirect(new URL('/onboarding', req.url));
 });
 
 export const config = {
     matcher: [
         '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-        '/(api|trpc)(.*)',
     ],
 };
