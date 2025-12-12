@@ -16,19 +16,22 @@ export default async function InvitationsPage() {
         redirect("/");
     }
 
-    const invitations = await prisma.invitation.findMany({
-        where: {
-            tenantId: user.tenantId
-        },
-        include: {
-            outlet: {
-                select: { name: true }
-            }
-        },
-        orderBy: {
-            createdAt: 'desc'
-        }
-    });
+    // Fetch invitations and outlets in parallel
+    const [invitations, outlets] = await Promise.all([
+        prisma.invitation.findMany({
+            where: { tenantId: user.tenantId },
+            include: {
+                outlet: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        }),
+        prisma.outlet.findMany({
+            where: { tenantId: user.tenantId },
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' }
+        })
+    ]);
 
-    return <InvitationsManagement invitations={invitations} />;
+    return <InvitationsManagement invitations={invitations} outlets={outlets} />;
 }
+
