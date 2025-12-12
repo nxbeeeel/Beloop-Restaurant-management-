@@ -1,27 +1,78 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { UserButton } from "@clerk/nextjs";
 import { prisma } from "@/server/db";
+import { redirect } from "next/navigation";
 
 /**
  * ONBOARDING PAGE
- * - NO REDIRECTS (middleware handles all routing)
- * - Only shows pending state for users without role
+ * - Checks DB for existing user role and redirects if found
+ * - Syncs role to Clerk metadata to fix future logins
+ * - Shows pending state for users without role
  * - Uses premium dark theme
  */
 export default async function OnboardingPage() {
     const { userId } = await auth();
 
-    // Not authenticated - middleware will handle
+    // Not authenticated - redirect to login
     if (!userId) {
-        return null;
+        return redirect("/login");
     }
 
     const client = await clerkClient();
-    const user = await client.users.getUser(userId);
-    const firstName = user.firstName || "User";
-    const email = user.emailAddresses[0]?.emailAddress;
+    const clerkUser = await client.users.getUser(userId);
+    const firstName = clerkUser.firstName || "User";
+    const email = clerkUser.emailAddresses[0]?.emailAddress;
 
-    // Check for pending invitations
+    // ========================================
+    // CHECK DB USER - Maybe they have a role!
+    // ========================================
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { id: true, role: true, tenantId: true, outletId: true }
+    });
+
+    if (dbUser?.role) {
+        // Sync role to Clerk metadata for future logins
+        try {
+            await client.users.updateUser(userId, {
+                publicMetadata: {
+                    role: dbUser.role,
+                    tenantId: dbUser.tenantId,
+                    outletId: dbUser.outletId
+                }
+            });
+            console.log(`[Onboarding] Synced role ${dbUser.role} to Clerk for user ${userId}`);
+        } catch (syncError) {
+            console.error("[Onboarding] Failed to sync to Clerk:", syncError);
+        }
+
+        // Redirect based on role
+        if (dbUser.role === 'SUPER') {
+            return redirect('/super/dashboard');
+        }
+
+        if (dbUser.role === 'BRAND_ADMIN' && dbUser.tenantId) {
+            const tenant = await prisma.tenant.findUnique({
+                where: { id: dbUser.tenantId },
+                select: { slug: true }
+            });
+            if (tenant?.slug) {
+                return redirect(`/brand/${tenant.slug}/dashboard`);
+            }
+        }
+
+        if (dbUser.role === 'OUTLET_MANAGER') {
+            return redirect('/outlet/dashboard');
+        }
+
+        if (dbUser.role === 'STAFF') {
+            return redirect('/outlet/orders');
+        }
+    }
+
+    // ========================================
+    // NO ROLE FOUND - Check for pending invitations
+    // ========================================
     let pendingInvite = null;
     if (email) {
         pendingInvite = await prisma.invitation.findFirst({
@@ -76,3 +127,4 @@ export default async function OnboardingPage() {
         </div>
     );
 }
+
