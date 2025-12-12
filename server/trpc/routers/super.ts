@@ -3,6 +3,7 @@ import { router, requireSuper } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { MailService } from '@/server/services/mail.service';
 import { ProvisioningService } from '@/server/services/provisioning.service';
+import { inngest } from '@/lib/inngest';
 import crypto from 'crypto';
 
 export const superRouter = router({
@@ -363,7 +364,7 @@ export const superRouter = router({
             return { success: true };
         }),
 
-    // Delete User (removes user only, keeps data with null staffId)
+    // Delete User (removes user only, handles FK constraints)
     deleteUser: requireSuper
         .input(z.object({ userId: z.string() }))
         .mutation(async ({ ctx, input }) => {
@@ -376,7 +377,7 @@ export const superRouter = router({
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
             }
 
-            // 1. Nullify FK references in related tables
+            // 1. Nullify FK references in related tables (keep data, just remove user ref)
             await ctx.prisma.sale.updateMany({
                 where: { staffId: input.userId },
                 data: { staffId: null }
@@ -387,7 +388,29 @@ export const superRouter = router({
                 data: { staffId: null }
             });
 
-            // 2. Delete from Clerk if exists
+            await ctx.prisma.purchaseOrder.updateMany({
+                where: { createdBy: input.userId },
+                data: { createdBy: null }
+            });
+
+            // 2. Delete records that would block user deletion (cascade might not work correctly)
+            await ctx.prisma.stockVerification.deleteMany({
+                where: { verifiedBy: input.userId }
+            });
+
+            await ctx.prisma.stockCheck.deleteMany({
+                where: { performedBy: input.userId }
+            });
+
+            await ctx.prisma.ticket.deleteMany({
+                where: { userId: input.userId }
+            });
+
+            await ctx.prisma.ticketComment.deleteMany({
+                where: { userId: input.userId }
+            });
+
+            // 3. Delete from Clerk if exists
             if (user.clerkId) {
                 try {
                     const { clerkClient } = await import('@clerk/nextjs/server');
@@ -396,11 +419,10 @@ export const superRouter = router({
                     console.log(`[SUPER] Deleted Clerk User: ${user.clerkId}`);
                 } catch (error) {
                     console.error("[SUPER] Warning: Failed to delete user from Clerk (might not exist):", error);
-                    // Continue to delete from DB even if Clerk fails
                 }
             }
 
-            // 3. Delete user from DB
+            // 4. Delete user from DB
             await ctx.prisma.user.delete({
                 where: { id: input.userId },
             });
@@ -517,6 +539,16 @@ export const superRouter = router({
                 superAdminDbId: ctx.user.id
             });
 
+            // Emit Inngest event to send email
+            await inngest.send({
+                name: 'mail/brand.invite',
+                data: {
+                    email: input.email,
+                    token: invite.token,
+                    name: input.brandName
+                }
+            });
+
             return { success: true, tenant, invite };
         }),
 
@@ -560,9 +592,17 @@ export const superRouter = router({
                 }
             });
 
-            // Send Email
+            // Send Email via Inngest
             const entityName = invite.outlet?.name || invite.tenant?.name || 'Beloop Platform';
-            await MailService.sendUserInvite(input.email, invite.token, input.role, entityName);
+            await inngest.send({
+                name: 'mail/user.invite',
+                data: {
+                    email: input.email,
+                    token: invite.token,
+                    role: input.role,
+                    entityName: entityName
+                }
+            });
 
             return invite;
         }),
