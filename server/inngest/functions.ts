@@ -33,7 +33,7 @@ export const sendInviteEmail = inngest.createFunction(
             const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invite?token=${token}`;
 
             const { data, error } = await resend.emails.send({
-                from: 'Beloop <onboarding@resend.dev>',
+                from: process.env.EMAIL_FROM_ADDRESS || 'Beloop <noreply@belooprms.app>',
                 to: [email],
                 subject: `You're invited to ${entityName} 🎉`,
                 html: `
@@ -95,7 +95,7 @@ export const sendBrandInviteEmail = inngest.createFunction(
             const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/brand?token=${token}`;
 
             const { data, error } = await resend.emails.send({
-                from: 'Beloop <onboarding@resend.dev>',
+                from: process.env.EMAIL_FROM_ADDRESS || 'Beloop <noreply@belooprms.app>',
                 to: [email],
                 subject: `🚀 Set up ${name} on Beloop`,
                 html: `
