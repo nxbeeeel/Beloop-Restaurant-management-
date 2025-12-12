@@ -51,6 +51,10 @@ export function UserActions({ user }: UserActionsProps) {
             toast.success("User deleted");
             utils.super.listAllUsers.invalidate();
         },
+        onError: (err) => {
+            toast.error(`Failed to delete user: ${err.message}`);
+            console.error("[UserActions] Delete error:", err);
+        },
     });
 
     const updateRoleMutation = trpc.super.updateUserRole.useMutation({

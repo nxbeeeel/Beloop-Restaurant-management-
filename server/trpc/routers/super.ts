@@ -379,23 +379,22 @@ export const superRouter = router({
             try {
                 // Use transaction for atomicity
                 await ctx.prisma.$transaction(async (tx) => {
-                    // 1. Nullify FK references in related tables (keep data, just remove user ref)
-                    await tx.sale.updateMany({
-                        where: { staffId: input.userId },
-                        data: { staffId: null }
+                    // 1. Delete related records (staffId is NOT nullable, so we delete)
+                    await tx.sale.deleteMany({
+                        where: { staffId: input.userId }
                     });
 
-                    await tx.expense.updateMany({
-                        where: { staffId: input.userId },
-                        data: { staffId: null }
+                    await tx.expense.deleteMany({
+                        where: { staffId: input.userId }
                     });
 
+                    // 2. Nullify FK references where allowed
                     await tx.purchaseOrder.updateMany({
                         where: { createdBy: input.userId },
                         data: { createdBy: null }
                     });
 
-                    // 2. Delete records that would block user deletion
+                    // 3. Delete records that would block user deletion
                     await tx.stockVerification.deleteMany({
                         where: { verifiedBy: input.userId }
                     });
@@ -412,17 +411,17 @@ export const superRouter = router({
                         where: { userId: input.userId }
                     });
 
-                    // 3. Delete AuditLog entries
+                    // 4. Delete AuditLog entries
                     await tx.auditLog.deleteMany({
                         where: { userId: input.userId }
                     });
 
-                    // 4. Delete TemporaryPassword
+                    // 5. Delete TemporaryPassword
                     await tx.temporaryPassword.deleteMany({
                         where: { userId: input.userId }
                     });
 
-                    // 5. Delete user from DB
+                    // 6. Delete user from DB
                     await tx.user.delete({
                         where: { id: input.userId },
                     });
@@ -643,4 +642,63 @@ export const superRouter = router({
                 token
             };
         }),
+
+    // ============================================================
+    // AUDIT LOG
+    // ============================================================
+
+    getAuditLogs: requireSuper
+        .input(z.object({
+            limit: z.number().min(1).max(100).default(50),
+            cursor: z.string().optional(),
+            action: z.string().optional(),
+            tableName: z.string().optional(),
+        }))
+        .query(async ({ ctx, input }) => {
+            const logs = await ctx.prisma.auditLog.findMany({
+                take: input.limit + 1,
+                cursor: input.cursor ? { id: input.cursor } : undefined,
+                where: {
+                    ...(input.action && { action: input.action }),
+                    ...(input.tableName && { tableName: input.tableName }),
+                },
+                orderBy: { timestamp: 'desc' },
+                include: {
+                    user: { select: { name: true, email: true } },
+                    tenant: { select: { name: true } },
+                }
+            });
+
+            let nextCursor: string | undefined = undefined;
+            if (logs.length > input.limit) {
+                const nextItem = logs.pop();
+                nextCursor = nextItem?.id;
+            }
+
+            return { logs, nextCursor };
+        }),
+
+    // Log an audit action (internal helper, exposed for super admin testing)
+    logAuditAction: requireSuper
+        .input(z.object({
+            action: z.string(),
+            tableName: z.string(),
+            recordId: z.string(),
+            oldValue: z.any().optional(),
+            newValue: z.any().optional(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            return ctx.prisma.auditLog.create({
+                data: {
+                    userId: ctx.userId,
+                    userName: ctx.session?.user?.firstName || 'Super Admin',
+                    action: input.action,
+                    tableName: input.tableName,
+                    recordId: input.recordId,
+                    oldValue: input.oldValue ? JSON.parse(JSON.stringify(input.oldValue)) : null,
+                    newValue: input.newValue ? JSON.parse(JSON.stringify(input.newValue)) : null,
+                }
+            });
+        }),
 });
+
