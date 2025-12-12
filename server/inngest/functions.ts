@@ -30,7 +30,7 @@ export const sendInviteEmail = inngest.createFunction(
         const { email, token, role, entityName } = event.data;
 
         await step.run("send-email", async () => {
-            const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invite?token=${token}`;
+            const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/user?token=${token}`;
 
             const { data, error } = await resend.emails.send({
                 from: process.env.EMAIL_FROM_ADDRESS || 'Beloop <noreply@belooprms.app>',
@@ -43,33 +43,41 @@ export const sendInviteEmail = inngest.createFunction(
                         <meta charset="utf-8">
                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     </head>
-                    <body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+                    <body style="margin: 0; padding: 0; background-color: #0c0a09; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
                         <div style="max-width: 560px; margin: 0 auto; padding: 40px 20px;">
                             <!-- Header with gradient -->
-                            <div style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
-                                <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Welcome to Beloop</h1>
-                                <p style="margin: 8px 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Restaurant Management Platform</p>
+                            <div style="background: linear-gradient(135deg, #1c1917 0%, #292524 100%); border: 1px solid #44403c; border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
+                                <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); border-radius: 16px; margin: 0 auto 16px; line-height: 64px;">
+                                    <span style="font-size: 28px;">✉️</span>
+                                </div>
+                                <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">You're Invited!</h1>
+                                <p style="margin: 8px 0 0; color: #a8a29e; font-size: 16px;">Join the team on Beloop</p>
                             </div>
                             
                             <!-- Content Card -->
-                            <div style="background: white; padding: 32px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
-                                <h2 style="margin: 0 0 16px; color: #18181b; font-size: 20px; font-weight: 600;">You've been invited!</h2>
-                                <p style="margin: 0 0 24px; color: #52525b; font-size: 16px; line-height: 1.6;">
-                                    <strong style="color: #18181b;">${entityName}</strong> has invited you to join their team as a <strong style="color: #e11d48;">${role}</strong>.
+                            <div style="background: #1c1917; padding: 32px; border: 1px solid #44403c; border-top: none;">
+                                <p style="margin: 0 0 24px; color: #d6d3d1; font-size: 16px; line-height: 1.6;">
+                                    <strong style="color: #fafaf9;">${entityName}</strong> has invited you to join as a <strong style="color: #e11d48;">${role}</strong>.
                                 </p>
                                 
                                 <a href="${inviteUrl}" style="display: block; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: white; padding: 16px 32px; text-decoration: none; border-radius: 12px; text-align: center; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(225,29,72,0.3);">
                                     Accept Invitation →
                                 </a>
-                                
-                                <p style="margin: 24px 0 0; color: #a1a1aa; font-size: 13px; text-align: center;">
-                                    Or paste this link in your browser:<br>
-                                    <span style="color: #71717a; word-break: break-all;">${inviteUrl}</span>
+                            </div>
+                            
+                            <!-- Copy Link Section -->
+                            <div style="background: #292524; padding: 24px; border: 1px solid #44403c; border-top: none; border-radius: 0 0 16px 16px;">
+                                <p style="margin: 0 0 12px; color: #78716c; font-size: 13px; font-weight: 600;">📋 COPY LINK</p>
+                                <div style="background: #1c1917; border: 1px solid #44403c; border-radius: 8px; padding: 12px; word-break: break-all;">
+                                    <code style="color: #a8a29e; font-size: 12px; font-family: monospace;">${inviteUrl}</code>
+                                </div>
+                                <p style="margin: 12px 0 0; color: #57534e; font-size: 11px;">
+                                    This link expires in 7 days. If the button doesn't work, copy and paste this link in your browser.
                                 </p>
                             </div>
                             
                             <!-- Footer -->
-                            <p style="text-align: center; color: #a1a1aa; font-size: 12px; margin: 24px 0 0;">
+                            <p style="text-align: center; color: #57534e; font-size: 12px; margin: 24px 0 0;">
                                 © ${new Date().getFullYear()} Beloop · Restaurant Management Made Simple
                             </p>
                         </div>

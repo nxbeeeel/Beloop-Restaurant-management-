@@ -561,8 +561,7 @@ export const superRouter = router({
                 superAdminDbId: ctx.user.id
             });
 
-            // Send Email directly via MailService (no Inngest)
-            await MailService.sendBrandInvite(input.email, invite.token, input.brandName);
+            // NOTE: Email is already sent by ProvisioningService.inviteBrandAdmin
 
             return { success: true, tenant, invite };
         }),
