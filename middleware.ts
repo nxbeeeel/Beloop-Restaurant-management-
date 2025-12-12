@@ -63,8 +63,9 @@ export default clerkMiddleware(async (auth, req) => {
     const role = metadata.app_role || metadata.role;
     const slug = metadata.primary_org_slug || orgSlug;
 
-    // Locked Super Admin override
-    const isSuperAdmin = userId === 'user_36YCfDC2SUMzvSvFyPhhtLE1Jmv';
+    // Super Admin override (from environment variable for security)
+    const SUPER_ADMIN_ID = process.env.SUPER_ADMIN_CLERK_ID;
+    const isSuperAdmin = SUPER_ADMIN_ID && userId === SUPER_ADMIN_ID;
     if (isSuperAdmin) {
         if (pathname.startsWith('/super/')) {
             return NextResponse.next();
