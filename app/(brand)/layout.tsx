@@ -18,7 +18,11 @@ export default async function BrandLayout({
     children: React.ReactNode;
 }) {
     const { userId, orgId, orgSlug } = await auth();
-    if (!userId) return null;
+
+    // Not authenticated - redirect to login
+    if (!userId) {
+        return redirect("/login");
+    }
 
     let tenant = null;
 
@@ -42,15 +46,18 @@ export default async function BrandLayout({
         tenant = user?.tenant || null;
     }
 
-    // 🛡️ Security Check: handled by Middleware.
-    // Middleware ensures only BRAND_ADMIN access this route.
+    // No tenant found - redirect to onboarding
+    if (!tenant) {
+        console.log("[BrandLayout] No tenant found for user, redirecting to onboarding");
+        return redirect("/onboarding");
+    }
 
-    const brandName = tenant?.name || "Beloop";
-    const brandLogo = tenant?.logoUrl;
-    const brandColor = tenant?.primaryColor || "#e11d48";
+    const brandName = tenant.name || "Beloop";
+    const brandLogo = tenant.logoUrl;
+    const brandColor = tenant.primaryColor || "#e11d48";
 
     // Determine slug for navigation
-    const activeSlug = orgSlug || tenant?.slug || "demo";
+    const activeSlug = orgSlug || tenant.slug;
 
 
     return (
