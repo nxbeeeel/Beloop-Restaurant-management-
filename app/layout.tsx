@@ -15,11 +15,36 @@ export const metadata: Metadata = {
     apple: '/logo.png',
   },
   other: {
-    // Performance optimization: Prefetch Clerk resources
     'dns-prefetch': 'https://clerk.belooprms.app',
     'preconnect': 'https://clerk.belooprms.app',
   }
 }
+
+// Clerk Appearance Configuration
+const clerkAppearance = {
+  variables: {
+    colorPrimary: '#e11d48', // Rose-600
+    colorTextOnPrimaryBackground: '#ffffff',
+    colorBackground: '#fafafa',
+    colorInputBackground: '#ffffff',
+    colorInputText: '#0a0a0a',
+    colorText: '#0a0a0a',
+    colorTextSecondary: '#737373',
+    borderRadius: '0.75rem',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  },
+  elements: {
+    formButtonPrimary: 'bg-rose-600 hover:bg-rose-700 shadow-lg shadow-rose-500/20',
+    card: 'shadow-xl border border-stone-200',
+    headerTitle: 'text-stone-900 font-bold',
+    headerSubtitle: 'text-stone-500',
+    socialButtonsBlockButton: 'border-stone-300 hover:bg-stone-50',
+    formFieldInput: 'border-stone-300 focus:border-rose-500 focus:ring-rose-500',
+    footerActionLink: 'text-rose-600 hover:text-rose-700',
+    identityPreview: 'border-stone-200',
+    formFieldLabel: 'text-stone-700',
+  },
+};
 
 export default function RootLayout({
   children,
@@ -27,7 +52,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <ClerkProvider afterSignOutUrl="/">
+    <ClerkProvider afterSignOutUrl="/" appearance={clerkAppearance}>
       <html lang="en">
         <body className="antialiased">
           <TRPCProvider>
@@ -39,3 +64,4 @@ export default function RootLayout({
     </ClerkProvider>
   )
 }
+
