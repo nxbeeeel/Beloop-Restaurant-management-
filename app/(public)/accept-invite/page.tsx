@@ -4,16 +4,7 @@ import { prisma } from "@/server/db";
 import { OrganizationSwitcher } from "@clerk/nextjs";
 
 /**
- * Invitation Acceptance Handler
- * -----------------------------
- * This page is the destination for Clerk Organization Invitations.
- * When a user accepts an invite in their email (handled by Clerk), they land here.
- * 
- * Logic:
- * 1. Check if authenticated (Middleware enforces this or redirects to login).
- * 2. Check if they have an active Organization (`orgId`).
- * 3. If yes, sync the User record in our DB (ensure they exist and are linked).
- * 4. Redirect to the Brand Dashboard.
+ * Invitation Acceptance Handler - Premium UI
  */
 export default async function AcceptInvitePage() {
     const { userId, orgId, orgSlug } = await auth();
@@ -24,67 +15,78 @@ export default async function AcceptInvitePage() {
     }
 
     // 2. Organization Context Guard
-    // If they landed here but don't have an active org, they might need to select it or accept it via Clerk's UI?
-    // Usually, clicking the email link accepts it automatically if configured, or asks them to join.
     if (!orgId || !orgSlug) {
-        // Render a UI to help them switch or see pending invites
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
-                <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center space-y-6">
-                    <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto text-rose-600">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+            <div className="min-h-screen bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950 flex items-center justify-center p-4">
+                {/* Background decoration */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-rose-500/10 rounded-full blur-3xl" />
+                    <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-rose-600/5 rounded-full blur-3xl" />
+                </div>
+
+                <div className="relative bg-stone-900/80 backdrop-blur-xl border border-stone-800 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center space-y-6">
+                    {/* Logo */}
+                    <div className="w-16 h-16 bg-gradient-to-br from-rose-500 to-rose-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-rose-500/20">
+                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
                     </div>
 
-                    <h1 className="text-2xl font-bold text-gray-900">Welcome to Beloop!</h1>
-                    <p className="text-gray-600">
-                        You're almost there. Please select the organization you were invited to join to continue.
-                    </p>
+                    <div className="space-y-2">
+                        <h1 className="text-3xl font-bold text-white">Welcome to Beloop</h1>
+                        <p className="text-stone-400 text-lg">
+                            Select your organization to continue
+                        </p>
+                    </div>
 
-                    <div className="flex justify-center py-4">
+                    <div className="bg-stone-800/50 rounded-xl p-4 border border-stone-700">
                         <OrganizationSwitcher
                             afterCreateOrganizationUrl="/brand/:slug/dashboard"
                             afterSelectOrganizationUrl="/brand/:slug/dashboard"
                             hidePersonal
+                            appearance={{
+                                elements: {
+                                    rootBox: "w-full",
+                                    organizationSwitcherTrigger: "w-full justify-center bg-stone-800 border-stone-700 text-white hover:bg-stone-700",
+                                }
+                            }}
                         />
                     </div>
 
-                    <p className="text-sm text-gray-500">
-                        If you don't see your organization, please check your email for the invitation link again.
-                    </p>
+                    <div className="pt-4 border-t border-stone-800">
+                        <p className="text-sm text-stone-500">
+                            Don't see your organization? Check your email for the invitation link.
+                        </p>
+                    </div>
                 </div>
             </div>
         );
     }
 
-    // 3. User Sync (Zero-Trust Validation)
+    // 3. User Sync
     try {
         const client = await clerkClient();
         const user = await client.users.getUser(userId);
         const email = user.emailAddresses[0]?.emailAddress;
 
         if (email) {
-            // Find tenant by Clerk Org ID
             const tenant = await prisma.tenant.findUnique({
                 where: { clerkOrgId: orgId }
             });
 
             if (tenant) {
-                // A. Check for specific Permission/Role Invitation in our DB
-                // This allows us to map "Clerk Member" -> "Outlet Manager" or "Staff"
                 const pendingInvite = await prisma.invitation.findFirst({
                     where: {
                         tenantId: tenant.id,
                         email: email,
                         status: 'PENDING'
                     },
-                    orderBy: { createdAt: 'desc' } // Get latest
+                    orderBy: { createdAt: 'desc' }
                 });
 
-                // Determine Role & Outlet
-                const role = pendingInvite?.inviteRole || "STAFF"; // Default to STAFF if no specific invite found
+                const role = pendingInvite?.inviteRole || "STAFF";
                 const outletId = pendingInvite?.outletId || null;
 
-                // B. Upsert User
                 await prisma.user.upsert({
                     where: { email },
                     update: {
@@ -105,7 +107,6 @@ export default async function AcceptInvitePage() {
                     }
                 });
 
-                // C. Mark Invitation as Accepted if it existed
                 if (pendingInvite) {
                     await prisma.invitation.update({
                         where: { id: pendingInvite.id },
@@ -117,7 +118,6 @@ export default async function AcceptInvitePage() {
                     });
                 }
 
-                // D. Sync Clerk Public Metadata (for Middleware/Client ease)
                 await client.users.updateUserMetadata(userId, {
                     publicMetadata: {
                         role: role,
@@ -127,7 +127,6 @@ export default async function AcceptInvitePage() {
                     }
                 });
 
-                // 4. Redirect Based on Role
                 if (role === 'OUTLET_MANAGER') {
                     redirect('/outlet/dashboard');
                 } else if (role === 'STAFF') {
@@ -141,6 +140,5 @@ export default async function AcceptInvitePage() {
         console.error("Failed to sync user on acceptance:", e);
     }
 
-    // Fallback if loop falls through (should be unreachable on success)
     redirect(`/brand/${orgSlug}/dashboard`);
 }
