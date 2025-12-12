@@ -16,7 +16,7 @@ export default async function SuperLayout({
         // Middleware handles protection. No secondary redirect here.
 
         return (
-            <div className="flex min-h-screen bg-stone-950 text-white">
+            <div className="dark flex min-h-screen bg-stone-950 text-white">
                 {/* Desktop Sidebar (Fixed) */}
                 <div className="hidden md:block fixed inset-y-0 left-0 z-50">
                     <SuperSidebar />

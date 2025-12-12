@@ -22,9 +22,9 @@ type BrandInviteEvent = {
     }
 }
 
-// Function 1: Send User Invite
+// Function 1: Send User Invite (Premium Template)
 export const sendInviteEmail = inngest.createFunction(
-    { id: "send-user-invite", retries: 3 }, // Fail fast on emails (spam prevention)
+    { id: "send-user-invite", retries: 3 },
     { event: "mail/user.invite" },
     async ({ event, step }) => {
         const { email, token, role, entityName } = event.data;
@@ -33,17 +33,48 @@ export const sendInviteEmail = inngest.createFunction(
             const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invite?token=${token}`;
 
             const { data, error } = await resend.emails.send({
-                from: 'Beloop <onboarding@resend.dev>', // Use verified domain in prod
+                from: 'Beloop <onboarding@resend.dev>',
                 to: [email],
-                subject: `Invitation to join ${entityName} on Beloop`,
+                subject: `You're invited to ${entityName} 🎉`,
                 html: `
-                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                        <h1>Beloop Platform Invite</h1>
-                        <p>You have been invited to join <strong>${entityName}</strong> as a <strong>${role}</strong>.</p>
-                        <p>Click the button below to accept your invitation and set up your account:</p>
-                        <a href="${inviteUrl}" style="display: inline-block; background: #e11d48; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Accept Invitation</a>
-                        <p style="color: #666; font-size: 14px;">Or copy this link: ${inviteUrl}</p>
-                    </div>
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    </head>
+                    <body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+                        <div style="max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+                            <!-- Header with gradient -->
+                            <div style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
+                                <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Welcome to Beloop</h1>
+                                <p style="margin: 8px 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Restaurant Management Platform</p>
+                            </div>
+                            
+                            <!-- Content Card -->
+                            <div style="background: white; padding: 32px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
+                                <h2 style="margin: 0 0 16px; color: #18181b; font-size: 20px; font-weight: 600;">You've been invited!</h2>
+                                <p style="margin: 0 0 24px; color: #52525b; font-size: 16px; line-height: 1.6;">
+                                    <strong style="color: #18181b;">${entityName}</strong> has invited you to join their team as a <strong style="color: #e11d48;">${role}</strong>.
+                                </p>
+                                
+                                <a href="${inviteUrl}" style="display: block; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: white; padding: 16px 32px; text-decoration: none; border-radius: 12px; text-align: center; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(225,29,72,0.3);">
+                                    Accept Invitation →
+                                </a>
+                                
+                                <p style="margin: 24px 0 0; color: #a1a1aa; font-size: 13px; text-align: center;">
+                                    Or paste this link in your browser:<br>
+                                    <span style="color: #71717a; word-break: break-all;">${inviteUrl}</span>
+                                </p>
+                            </div>
+                            
+                            <!-- Footer -->
+                            <p style="text-align: center; color: #a1a1aa; font-size: 12px; margin: 24px 0 0;">
+                                © ${new Date().getFullYear()} Beloop · Restaurant Management Made Simple
+                            </p>
+                        </div>
+                    </body>
+                    </html>
                 `
             });
 
@@ -53,7 +84,7 @@ export const sendInviteEmail = inngest.createFunction(
     }
 );
 
-// Function 2: Send Brand Creation Invite
+// Function 2: Send Brand Creation Invite (Premium Template)
 export const sendBrandInviteEmail = inngest.createFunction(
     { id: "send-brand-invite", retries: 3 },
     { event: "mail/brand.invite" },
@@ -66,14 +97,50 @@ export const sendBrandInviteEmail = inngest.createFunction(
             const { data, error } = await resend.emails.send({
                 from: 'Beloop <onboarding@resend.dev>',
                 to: [email],
-                subject: `Complete your Brand Setup for ${name}`,
+                subject: `🚀 Set up ${name} on Beloop`,
                 html: `
-                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                        <h1>Start your journey with Beloop</h1>
-                        <p>You have been invited to create the brand <strong>${name}</strong>.</p>
-                        <p>Click below to initialize your brand workspace:</p>
-                        <a href="${inviteUrl}" style="display: inline-block; background: #e11d48; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Initialize Brand</a>
-                    </div>
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    </head>
+                    <body style="margin: 0; padding: 0; background-color: #0c0a09; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+                        <div style="max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+                            <!-- Header with gradient -->
+                            <div style="background: linear-gradient(135deg, #1c1917 0%, #292524 100%); border: 1px solid #44403c; border-radius: 16px 16px 0 0; padding: 32px; text-align: center;">
+                                <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); border-radius: 16px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                                    <span style="font-size: 28px;">🏪</span>
+                                </div>
+                                <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Brand Setup</h1>
+                                <p style="margin: 8px 0 0; color: #a8a29e; font-size: 16px;">Complete your workspace configuration</p>
+                            </div>
+                            
+                            <!-- Content Card -->
+                            <div style="background: #1c1917; padding: 32px; border-radius: 0 0 16px 16px; border: 1px solid #44403c; border-top: none;">
+                                <h2 style="margin: 0 0 16px; color: #fafaf9; font-size: 20px; font-weight: 600;">Ready to launch <span style="color: #e11d48;">${name}</span>?</h2>
+                                <p style="margin: 0 0 24px; color: #a8a29e; font-size: 16px; line-height: 1.6;">
+                                    Your brand workspace has been prepared. Click below to configure your settings, add outlets, and invite your team.
+                                </p>
+                                
+                                <a href="${inviteUrl}" style="display: block; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: white; padding: 16px 32px; text-decoration: none; border-radius: 12px; text-align: center; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(225,29,72,0.3);">
+                                    Initialize Brand →
+                                </a>
+                                
+                                <div style="margin-top: 24px; padding: 16px; background: #292524; border-radius: 8px; border: 1px solid #44403c;">
+                                    <p style="margin: 0; color: #78716c; font-size: 13px;">
+                                        🔒 This link is unique to you and expires in 7 days.
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <!-- Footer -->
+                            <p style="text-align: center; color: #57534e; font-size: 12px; margin: 24px 0 0;">
+                                © ${new Date().getFullYear()} Beloop · Enterprise Restaurant Management
+                            </p>
+                        </div>
+                    </body>
+                    </html>
                 `
             });
 
