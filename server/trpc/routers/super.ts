@@ -294,16 +294,43 @@ export const superRouter = router({
 
             // Use transaction for atomicity
             await ctx.prisma.$transaction(async (tx) => {
-                // 1. Get all outlets for this tenant
+                // 1. Get all outlets and users for this tenant
                 const outlets = await tx.outlet.findMany({
                     where: { tenantId },
                     select: { id: true }
                 });
                 const outletIds = outlets.map(o => o.id);
 
+                const users = await tx.user.findMany({
+                    where: { tenantId },
+                    select: { id: true }
+                });
+                const userIds = users.map(u => u.id);
+
                 // 2. Delete data tied to outlets (in order of dependencies)
                 if (outletIds.length > 0) {
-                    // Products first (they might have FK to other tables)
+                    // Stock verifications (references user via verifiedBy)
+                    // Items cascade delete with verification
+                    await tx.stockVerification.deleteMany({
+                        where: { outletId: { in: outletIds } }
+                    });
+
+                    // Stock checks
+                    await tx.stockCheck.deleteMany({
+                        where: { outletId: { in: outletIds } }
+                    });
+
+                    // Stock moves
+                    await tx.stockMove.deleteMany({
+                        where: { outletId: { in: outletIds } }
+                    });
+
+                    // Purchase orders (items cascade delete)
+                    await tx.purchaseOrder.deleteMany({
+                        where: { outletId: { in: outletIds } }
+                    });
+
+                    // Products (after Stock moves reference them)
                     await tx.product.deleteMany({
                         where: { outletId: { in: outletIds } }
                     });
@@ -323,11 +350,6 @@ export const superRouter = router({
                         where: { outletId: { in: outletIds } }
                     });
 
-                    // Suppliers (belongs to tenant, not outlet)
-                    await tx.supplier.deleteMany({
-                        where: { tenantId }
-                    });
-
                     // Daily Closures
                     await tx.dailyClosure.deleteMany({
                         where: { outletId: { in: outletIds } }
@@ -339,25 +361,43 @@ export const superRouter = router({
                     });
                 }
 
-                // 3. Delete users belonging to this tenant
-                await tx.user.deleteMany({
-                    where: { tenantId }
-                });
+                // 3. Delete user-dependent records
+                if (userIds.length > 0) {
+                    // Tickets and comments
+                    await tx.ticketComment.deleteMany({
+                        where: { userId: { in: userIds } }
+                    });
+                    await tx.ticket.deleteMany({
+                        where: { userId: { in: userIds } }
+                    });
 
-                // 4. Delete outlets
-                await tx.outlet.deleteMany({
-                    where: { tenantId }
-                });
+                    // Audit logs
+                    await tx.auditLog.deleteMany({
+                        where: { userId: { in: userIds } }
+                    });
 
-                // 5. Delete tenant-level invitations
-                await tx.invitation.deleteMany({
-                    where: { tenantId }
-                });
+                    // Temporary passwords
+                    await tx.temporaryPassword.deleteMany({
+                        where: { userId: { in: userIds } }
+                    });
+                }
 
-                // 6. Finally, delete the tenant
-                await tx.tenant.delete({
-                    where: { id: tenantId }
-                });
+                // 4. Delete tenant-level data
+                await tx.supplier.deleteMany({ where: { tenantId } });
+                await tx.invitation.deleteMany({ where: { tenantId } });
+                await tx.customer.deleteMany({ where: { tenantId } });
+                await tx.dailyBrandMetric.deleteMany({ where: { tenantId } });
+                await tx.dailyOutletMetric.deleteMany({ where: { tenantId: { in: outletIds.length > 0 ? [tenantId] : [] } } }).catch(() => { });
+                await tx.monthlySummary.deleteMany({ where: { tenantId } }).catch(() => { });
+
+                // 5. Delete users
+                await tx.user.deleteMany({ where: { tenantId } });
+
+                // 6. Delete outlets
+                await tx.outlet.deleteMany({ where: { tenantId } });
+
+                // 7. Finally, delete the tenant
+                await tx.tenant.delete({ where: { id: tenantId } });
             });
 
             return { success: true };
