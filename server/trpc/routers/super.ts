@@ -292,7 +292,7 @@ export const superRouter = router({
         .mutation(async ({ ctx, input }) => {
             const tenantId = input.tenantId;
 
-            // Use transaction for atomicity
+            // Use transaction for atomicity with extended timeout for large cascade deletes
             await ctx.prisma.$transaction(async (tx) => {
                 // 1. Get all outlets and users for this tenant
                 const outlets = await tx.outlet.findMany({
@@ -398,6 +398,9 @@ export const superRouter = router({
 
                 // 7. Finally, delete the tenant
                 await tx.tenant.delete({ where: { id: tenantId } });
+            }, {
+                timeout: 30000, // 30 seconds for large cascade deletes
+                maxWait: 10000, // 10 seconds max wait to acquire connection
             });
 
             return { success: true };
