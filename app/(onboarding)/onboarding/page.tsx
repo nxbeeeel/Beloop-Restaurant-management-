@@ -32,13 +32,27 @@ export default async function OnboardingPage() {
     });
 
     if (dbUser?.role) {
-        // Sync role to Clerk metadata for future logins
+        // Get tenant slug for BRAND_ADMIN
+        let tenantSlug = null;
+        if (dbUser.tenantId) {
+            const tenant = await prisma.tenant.findUnique({
+                where: { id: dbUser.tenantId },
+                select: { slug: true }
+            });
+            tenantSlug = tenant?.slug;
+        }
+
+        // Sync role to Clerk metadata for future logins (include is_provisioned!)
         try {
             await client.users.updateUser(userId, {
                 publicMetadata: {
+                    app_role: dbUser.role,
                     role: dbUser.role,
                     tenantId: dbUser.tenantId,
-                    outletId: dbUser.outletId
+                    outletId: dbUser.outletId,
+                    primary_org_slug: tenantSlug,
+                    is_provisioned: true,
+                    onboardingComplete: true
                 }
             });
             console.log(`[Onboarding] Synced role ${dbUser.role} to Clerk for user ${userId}`);
