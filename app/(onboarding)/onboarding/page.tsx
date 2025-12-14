@@ -32,7 +32,16 @@ export default function OnboardingPage() {
         onSuccess: (data) => {
             if (data.synced) {
                 setSyncStatus('synced');
-                // Only refresh and redirect if we actually synced something
+
+                // ✅ ENTERPRISE FIX: Direct Redirect from DB State
+                if (data.onboardingStatus === 'COMPLETED') {
+                    console.log('[Onboarding] DB confirms COMPLETED. Redirecting with bypass...');
+                    const bypassQuery = data.bypassToken ? `?t=${data.bypassToken}` : '';
+                    window.location.href = `/${bypassQuery}`; // Middleware handles routing
+                    return;
+                }
+
+                // Only refresh if DB says not ready (rare edge case or lagging)
                 handleRefreshStatus();
             } else {
                 console.log('[Onboarding] User not ready in DB yet:', data.reason);

@@ -298,8 +298,21 @@ export const publicRouter = router({
             onboardingStatus: dbUser.tenant?.onboardingStatus // ✅ Single authoritative flag
           }
         });
+
+        // ✅ Generate Bypass Token for immediate access
+        let bypassToken: string | undefined;
+        if (dbUser.tenant?.onboardingStatus === 'COMPLETED') {
+          const { generateBypassToken } = await import("@/lib/tokens");
+          bypassToken = await generateBypassToken(dbUser.tenantId, clerkUser.id);
+        }
+
         console.log(`[Public] Synced metadata for ${clerkUser.id} -> ${dbUser.role}`);
-        return { synced: true, role: dbUser.role };
+        return {
+          synced: true,
+          role: dbUser.role,
+          onboardingStatus: dbUser.tenant?.onboardingStatus,
+          bypassToken
+        };
       } catch (err) {
         console.error("[Public] Failed to sync metadata:", err);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to sync metadata" });
