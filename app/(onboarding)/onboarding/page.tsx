@@ -19,7 +19,7 @@ export default function OnboardingPage() {
     const { user, isLoaded: isUserLoaded } = useUser();
     const { session, isLoaded: isSessionLoaded } = useSession();
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+    const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error' | 'checked'>('idle');
 
     // Query for pending invitation (optional enhancement)
     const { data: pendingInvite, isLoading: isLoadingInvite } = trpc.public.getPendingInvitation.useQuery(
@@ -29,10 +29,16 @@ export default function OnboardingPage() {
 
     // Sync user metadata on mount (if they have a DB role but stale JWT)
     const syncMutation = trpc.public.syncUserMetadata.useMutation({
-        onSuccess: () => {
-            setSyncStatus('synced');
-            // After sync, reload session to get fresh JWT claims
-            handleRefreshStatus();
+        onSuccess: (data) => {
+            if (data.synced) {
+                setSyncStatus('synced');
+                // Only refresh and redirect if we actually synced something
+                handleRefreshStatus();
+            } else {
+                console.log('[Onboarding] User not ready in DB yet:', data.reason);
+                // Mark as checked so we don't loop, but don't redirect
+                setSyncStatus('checked');
+            }
         },
         onError: () => {
             setSyncStatus('error');
