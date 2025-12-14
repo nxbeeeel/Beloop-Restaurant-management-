@@ -267,19 +267,17 @@ export const processSale = inngest.createFunction(
                     },
                 });
 
-                // Create order items (with required name and total fields)
-                for (const item of data.order.items) {
-                    await tx.orderItem.create({
-                        data: {
-                            orderId: newOrder.id,
-                            productId: item.productId,
-                            name: item.name,
-                            quantity: item.quantity,
-                            price: item.price,
-                            total: item.totalPrice,
-                        },
-                    });
-                }
+                // Create order items in bulk (fixes N+1 query)
+                await tx.orderItem.createMany({
+                    data: data.order.items.map(item => ({
+                        orderId: newOrder.id,
+                        productId: item.productId,
+                        name: item.name,
+                        quantity: item.quantity,
+                        price: item.price,
+                        total: item.totalPrice,
+                    })),
+                });
 
                 return newOrder;
             });
