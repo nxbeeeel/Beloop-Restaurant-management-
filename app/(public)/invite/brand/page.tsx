@@ -40,8 +40,6 @@ function BrandInviteContent() {
         onSuccess: async () => {
             toast.success("Brand Activated Successfully! 🎉");
 
-            // CRITICAL FIX: Force session reload to get updated JWT claims
-            // This prevents redirect loop caused by stale JWT
             try {
                 setActivationStatus("Syncing your permissions...");
 
@@ -49,23 +47,42 @@ function BrandInviteContent() {
                     console.log('[Brand Activate] Reloading session...');
                     await session.reload();
 
-                    // Force a fresh token to be generated
-                    console.log('[Brand Activate] Getting fresh token...');
-                    await session.getToken({ skipCache: true });
+                    // Poll for JWT update (Robust Retry Logic)
+                    let attempts = 0;
+                    const maxAttempts = 5;
+
+                    while (attempts < maxAttempts) {
+                        setActivationStatus(`Verifying access (Attempt ${attempts + 1}/${maxAttempts})...`);
+                        const token = await session.getToken({ skipCache: true });
+
+                        if (token) {
+                            try {
+                                const payload = JSON.parse(atob(token.split('.')[1]));
+                                const metadata = payload.metadata || {};
+
+                                if (metadata.is_provisioned === true) {
+                                    console.log('[Brand Activate] Token updated! Redirecting...');
+                                    setActivationStatus("Redirecting to dashboard...");
+                                    window.location.href = '/'; // Middleware handles routing
+                                    return;
+                                }
+                            } catch (e) {
+                                console.error('[Brand Activate] JWT parse error:', e);
+                            }
+                        }
+
+                        // Wait 1.5s before retry
+                        await new Promise(r => setTimeout(r, 1500));
+                        attempts++;
+                    }
+
+                    // Fallback if polling fails (let middleware try)
+                    console.warn('[Brand Activate] Max polling attempts reached. Force redirecting.');
+                    setActivationStatus("Redirecting...");
+                    window.location.href = '/';
                 }
-
-                setActivationStatus("Preparing your dashboard...");
-
-                // Small delay to ensure token propagation
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                // Navigate to home - middleware will route to correct dashboard
-                setActivationStatus("Redirecting...");
-                console.log('[Brand Activate] Navigating to /');
-                window.location.href = '/';
             } catch (err) {
-                console.error("[Brand Activate] Session reload failed:", err);
-                // Still try to navigate - middleware will handle it
+                console.error("[Brand Activate] Session sync failed:", err);
                 window.location.href = '/';
             }
         },

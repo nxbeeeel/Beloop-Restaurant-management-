@@ -32,17 +32,35 @@ function AcceptInviteContent() {
                     // STEP 1: FORCE SESSION RELOAD to get new claims
                     if (session) {
                         await session.reload();
-                        // Force a fresh token
-                        await session.getToken({ skipCache: true });
+
+                        // Poll for JWT update (Robust Retry Logic)
+                        let attempts = 0;
+                        const maxAttempts = 5;
+                        let verified = false;
+
+                        while (attempts < maxAttempts && !verified) {
+                            setStatus(`Verifying permissions (Attempt ${attempts + 1}/${maxAttempts})...`);
+                            const token = await session.getToken({ skipCache: true });
+
+                            if (token) {
+                                try {
+                                    const payload = JSON.parse(atob(token.split('.')[1]));
+                                    const metadata = payload.metadata || {};
+                                    if (metadata.is_provisioned === true) {
+                                        verified = true;
+                                        break;
+                                    }
+                                } catch (e) {
+                                    console.error('JWT parse error:', e);
+                                }
+                            }
+                            // Wait 1.5s
+                            await new Promise(r => setTimeout(r, 1500));
+                            attempts++;
+                        }
                     }
 
-                    setStatus('Finalizing access...');
-
-                    // Small delay to ensure token propagation
-                    await new Promise(resolve => setTimeout(resolve, 500));
-
-                    // STEP 2: Navigate to home and let middleware route to correct dashboard
-                    // This eliminates duplicate routing logic - middleware is the single source of truth
+                    // STEP 2: Navigate to home (Middleware routes correctly now because JWT is ready)
                     setStatus('Redirecting to your dashboard...');
                     window.location.href = '/';
                 } else {
