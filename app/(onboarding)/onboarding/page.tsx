@@ -53,9 +53,34 @@ export default function OnboardingPage() {
         try {
             // Reload session to get fresh JWT claims from Clerk
             await session.reload();
-            // Force fresh token
-            await session.getToken({ skipCache: true });
-            // Hard refresh to let middleware re-evaluate
+            // Force fresh token with retry - Clerk needs time to propagate metadata
+            let attempts = 0;
+            const maxAttempts = 3;
+
+            while (attempts < maxAttempts) {
+                await new Promise(r => setTimeout(r, 1500)); // Wait 1.5s for propagation
+                const token = await session.getToken({ skipCache: true });
+
+                // Parse JWT to check if is_provisioned is now true
+                if (token) {
+                    try {
+                        const payload = JSON.parse(atob(token.split('.')[1]));
+                        const metadata = payload.metadata || {};
+                        if (metadata.is_provisioned === true || metadata.onboardingComplete === true) {
+                            console.log('[Onboarding] JWT now has is_provisioned=true, redirecting');
+                            window.location.href = '/';
+                            return;
+                        }
+                    } catch (e) {
+                        console.error('[Onboarding] Failed to parse JWT:', e);
+                    }
+                }
+                attempts++;
+                console.log(`[Onboarding] JWT not updated yet, attempt ${attempts}/${maxAttempts}`);
+            }
+
+            // After retries, redirect anyway and let middleware handle it
+            console.log('[Onboarding] Max attempts reached, redirecting to / for middleware re-evaluation');
             window.location.href = '/';
         } catch (error) {
             console.error('[Onboarding] Failed to refresh session:', error);
