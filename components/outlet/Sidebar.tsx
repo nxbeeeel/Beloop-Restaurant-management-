@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useClerk } from "@clerk/nextjs";
+import { trpc } from "@/lib/trpc";
 
 interface SidebarProps {
     user: any;
@@ -32,8 +33,17 @@ interface SidebarProps {
 export function Sidebar({ user, outlet }: SidebarProps) {
     const pathname = usePathname();
     const { signOut } = useClerk();
+    const utils = trpc.useUtils();
 
     const isActive = (path: string) => pathname === path;
+
+    // Prefetch data on hover for instant navigation
+    const handlePrefetch = (href: string) => {
+        // Only prefetch dashboard stats - most impactful for perceived performance
+        if (href === '/outlet/dashboard' && outlet?.id) {
+            void utils.dashboard.getOutletStats.prefetch({ outletId: outlet.id });
+        }
+    };
 
     const menuItems = [
         {
@@ -102,7 +112,7 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                 )}
             </div>
 
-            {/* Navigation */}
+            {/* Navigation with Prefetch */}
             <div className="flex-1 overflow-y-auto py-6 px-4 space-y-8">
                 {menuItems.map((section) => (
                     <div key={section.title}>
@@ -114,6 +124,7 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                                 <Link
                                     key={item.href}
                                     href={item.href}
+                                    onMouseEnter={() => handlePrefetch(item.href)}
                                     className={cn(
                                         "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                                         isActive(item.href)

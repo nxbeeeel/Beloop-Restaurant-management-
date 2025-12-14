@@ -46,10 +46,26 @@ export default async function BrandLayout({
         tenant = user?.tenant || null;
     }
 
-    // No tenant found - redirect to onboarding
+    // No tenant found - show error state instead of redirecting
+    // (Middleware should prevent unauthorized access, but this is a safety net)
     if (!tenant) {
-        console.log("[BrandLayout] No tenant found for user, redirecting to onboarding");
-        return redirect("/onboarding");
+        console.log("[BrandLayout] No tenant found for user, showing error state");
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
+                <div className="max-w-md text-center">
+                    <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Error</h1>
+                    <p className="text-gray-600 mb-6">
+                        We couldn&apos;t find your brand information. This may happen if your session is out of sync.
+                    </p>
+                    <a
+                        href="/"
+                        className="inline-block px-6 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors"
+                    >
+                        Return to Home
+                    </a>
+                </div>
+            </div>
+        );
     }
 
     const brandName = tenant.name || "Beloop";

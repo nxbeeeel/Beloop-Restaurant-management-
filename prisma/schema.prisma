@@ -792,14 +792,15 @@ model TicketComment {
 }
 
 model Order {
-  id            String      @id @default(cuid())
-  outletId      String
-  customerName  String?
-  status        OrderStatus @default(COMPLETED)
-  totalAmount   Decimal     @db.Decimal(12, 2)
-  discount      Decimal     @default(0) @db.Decimal(12, 2)
-  tax           Decimal     @default(0) @db.Decimal(12, 2)
-  paymentMethod String // CASH, CARD, UPI, etc.
+  id              String      @id @default(cuid())
+  idempotencyKey  String?     @unique  // POS deduplication key
+  outletId        String
+  customerName    String?
+  status          OrderStatus @default(COMPLETED)
+  totalAmount     Decimal     @db.Decimal(12, 2)
+  discount        Decimal     @default(0) @db.Decimal(12, 2)
+  tax             Decimal     @default(0) @db.Decimal(12, 2)
+  paymentMethod   String // CASH, CARD, UPI, etc.
   items           OrderItem[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt

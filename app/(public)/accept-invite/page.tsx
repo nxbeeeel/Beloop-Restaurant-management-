@@ -36,32 +36,15 @@ function AcceptInviteContent() {
                         await session.getToken({ skipCache: true });
                     }
 
-                    setStatus('Finalizing security access...');
+                    setStatus('Finalizing access...');
 
                     // Small delay to ensure token propagation
                     await new Promise(resolve => setTimeout(resolve, 500));
 
-                    // STEP 2: Determine redirect based on FRESH user metadata
-                    const metadata = user?.publicMetadata as any;
-                    const role = metadata?.role;
-
-                    if (role === 'SUPER') {
-                        setStatus('Redirecting to Super Admin...');
-                        window.location.href = '/super/dashboard';
-                    } else if (role === 'BRAND_ADMIN') {
-                        setStatus('Redirecting to Brand Dashboard...');
-                        window.location.href = '/brand/dashboard';
-                    } else if (role === 'OUTLET_MANAGER') {
-                        setStatus('Redirecting to Outlet Dashboard...');
-                        window.location.href = '/outlet/dashboard';
-                    } else if (role === 'STAFF') {
-                        setStatus('Redirecting to Orders...');
-                        window.location.href = '/outlet/orders';
-                    } else {
-                        // No role yet - go to root and let middleware handle
-                        setStatus('Completing setup...');
-                        window.location.href = '/';
-                    }
+                    // STEP 2: Navigate to home and let middleware route to correct dashboard
+                    // This eliminates duplicate routing logic - middleware is the single source of truth
+                    setStatus('Redirecting to your dashboard...');
+                    window.location.href = '/';
                 } else {
                     // Not authenticated - redirect to login
                     setStatus('Please sign in to accept this invitation...');

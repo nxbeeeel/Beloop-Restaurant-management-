@@ -1,51 +1,33 @@
 import { z } from "zod";
-import { router, publicProcedure } from "@/server/trpc/trpc";
+import { router, posProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
 import { InventoryService } from "@/server/services/inventory.service";
 import { CacheService } from "@/server/services/cache.service";
+import { inngest } from "@/lib/inngest";
 
+/**
+ * POS Router - Secure Endpoints for Point-of-Sale Application
+ * 
+ * 🚨 SECURITY: All endpoints use posProcedure which requires:
+ *    - Valid HMAC-signed Bearer token
+ *    - Rate limiting (100 req/min per outlet)
+ *    - Outlet status verification (isPosEnabled, ACTIVE)
+ * 
+ * ⚡ PERFORMANCE: Write operations use Inngest for async processing
+ */
 export const posRouter = router({
-    // 1. Get Products (Pull)
-    getProducts: publicProcedure
+    // ============================================
+    // READ OPERATIONS (Cached, Direct Response)
+    // ============================================
+
+    /**
+     * Get Products - Pull product catalog with caching
+     */
+    getProducts: posProcedure
         .query(async ({ ctx }) => {
-            const tenantId = ctx.headers.get('x-tenant-id');
-            const outletId = ctx.headers.get('x-outlet-id');
+            const { tenantId, outletId } = ctx.posCredentials;
 
-            if (!tenantId || !outletId) {
-                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Missing SaaS Context Headers' });
-            }
-
-            // A. Check Outlet Status & POS Activation
-            const outlet = await ctx.prisma.outlet.findUnique({
-                where: { id: outletId },
-                select: {
-                    id: true,
-                    status: true,
-                    isPosEnabled: true,
-                    tenantId: true,
-                    name: true,
-                    address: true,
-                    phone: true
-                }
-            });
-
-            if (!outlet) {
-                throw new TRPCError({ code: 'NOT_FOUND', message: 'Outlet not found' });
-            }
-
-            if (outlet.tenantId !== tenantId) {
-                throw new TRPCError({ code: 'FORBIDDEN', message: 'Outlet does not belong to this tenant' });
-            }
-
-            if (outlet.status !== 'ACTIVE') {
-                throw new TRPCError({ code: 'FORBIDDEN', message: 'Outlet is not active' });
-            }
-
-            if (!outlet.isPosEnabled) {
-                throw new TRPCError({ code: 'FORBIDDEN', message: 'POS access is not enabled for this outlet' });
-            }
-
-            // B. Fetch Products (Cached)
+            // Fetch Products (Cached for 1 hour)
             const products = await CacheService.getOrSet(
                 CacheService.keys.fullMenu(outletId),
                 async () => {
@@ -58,20 +40,50 @@ export const posRouter = router({
                 3600 // 1 hour TTL
             );
 
+            // Get outlet info
+            const outlet = await ctx.prisma.outlet.findUnique({
+                where: { id: outletId },
+                select: { id: true, name: true, address: true, phone: true, isPosEnabled: true }
+            });
+
             return {
                 data: products,
-                outlet: {
-                    id: outlet.id,
-                    isPosEnabled: outlet.isPosEnabled,
-                    name: outlet.name,
-                    address: outlet.address,
-                    phone: outlet.phone
-                }
+                outlet: outlet || { id: outletId, isPosEnabled: true, name: '', address: null, phone: null }
             };
         }),
 
-    // 2. Sync Sales (Push)
-    syncSales: publicProcedure
+    /**
+     * Check Sync - Poll for product updates
+     */
+    checkSync: posProcedure
+        .input(z.object({
+            productsVersion: z.number().default(0)
+        }))
+        .query(async ({ ctx, input }) => {
+            const { outletId } = ctx.posCredentials;
+
+            const result = await ctx.prisma.product.aggregate({
+                where: { outletId },
+                _max: { version: true }
+            });
+
+            const serverVersion = result._max.version || 0;
+            const hasChanges = serverVersion > input.productsVersion;
+
+            return { hasChanges, serverVersion };
+        }),
+
+    // ============================================
+    // WRITE OPERATIONS (Async via Inngest)
+    // ============================================
+
+    /**
+     * Sync Sales - Queue order for async processing
+     * 
+     * 🚨 Returns immediately, order processed in background
+     * 🔄 Idempotency handled by Inngest worker (processSale)
+     */
+    syncSales: posProcedure
         .input(z.object({
             id: z.string(),
             items: z.array(z.object({
@@ -93,51 +105,50 @@ export const posRouter = router({
             redeemedReward: z.boolean().optional()
         }))
         .mutation(async ({ ctx, input }) => {
-            const tenantId = ctx.headers.get('x-tenant-id');
-            const outletId = ctx.headers.get('x-outlet-id');
+            const { tenantId, outletId, userId } = ctx.posCredentials;
 
-            console.log(`[POS Sync] Received syncSales request for Outlet: ${outletId}, Tenant: ${tenantId}`);
-            console.log(`[POS Sync] Payload:`, JSON.stringify(input, null, 2));
+            // Generate idempotency key for deduplication
+            const idempotencyKey = `${outletId}-${input.id}-${Date.now()}`;
 
-            if (!tenantId || !outletId) {
-                console.error('[POS Sync] Missing headers');
-                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Missing SaaS Context Headers' });
-            }
+            console.log(`[POS Sync] Queueing sale ${idempotencyKey} for outlet ${outletId}`);
 
-            // Verify Outlet Access
-            const outlet = await ctx.prisma.outlet.findUnique({ where: { id: outletId } });
-            if (!outlet) {
-                console.error(`[POS Sync] Outlet not found: ${outletId}`);
-                throw new TRPCError({ code: 'FORBIDDEN', message: 'Outlet not found' });
-            }
-            if (!outlet.isPosEnabled) {
-                console.error(`[POS Sync] POS not enabled for outlet: ${outletId}`);
-                throw new TRPCError({ code: 'FORBIDDEN', message: 'POS access denied' });
-            }
-            console.log(`[POS Sync] Outlet verified: ${outlet.name}`);
-
-            // Delegate to InventoryService for ACID transaction
-            const order = await InventoryService.processSale(ctx.prisma, {
-                id: input.id,
-                tenantId,
-                outletId,
-                items: input.items,
-                total: input.total,
-                discount: input.discount,
-                paymentMethod: input.paymentMethod,
-                createdAt: new Date(input.createdAt),
-                status: input.status,
-                customerName: input.customerName,
-                customerPhone: input.customerPhone,
-                redeemedReward: input.redeemedReward
+            // 🚀 ASYNC: Queue event instead of blocking DB write
+            await inngest.send({
+                name: 'pos/sale.created',
+                data: {
+                    idempotencyKey,
+                    tenantId,
+                    outletId,
+                    order: {
+                        items: input.items.map(item => ({
+                            productId: item.productId || item.id,
+                            name: item.name,
+                            quantity: item.quantity,
+                            price: item.price,
+                            totalPrice: item.totalPrice,
+                        })),
+                        total: input.total,
+                        discount: input.discount,
+                        paymentMethod: input.paymentMethod,
+                        customerName: input.customerName,
+                        customerPhone: input.customerPhone,
+                    },
+                    timestamp: Date.now(),
+                },
             });
 
-            console.log(`[POS Sync] Successfully processed Order ID: ${order.id}`);
-            return { success: true, id: order.id };
+            return {
+                success: true,
+                status: 'queued',
+                idempotencyKey,
+                message: 'Sale queued for processing'
+            };
         }),
 
-    // 3. Stock Move (Push)
-    stockMove: publicProcedure
+    /**
+     * Stock Move - Queue stock adjustment for async processing
+     */
+    stockMove: posProcedure
         .input(z.object({
             sku: z.string(),
             quantity: z.number(),
@@ -146,47 +157,50 @@ export const posRouter = router({
             createdAt: z.string()
         }))
         .mutation(async ({ ctx, input }) => {
-            const outletId = ctx.headers.get('x-outlet-id');
-            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
+            const { outletId } = ctx.posCredentials;
 
+            // Lookup product by SKU
             const product = await ctx.prisma.product.findUnique({
                 where: { outletId_sku: { outletId, sku: input.sku } }
             });
 
             if (!product) {
-                console.warn(`Product not found for SKU: ${input.sku}`);
+                console.warn(`[Stock Move] Product not found for SKU: ${input.sku}`);
                 return { success: false, message: 'Product not found' };
             }
 
-            await InventoryService.adjustStock(ctx.prisma, {
-                productId: product.id,
-                outletId,
-                qty: input.quantity,
-                type: input.type as any,
-                date: new Date(input.createdAt),
-                notes: `POS Ref: ${input.referenceId}`
+            // 🚀 ASYNC: Queue stock movement
+            await inngest.send({
+                name: 'pos/stock.moved',
+                data: {
+                    idempotencyKey: `stock-${outletId}-${input.sku}-${Date.now()}`,
+                    outletId,
+                    movements: [{
+                        productId: product.id,
+                        quantity: input.quantity,
+                        type: input.type === 'WASTE' ? 'WASTAGE' : input.type === 'PURCHASE' ? 'STOCK_IN' : input.type,
+                        reason: `POS: ${input.referenceId || 'Manual adjustment'}`
+                    }]
+                }
             });
 
-            return { success: true };
+            return { success: true, status: 'queued' };
         }),
 
-    // 4. Close Day (Push)
-    closeDay: publicProcedure
+    /**
+     * Close Day - Record daily closure (sync - small write)
+     */
+    closeDay: posProcedure
         .input(z.object({
-            date: z.string(), // ISO Date String
+            date: z.string(),
             cashSales: z.number(),
-            cardSales: z.number(), // Bank/Card
-            upiSales: z.number().optional(), // Treat as Bank for now or separate
+            cardSales: z.number(),
+            upiSales: z.number().optional(),
             totalSales: z.number(),
             ordersCount: z.number()
         }))
         .mutation(async ({ ctx, input }) => {
-            const tenantId = ctx.headers.get('x-tenant-id');
-            const outletId = ctx.headers.get('x-outlet-id');
-
-            if (!tenantId || !outletId) {
-                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Missing SaaS Context Headers' });
-            }
+            const { tenantId, outletId } = ctx.posCredentials;
 
             const { SaleService } = await import("../../services/sale.service");
             return SaleService.recordDailyClosure(ctx.prisma, {
@@ -200,41 +214,17 @@ export const posRouter = router({
             });
         }),
 
-    // 5. Check Sync (Poll)
-    checkSync: publicProcedure
-        .input(z.object({
-            productsVersion: z.number().default(0)
-        }))
-        .query(async ({ ctx, input }) => {
-            const outletId = ctx.headers.get('x-outlet-id');
-            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
+    // ============================================
+    // REPORTS (Read-only, use posCredentials)
+    // ============================================
 
-            // 2. Check Products Version
-            const result = await ctx.prisma.product.aggregate({
-                where: { outletId },
-                _max: { version: true }
-            });
-
-            const serverVersion = result._max.version || 0;
-            const hasChanges = serverVersion > input.productsVersion;
-
-            return {
-                hasChanges,
-                serverVersion
-            };
-        }),
-
-    // --- Reports ---
-
-    getReportStats: publicProcedure
+    getReportStats: posProcedure
         .input(z.object({
             startDate: z.string(),
             endDate: z.string(),
         }))
         .query(async ({ ctx, input }) => {
-            const outletId = ctx.headers.get('x-outlet-id');
-            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
-
+            const { outletId } = ctx.posCredentials;
             const startDate = new Date(input.startDate);
             const endDate = new Date(input.endDate);
 
@@ -244,15 +234,13 @@ export const posRouter = router({
             });
         }),
 
-    getReportSalesTrend: publicProcedure
+    getReportSalesTrend: posProcedure
         .input(z.object({
             startDate: z.string(),
             endDate: z.string(),
         }))
         .query(async ({ ctx, input }) => {
-            const outletId = ctx.headers.get('x-outlet-id');
-            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
-
+            const { outletId } = ctx.posCredentials;
             const startDate = new Date(input.startDate);
             const endDate = new Date(input.endDate);
 
@@ -262,16 +250,14 @@ export const posRouter = router({
             });
         }),
 
-    getReportTopItems: publicProcedure
+    getReportTopItems: posProcedure
         .input(z.object({
             startDate: z.string(),
             endDate: z.string(),
             limit: z.number().default(5),
         }))
         .query(async ({ ctx, input }) => {
-            const outletId = ctx.headers.get('x-outlet-id');
-            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
-
+            const { outletId } = ctx.posCredentials;
             const startDate = new Date(input.startDate);
             const endDate = new Date(input.endDate);
 
@@ -281,15 +267,16 @@ export const posRouter = router({
             });
         }),
 
-    // --- Customers ---
+    // ============================================
+    // CUSTOMERS (Tenant-level queries)
+    // ============================================
 
-    getCustomers: publicProcedure
+    getCustomers: posProcedure
         .input(z.object({
             search: z.string().optional(),
         }))
         .query(async ({ ctx, input }) => {
-            const tenantId = ctx.headers.get('x-tenant-id');
-            if (!tenantId) throw new TRPCError({ code: 'BAD_REQUEST' });
+            const { tenantId } = ctx.posCredentials;
 
             const { CustomerService } = await import("../../services/customer.service");
             return CustomerService.getCustomers(ctx.prisma, {
@@ -298,13 +285,12 @@ export const posRouter = router({
             });
         }),
 
-    getCustomerHistory: publicProcedure
+    getCustomerHistory: posProcedure
         .input(z.object({
             customerId: z.string()
         }))
         .query(async ({ ctx, input }) => {
-            const tenantId = ctx.headers.get('x-tenant-id');
-            if (!tenantId) throw new TRPCError({ code: 'BAD_REQUEST' });
+            const { tenantId } = ctx.posCredentials;
 
             const { CustomerService } = await import("../../services/customer.service");
             return CustomerService.getHistory(ctx.prisma, {
@@ -313,14 +299,13 @@ export const posRouter = router({
             });
         }),
 
-    createCustomer: publicProcedure
+    createCustomer: posProcedure
         .input(z.object({
             name: z.string(),
             phoneNumber: z.string(),
         }))
         .mutation(async ({ ctx, input }) => {
-            const tenantId = ctx.headers.get('x-tenant-id');
-            if (!tenantId) throw new TRPCError({ code: 'BAD_REQUEST' });
+            const { tenantId } = ctx.posCredentials;
 
             const { CustomerService } = await import("../../services/customer.service");
             return CustomerService.create(ctx.prisma, {
@@ -330,10 +315,11 @@ export const posRouter = router({
             });
         }),
 
+    // ============================================
+    // PRODUCTS (Outlet-level mutations)
+    // ============================================
 
-    // --- Products ---
-
-    createProduct: publicProcedure
+    createProduct: posProcedure
         .input(z.object({
             name: z.string(),
             sku: z.string(),
@@ -343,8 +329,7 @@ export const posRouter = router({
             description: z.string().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
-            const outletId = ctx.headers.get('x-outlet-id');
-            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
+            const { outletId } = ctx.posCredentials;
 
             return InventoryService.createProduct(ctx.prisma, {
                 outletId,
@@ -357,7 +342,7 @@ export const posRouter = router({
             });
         }),
 
-    updateProduct: publicProcedure
+    updateProduct: posProcedure
         .input(z.object({
             id: z.string(),
             name: z.string().optional(),
@@ -366,8 +351,7 @@ export const posRouter = router({
             description: z.string().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
-            const outletId = ctx.headers.get('x-outlet-id');
-            if (!outletId) throw new TRPCError({ code: 'BAD_REQUEST' });
+            const { outletId } = ctx.posCredentials;
 
             return InventoryService.updateProduct(ctx.prisma, {
                 id: input.id,

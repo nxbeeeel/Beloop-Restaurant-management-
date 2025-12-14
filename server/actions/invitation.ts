@@ -158,6 +158,16 @@ export async function acceptInvitation(token: string) {
         throw new Error("Invitation has expired");
     }
 
+    // 🔒 SECURITY FIX: Validate email matches invitation
+    const primaryEmail = user.emailAddresses[0]?.emailAddress;
+    if (invite.email && primaryEmail) {
+        if (invite.email.toLowerCase() !== primaryEmail.toLowerCase()) {
+            throw new Error(
+                `This invitation was sent to ${invite.email}. Please log in with that email address to accept this invitation.`
+            );
+        }
+    }
+
     // Transaction to update invite and user
     await prisma.$transaction(async (tx: Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">) => {
         await tx.invitation.update({
@@ -196,14 +206,17 @@ export async function acceptInvitation(token: string) {
         }
     });
 
-    // 3. Sync to Clerk Metadata (CRITICAL for POS Access)
+    // 3. Sync to Clerk Metadata (CRITICAL for routing)
+    // ✅ FIX: Add is_provisioned for middleware consistency
     try {
         const client = await import('@clerk/nextjs/server').then(m => m.clerkClient());
         await client.users.updateUserMetadata(user.id, {
             publicMetadata: {
+                app_role: invite.inviteRole,
                 role: invite.inviteRole,
                 tenantId: invite.tenantId,
                 outletId: invite.outletId,
+                is_provisioned: true,        // ✅ ADDED - middleware checks this
                 onboardingComplete: true
             }
         });
@@ -229,7 +242,9 @@ export async function acceptInvitation(token: string) {
             break;
     }
 
-    redirect(redirectPath);
+    // Return success with redirect path - client handles navigation
+    // This prevents server-side redirect conflicts with middleware
+    return { success: true, redirectPath };
 }
 
 export async function cancelInvitation(invitationId: string) {

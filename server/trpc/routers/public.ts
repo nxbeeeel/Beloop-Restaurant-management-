@@ -249,4 +249,88 @@ export const publicRouter = router({
         });
       }
     }),
+
+  /**
+   * Sync User Metadata from DB to Clerk
+   * Called from onboarding page to ensure JWT claims are up-to-date
+   */
+  syncUserMetadata: publicProcedure
+    .mutation(async () => {
+      const clerkUser = await currentUser();
+      if (!clerkUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+      }
+
+      const dbUser = await prisma.user.findUnique({
+        where: { clerkId: clerkUser.id },
+        include: { tenant: true }
+      });
+
+      if (!dbUser) {
+        // No DB user yet - that's okay, they're truly unprovisioned
+        return { synced: false, reason: "No DB user found" };
+      }
+
+      if (!dbUser.role || !dbUser.tenantId) {
+        return { synced: false, reason: "User has no role or tenant" };
+      }
+
+      // Sync to Clerk
+      try {
+        const client = await clerkClient();
+        await client.users.updateUserMetadata(clerkUser.id, {
+          publicMetadata: {
+            app_role: dbUser.role,
+            role: dbUser.role,
+            tenantId: dbUser.tenantId,
+            outletId: dbUser.outletId,
+            primary_org_slug: dbUser.tenant?.slug,
+            is_provisioned: true,
+            onboardingComplete: true
+          }
+        });
+        console.log(`[Public] Synced metadata for ${clerkUser.id} -> ${dbUser.role}`);
+        return { synced: true, role: dbUser.role };
+      } catch (err) {
+        console.error("[Public] Failed to sync metadata:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to sync metadata" });
+      }
+    }),
+
+  /**
+   * Get Pending Invitation for Current User
+   * Used on onboarding page to show pending invites
+   */
+  getPendingInvitation: publicProcedure
+    .query(async () => {
+      const clerkUser = await currentUser();
+      if (!clerkUser) {
+        return null;
+      }
+
+      const email = clerkUser.emailAddresses[0]?.emailAddress;
+      if (!email) {
+        return null;
+      }
+
+      const invite = await prisma.invitation.findFirst({
+        where: {
+          email: { equals: email, mode: 'insensitive' },
+          status: 'PENDING',
+          expiresAt: { gt: new Date() }
+        },
+        include: { tenant: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (!invite) {
+        return null;
+      }
+
+      return {
+        token: invite.token,
+        tenantName: invite.tenant?.name || 'Unknown Brand',
+        role: invite.inviteRole
+      };
+    }),
 });

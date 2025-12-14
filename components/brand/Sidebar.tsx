@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserButton } from "@clerk/nextjs";
+import { trpc } from "@/lib/trpc";
 
 interface SidebarProps {
     brandName: string;
@@ -29,10 +30,19 @@ interface SidebarProps {
 export function Sidebar({ brandName, brandLogo, brandColor, userName, slug }: SidebarProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const pathname = usePathname();
+    const utils = trpc.useUtils();
 
     const brandStyle = { color: brandColor };
 
     const toggleSidebar = () => setIsCollapsed(!isCollapsed);
+
+    // Prefetch data on hover for instant navigation
+    const handlePrefetch = (href: string) => {
+        // Only prefetch dashboard analytics - most impactful for perceived performance
+        if (href.includes('/dashboard')) {
+            void utils.brandAnalytics.getBrandOverview.prefetch();
+        }
+    };
 
     const navItems = [
         { href: `/brand/${slug}/dashboard`, label: "Overview", icon: LayoutDashboard },
@@ -99,7 +109,7 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName, slug }: Si
                 </div>
             </div>
 
-            {/* Navigation */}
+            {/* Navigation with Prefetch */}
             <nav className="flex-1 px-3 space-y-1">
                 {navItems.map((item) => {
                     const isActive = pathname === item.href;
@@ -107,6 +117,7 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName, slug }: Si
                         <Link
                             key={item.href}
                             href={item.href}
+                            onMouseEnter={() => handlePrefetch(item.href)}
                             className={cn(
                                 "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative group",
                                 isActive ? "bg-gray-100 text-gray-900 font-medium" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",

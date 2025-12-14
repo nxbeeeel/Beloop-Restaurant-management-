@@ -23,18 +23,39 @@ export default function ExpenseEntryForm({ outletId }: { outletId: string }) {
     const { data: tenantSettings } = trpc.tenant.getSettings.useQuery();
 
     const utils = trpc.useUtils();
+
+    // Optimistic UI - Show success immediately, rollback on error
     const createExpense = trpc.expenses.create.useMutation({
-        onSuccess: () => {
-            toast.success("Expense recorded successfully!");
-            // Reset form
+        // Optimistic update: Show success toast immediately
+        onMutate: async (newExpense) => {
+            // Show optimistic toast
+            toast.success("✅ Expense saved!", { id: "expense-toast" });
+
+            // Optimistically reset form immediately for snappy UX
+            const savedValues = { amount, description, category, activeTab };
             setAmount("");
             setDescription("");
             setCategory("");
             setActiveTab("fruits");
-            // Refresh the expenses list
+
+            return { savedValues };
+        },
+        onSuccess: () => {
+            // Update toast to confirmed
+            toast.success("Expense recorded successfully!", { id: "expense-toast" });
+            // Refresh the expenses list in background
             utils.expenses.list.invalidate();
         },
-        onError: (e) => toast.error(e.message)
+        onError: (error, variables, context) => {
+            // Rollback form values on error
+            if (context?.savedValues) {
+                setAmount(context.savedValues.amount);
+                setDescription(context.savedValues.description);
+                setCategory(context.savedValues.category);
+                setActiveTab(context.savedValues.activeTab);
+            }
+            toast.error(`Failed: ${error.message}`, { id: "expense-toast" });
+        },
     });
 
     const handlePreviousDay = () => {

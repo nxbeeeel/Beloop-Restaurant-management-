@@ -49,6 +49,32 @@ export default clerkMiddleware(async (auth, req) => {
 
     // 2. PUBLIC ROUTES (except onboarding) - Allow without auth
     if (isPublicRoute(req)) {
+        // ZERO-CLICK LOGIN: Intercept authenticated users hitting home page
+        if (pathname === '/' && userId) {
+            const metadata = (sessionClaims?.metadata || {}) as UserMetadata;
+            const isProvisioned = metadata.is_provisioned === true || metadata.onboardingComplete === true;
+            const role = metadata.app_role || metadata.role;
+            const slug = metadata.primary_org_slug || orgSlug;
+
+            if (isProvisioned && role) {
+                console.log(`[Middleware] Zero-Click: Redirecting ${userId} from / to dashboard`);
+                if (role === 'BRAND_ADMIN') {
+                    const targetSlug = slug || 'dashboard';
+                    return NextResponse.redirect(new URL(`/brand/${targetSlug}/dashboard`, req.url));
+                }
+                if (role === 'OUTLET_MANAGER') {
+                    return NextResponse.redirect(new URL('/outlet/dashboard', req.url));
+                }
+                if (role === 'STAFF') {
+                    return NextResponse.redirect(new URL('/outlet/orders', req.url));
+                }
+            }
+            // Authenticated but not provisioned - send to onboarding
+            if (!isProvisioned) {
+                console.log(`[Middleware] User ${userId} not provisioned, redirecting to onboarding`);
+                return NextResponse.redirect(new URL('/onboarding', req.url));
+            }
+        }
         return NextResponse.next();
     }
 

@@ -1,99 +1,79 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
-import { UserButton } from "@clerk/nextjs";
-import { prisma } from "@/server/db";
-import { redirect } from "next/navigation";
+'use client';
+
+import { useUser, useSession, UserButton } from "@clerk/nextjs";
+import { useEffect, useState } from "react";
+import { trpc } from "@/lib/trpc";
+import { Loader2, RefreshCw, Mail, CheckCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 /**
- * ONBOARDING PAGE
- * - Checks DB for existing user role and redirects if found
- * - Syncs role to Clerk metadata to fix future logins
- * - Shows pending state for users without role
- * - Uses premium dark theme
+ * ONBOARDING PAGE - TERMINAL STATE
+ * 
+ * Contract:
+ * - This page does NOT redirect. Middleware is the only source of routing.
+ * - If user is provisioned, middleware will redirect them away before they see this.
+ * - If user reaches this page, they are NOT provisioned and should wait here.
+ * - The "Refresh Status" button reloads the session to pick up new JWT claims.
  */
-export default async function OnboardingPage() {
-    const { userId } = await auth();
+export default function OnboardingPage() {
+    const { user, isLoaded: isUserLoaded } = useUser();
+    const { session, isLoaded: isSessionLoaded } = useSession();
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
 
-    // Not authenticated - redirect to login
-    if (!userId) {
-        return redirect("/login");
-    }
+    // Query for pending invitation (optional enhancement)
+    const { data: pendingInvite, isLoading: isLoadingInvite } = trpc.public.getPendingInvitation.useQuery(
+        undefined,
+        { enabled: isUserLoaded && !!user }
+    );
 
-    const client = await clerkClient();
-    const clerkUser = await client.users.getUser(userId);
-    const firstName = clerkUser.firstName || "User";
-    const email = clerkUser.emailAddresses[0]?.emailAddress;
-
-    // ========================================
-    // CHECK DB USER - Maybe they have a role!
-    // ========================================
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: userId },
-        select: { id: true, role: true, tenantId: true, outletId: true }
+    // Sync user metadata on mount (if they have a DB role but stale JWT)
+    const syncMutation = trpc.public.syncUserMetadata.useMutation({
+        onSuccess: () => {
+            setSyncStatus('synced');
+            // After sync, reload session to get fresh JWT claims
+            handleRefreshStatus();
+        },
+        onError: () => {
+            setSyncStatus('error');
+        }
     });
 
-    if (dbUser?.role) {
-        // Get tenant slug for BRAND_ADMIN
-        let tenantSlug = null;
-        if (dbUser.tenantId) {
-            const tenant = await prisma.tenant.findUnique({
-                where: { id: dbUser.tenantId },
-                select: { slug: true }
-            });
-            tenantSlug = tenant?.slug;
+    useEffect(() => {
+        // Auto-sync on mount if user is loaded
+        if (isUserLoaded && user && syncStatus === 'idle') {
+            setSyncStatus('syncing');
+            syncMutation.mutate();
         }
+    }, [isUserLoaded, user, syncStatus]);
 
-        // Sync role to Clerk metadata for future logins (include is_provisioned!)
+    const handleRefreshStatus = async () => {
+        if (!session) return;
+        setIsRefreshing(true);
         try {
-            await client.users.updateUser(userId, {
-                publicMetadata: {
-                    app_role: dbUser.role,
-                    role: dbUser.role,
-                    tenantId: dbUser.tenantId,
-                    outletId: dbUser.outletId,
-                    primary_org_slug: tenantSlug,
-                    is_provisioned: true,
-                    onboardingComplete: true
-                }
-            });
-            console.log(`[Onboarding] Synced role ${dbUser.role} to Clerk for user ${userId}`);
-        } catch (syncError) {
-            console.error("[Onboarding] Failed to sync to Clerk:", syncError);
+            // Reload session to get fresh JWT claims from Clerk
+            await session.reload();
+            // Force fresh token
+            await session.getToken({ skipCache: true });
+            // Hard refresh to let middleware re-evaluate
+            window.location.href = '/';
+        } catch (error) {
+            console.error('[Onboarding] Failed to refresh session:', error);
+            setIsRefreshing(false);
         }
+    };
 
-        // Redirect based on role
-        if (dbUser.role === 'SUPER') {
-            return redirect('/super/dashboard');
-        }
-
-        if (dbUser.role === 'BRAND_ADMIN' && dbUser.tenantId) {
-            const tenant = await prisma.tenant.findUnique({
-                where: { id: dbUser.tenantId },
-                select: { slug: true }
-            });
-            if (tenant?.slug) {
-                return redirect(`/brand/${tenant.slug}/dashboard`);
-            }
-        }
-
-        if (dbUser.role === 'OUTLET_MANAGER') {
-            return redirect('/outlet/dashboard');
-        }
-
-        if (dbUser.role === 'STAFF') {
-            return redirect('/outlet/orders');
-        }
+    // Loading state
+    if (!isUserLoaded || !isSessionLoaded) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-rose-500" />
+            </div>
+        );
     }
 
-    // ========================================
-    // NO ROLE FOUND - Check for pending invitations
-    // ========================================
-    let pendingInvite = null;
-    if (email) {
-        pendingInvite = await prisma.invitation.findFirst({
-            where: { email, status: 'PENDING' },
-            include: { tenant: { select: { name: true } } }
-        });
-    }
+    const firstName = user?.firstName || "User";
+    const email = user?.primaryEmailAddress?.emailAddress;
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950 flex flex-col items-center pt-20 px-4">
@@ -110,11 +90,33 @@ export default async function OnboardingPage() {
 
                 <h1 className="text-2xl font-bold text-white">Welcome, {firstName}!</h1>
 
-                {pendingInvite ? (
+                {/* Sync Status Indicator */}
+                {syncStatus === 'syncing' && (
+                    <div className="flex items-center justify-center gap-2 text-stone-400">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">Checking your access...</span>
+                    </div>
+                )}
+                {syncStatus === 'synced' && (
+                    <div className="flex items-center justify-center gap-2 text-emerald-400">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="text-sm">Account synced</span>
+                    </div>
+                )}
+
+                {/* Pending Invitation */}
+                {isLoadingInvite ? (
+                    <div className="bg-stone-800/50 rounded-xl p-4 animate-pulse">
+                        <div className="h-4 bg-stone-700 rounded w-3/4 mx-auto" />
+                    </div>
+                ) : pendingInvite ? (
                     <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 text-left">
-                        <h3 className="font-semibold text-rose-400 mb-2">Pending Invitation</h3>
+                        <h3 className="font-semibold text-rose-400 mb-2 flex items-center gap-2">
+                            <Mail className="w-4 h-4" />
+                            Pending Invitation
+                        </h3>
                         <p className="text-sm text-stone-300">
-                            You have a pending invitation to join <strong className="text-white">{pendingInvite.tenant?.name}</strong>.
+                            You have a pending invitation to join <strong className="text-white">{pendingInvite.tenantName}</strong>.
                         </p>
                         <a
                             href={`/invite/user?token=${pendingInvite.token}`}
@@ -132,15 +134,32 @@ export default async function OnboardingPage() {
                     </div>
                 )}
 
-                {/* Debug Info - Shows what we know about the user */}
+                {/* Refresh Status Button */}
+                <Button
+                    onClick={handleRefreshStatus}
+                    disabled={isRefreshing}
+                    className="w-full bg-stone-800 hover:bg-stone-700 text-white border border-stone-700"
+                >
+                    {isRefreshing ? (
+                        <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Checking...
+                        </>
+                    ) : (
+                        <>
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            Refresh Status
+                        </>
+                    )}
+                </Button>
+
+                {/* Debug Info */}
                 <details className="text-left bg-stone-800/50 rounded-lg p-3">
                     <summary className="text-xs text-stone-500 cursor-pointer">Debug Info (tap to expand)</summary>
                     <div className="mt-2 text-xs text-stone-400 space-y-1 font-mono">
-                        <p>Clerk ID: {userId?.slice(0, 20)}...</p>
+                        <p>Clerk ID: {user?.id?.slice(0, 20)}...</p>
                         <p>Email: {email}</p>
-                        <p>DB User Found: {dbUser ? 'Yes' : 'No'}</p>
-                        <p>DB Role: {dbUser?.role || 'None'}</p>
-                        <p>DB TenantId: {dbUser?.tenantId || 'None'}</p>
+                        <p>Sync Status: {syncStatus}</p>
                     </div>
                 </details>
 
@@ -153,4 +172,3 @@ export default async function OnboardingPage() {
         </div>
     );
 }
-

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Loader2, CheckCircle2, AlertCircle, Upload, Palette } from 'lucide-react';
-import { useClerk, useUser } from '@clerk/nextjs';
+import { useClerk, useUser, useSession } from '@clerk/nextjs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -17,9 +17,11 @@ function BrandInviteContent() {
     const token = searchParams.get('token');
     const router = useRouter();
     const { user, isLoaded: isUserLoaded } = useUser();
+    const { session } = useSession();
     const { signOut } = useClerk();
 
     const [isActivating, setIsActivating] = useState(false);
+    const [activationStatus, setActivationStatus] = useState<string | null>(null);
 
     // Customization State
     const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -35,27 +37,42 @@ function BrandInviteContent() {
 
     // Mutation to activate
     const activateMutation = trpc.public.activateBrand.useMutation({
-        onSuccess: async (data: any) => {
+        onSuccess: async () => {
             toast.success("Brand Activated Successfully! 🎉");
-            toast.info("Preparing your dashboard...");
 
-            // CRITICAL: Wait for Clerk to sync the publicMetadata to JWT claims
-            // Then force a hard redirect to ensure middleware sees the new claims
+            // CRITICAL FIX: Force session reload to get updated JWT claims
+            // This prevents redirect loop caused by stale JWT
             try {
-                // Give Clerk time to propagate the metadata update
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                setActivationStatus("Syncing your permissions...");
 
-                // Hard navigation directly to the dashboard (bypass any client-side caching)
-                const targetUrl = `/brand/${data.slug || 'dashboard'}/dashboard`;
-                window.location.href = targetUrl;
+                if (session) {
+                    console.log('[Brand Activate] Reloading session...');
+                    await session.reload();
+
+                    // Force a fresh token to be generated
+                    console.log('[Brand Activate] Getting fresh token...');
+                    await session.getToken({ skipCache: true });
+                }
+
+                setActivationStatus("Preparing your dashboard...");
+
+                // Small delay to ensure token propagation
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // Navigate to home - middleware will route to correct dashboard
+                setActivationStatus("Redirecting...");
+                console.log('[Brand Activate] Navigating to /');
+                window.location.href = '/';
             } catch (err) {
-                console.error("[Activate] Navigation failed:", err);
-                router.push(`/brand/${data.slug || 'dashboard'}/dashboard`);
+                console.error("[Brand Activate] Session reload failed:", err);
+                // Still try to navigate - middleware will handle it
+                window.location.href = '/';
             }
         },
         onError: (err: any) => {
             toast.error(err.message || "Failed to activate brand");
             setIsActivating(false);
+            setActivationStatus(null);
         }
     });
 

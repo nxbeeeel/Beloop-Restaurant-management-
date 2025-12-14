@@ -7,6 +7,19 @@ interface CreateContextOptions {
     req: NextRequest;
 }
 
+/**
+ * POS Credentials from HMAC-signed token
+ * Added by posAuthMiddleware in trpc.ts
+ */
+export interface PosCredentials {
+    tenantId: string;
+    outletId: string;
+    userId: string;
+    timestamp?: number;
+    expiresAt?: number;
+    verified: boolean;
+}
+
 export const createContext = async (opts: CreateContextOptions) => {
     const { userId } = await auth();
 
@@ -44,8 +57,11 @@ export const createContext = async (opts: CreateContextOptions) => {
         tenantId: user?.tenantId,
         outletId: user?.outletId,
         role: user?.role,
-        req: opts.req
+        req: opts.req,
+        // POS credentials will be populated by posAuthMiddleware
+        posCredentials: undefined as PosCredentials | undefined,
     };
 };
 
 export type Context = Awaited<ReturnType<typeof createContext>>;
+
