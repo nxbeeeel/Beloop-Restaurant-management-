@@ -5,6 +5,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { MailService } from "@/server/services/mail.service";
+import { getInviteRateLimiter, checkRateLimit } from "@/lib/rate-limit";
 
 const createInviteSchema = z.object({
     email: z.string().email("Invalid email address"),
@@ -15,6 +16,14 @@ const createInviteSchema = z.object({
 export async function createInvitation(formData: FormData) {
     const user = await currentUser();
     if (!user) throw new Error("Unauthorized");
+
+    // ✅ Rate Limit Check (10 invites/hour per user)
+    try {
+        const limiter = getInviteRateLimiter();
+        await checkRateLimit(limiter, user.id, 'Invitation');
+    } catch (e: any) {
+        throw new Error(e.message || "Rate limit exceeded");
+    }
 
     const dbUser = await prisma.user.findUnique({
         where: { clerkId: user.id },
@@ -81,6 +90,19 @@ export async function createInvitation(formData: FormData) {
             createdById: dbUser.id,
             createdByRole: dbUser.role,
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        }
+    });
+
+    // ✅ Audit Log: INVITE_CREATED
+    await prisma.auditLog.create({
+        data: {
+            tenantId: dbUser.tenantId,
+            userId: dbUser.id,
+            userName: dbUser.name,
+            action: 'INVITE_CREATED',
+            tableName: 'Invitation',
+            recordId: newInvite.id,
+            newValue: { email, role, outletId }
         }
     });
 
@@ -169,7 +191,8 @@ export async function acceptInvitation(token: string) {
     }
 
     // Transaction to update invite and user
-    await prisma.$transaction(async (tx: Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">) => {
+    await prisma.$transaction(async (tx: any) => {
+        // 1. Mark invitation as accepted
         await tx.invitation.update({
             where: { id: invite.id },
             data: {
@@ -179,6 +202,7 @@ export async function acceptInvitation(token: string) {
             }
         });
 
+        // 2. Link/Create User
         const existingUser = await tx.user.findUnique({
             where: { clerkId: user.id }
         });
@@ -204,25 +228,53 @@ export async function acceptInvitation(token: string) {
                 }
             });
         }
+
+        // 3. Update Tenant Onboarding Status (Authoritative State)
+        // If status is NOT_STARTED, move to IN_PROGRESS
+        const tenant = await tx.tenant.findUnique({ where: { id: invite.tenantId } });
+        if (tenant && tenant.onboardingStatus === 'NOT_STARTED') {
+            await tx.tenant.update({
+                where: { id: invite.tenantId },
+                data: { onboardingStatus: 'IN_PROGRESS' }
+            });
+        }
     });
 
-    // 3. Sync to Clerk Metadata (CRITICAL for routing)
-    // ✅ FIX: Add is_provisioned for middleware consistency
+    // ✅ Audit Log: INVITE_ACCEPTED
+    await prisma.auditLog.create({
+        data: {
+            tenantId: invite.tenantId,
+            userId: user.id,
+            userName: `${user.firstName} ${user.lastName}`.trim(),
+            action: 'INVITE_ACCEPTED',
+            tableName: 'Invitation',
+            recordId: invite.id,
+            newValue: { role: invite.inviteRole, outletId: invite.outletId }
+        }
+    });
+
+    // 4. Sync to Clerk Metadata (CRITICAL for routing)
+    // Now we fetch authoritative state to sync
     try {
-        const client = await import('@clerk/nextjs/server').then(m => m.clerkClient());
-        await client.users.updateUserMetadata(user.id, {
-            publicMetadata: {
-                app_role: invite.inviteRole,
-                role: invite.inviteRole,
-                tenantId: invite.tenantId,
-                outletId: invite.outletId,
-                is_provisioned: true,        // ✅ ADDED - middleware checks this
-                onboardingComplete: true
-            }
+        const dbUser = await prisma.user.findUnique({
+            where: { clerkId: user.id },
+            include: { tenant: true }
         });
+
+        if (dbUser?.tenant) {
+            const client = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+            await client.users.updateUserMetadata(user.id, {
+                publicMetadata: {
+                    app_role: dbUser.role,
+                    role: dbUser.role,
+                    tenantId: dbUser.tenantId,
+                    outletId: dbUser.outletId,
+                    onboardingStatus: (dbUser.tenant as any).onboardingStatus // ✅ Explicit cast to avoid type error until generation
+                }
+            });
+        }
     } catch (err) {
         console.error("Failed to sync Clerk metadata:", err);
-        // Don't block flow, but log error
     }
 
     // Determine redirect path based on role
@@ -242,9 +294,12 @@ export async function acceptInvitation(token: string) {
             break;
     }
 
+    // D. Generate Bypass Token (Enterprise Fix)
+    const bypassToken = await import("@/lib/tokens").then(m => m.generateBypassToken(invite.tenantId!, user.id));
+
     // Return success with redirect path - client handles navigation
     // This prevents server-side redirect conflicts with middleware
-    return { success: true, redirectPath };
+    return { success: true, redirectPath: `${redirectPath}?t=${bypassToken}` };
 }
 
 export async function cancelInvitation(invitationId: string) {
@@ -292,6 +347,7 @@ export async function resendInvitation(invitationId: string) {
 
     const dbUser = await prisma.user.findUnique({
         where: { clerkId: user.id },
+        include: { tenant: true } // ✅ Include tenant for name access
     });
 
     if (!dbUser || !dbUser.tenantId) {
@@ -325,8 +381,13 @@ export async function resendInvitation(invitationId: string) {
         }
     });
 
-    // TODO: Send email notification here
-    // await sendInvitationEmail(invitation);
+    // ✅ Send email notification for resent invitation
+    await MailService.sendUserInvite(
+        invitation.email || '',
+        invitation.token,
+        invitation.inviteRole,
+        dbUser.tenant?.name || 'Beloop Brand'
+    );
 
     return { success: true };
 }

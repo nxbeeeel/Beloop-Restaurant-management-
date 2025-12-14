@@ -37,7 +37,7 @@ function BrandInviteContent() {
 
     // Mutation to activate
     const activateMutation = trpc.public.activateBrand.useMutation({
-        onSuccess: async () => {
+        onSuccess: async (data) => {
             toast.success("Brand Activated Successfully! 🎉");
 
             try {
@@ -46,6 +46,13 @@ function BrandInviteContent() {
                 if (session) {
                     console.log('[Brand Activate] Reloading session...');
                     await session.reload();
+
+                    // ✅ ENTERPRISE FIX: Use Bypass Token if provided
+                    if (data?.redirectUrl) {
+                        console.log('[Brand Activate] Using Bypass Token Redirect:', data.redirectUrl);
+                        window.location.href = data.redirectUrl;
+                        return;
+                    }
 
                     // Poll for JWT update (Robust Retry Logic)
                     let attempts = 0;

@@ -30,7 +30,7 @@ export const sendInviteEmail = inngest.createFunction(
         const { email, token, role, entityName } = event.data;
 
         await step.run("send-email", async () => {
-            const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/user?token=${token}`;
+            const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${token}`;
 
             const { data, error } = await resend.emails.send({
                 from: process.env.EMAIL_FROM_ADDRESS || 'Beloop <noreply@belooprms.app>',

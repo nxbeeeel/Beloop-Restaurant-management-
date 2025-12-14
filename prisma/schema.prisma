@@ -51,6 +51,10 @@ model Tenant {
   monthlySummaries    MonthlySummary[]
   deletedAt           DateTime?
 
+  // Onboarding (Single Authoritative State)
+  onboardingStatus    OnboardingStatus   @default(NOT_STARTED)
+  onboardingCompletedAt DateTime?
+
   // Subscription & Billing
   status          TenantStatus @default(ACTIVE)
 
@@ -65,6 +69,12 @@ model Tenant {
   dailyBrandMetrics DailyBrandMetric[]
 
   @@index([slug, subscriptionStatus])
+}
+
+enum OnboardingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
 }
 
 model Outlet {

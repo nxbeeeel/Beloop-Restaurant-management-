@@ -35,6 +35,7 @@ export const RATE_LIMITS = {
     admin: { requests: 300, window: '1 m' as const },    // 300 req/min per user
     auth: { requests: 5, window: '15 m' as const },      // 5 attempts per 15 min
     public: { requests: 60, window: '1 m' as const },    // 60 req/min for public APIs
+    invite: { requests: 10, window: '1 h' as const },    // 10 invites/hour per user
 } as const;
 
 // Create rate limiters
@@ -68,6 +69,13 @@ export function getAdminRateLimiter(): Ratelimit | null {
 export function getAuthRateLimiter(): Ratelimit | null {
     if (!authLimiter) authLimiter = createLimiter('auth', RATE_LIMITS.auth);
     return authLimiter;
+}
+
+let inviteLimiter: Ratelimit | null = null;
+
+export function getInviteRateLimiter(): Ratelimit | null {
+    if (!inviteLimiter) inviteLimiter = createLimiter('invite', RATE_LIMITS.invite);
+    return inviteLimiter;
 }
 
 /**

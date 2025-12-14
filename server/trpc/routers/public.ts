@@ -5,6 +5,7 @@ import { TRPCError } from "@trpc/server";
 import { prisma } from "@/server/db";
 import { currentUser, clerkClient } from '@clerk/nextjs/server';
 import { ProvisioningService } from "@/server/services/provisioning.service";
+import { generateBypassToken } from "@/lib/tokens"; // ✅ Added import
 
 export const publicRouter = router({
   activateBrand: publicProcedure
@@ -88,6 +89,7 @@ export const publicRouter = router({
               nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
               logoUrl: input.logoUrl,
               primaryColor: input.primaryColor || '#e11d48',
+              onboardingStatus: 'COMPLETED', // ✅ Brand Activation = Onboarding Complete
             },
           });
           tenantId = tenant.id;
@@ -114,6 +116,7 @@ export const publicRouter = router({
               status: 'ACTIVE',
               logoUrl: input.logoUrl || undefined, // Only update if provided
               primaryColor: input.primaryColor || undefined,
+              onboardingStatus: 'COMPLETED', // ✅ Brand Activation = Onboarding Complete
             }
           });
           tenantSlug = tenant.slug;
@@ -169,8 +172,7 @@ export const publicRouter = router({
               role: 'BRAND_ADMIN',
               tenantId: txResult.tenantId,
               primary_org_slug: txResult.slug,
-              is_provisioned: true,
-              onboardingComplete: true
+              onboardingStatus: 'COMPLETED' // ✅ Single authoritative flag
             }
           });
           console.log(`[Activate] Synced Clerk Metadata for ${clerkUserContext.id} -> BRAND_ADMIN`);
@@ -181,7 +183,16 @@ export const publicRouter = router({
         // Don't fail the request, user is created in DB.
       }
 
-      return txResult;
+      // D. Generate Bypass Token (Enterprise Fix)
+      // Allows immediate access to dashboard even if middleware JWT is stale
+      const bypassToken = await generateBypassToken(txResult.tenantId, clerkUserContext?.id || 'unknown');
+      const targetSlug = txResult.slug;
+      // Force reload to pick up query param
+      const redirectUrl = `/brand/${targetSlug}/dashboard?t=${bypassToken}`;
+
+      console.log(`[ActivateBrand] Success! Redirecting with bypass to: ${redirectUrl}`);
+
+      return { ...txResult, redirectUrl };
     }),
 
   /**
@@ -221,8 +232,7 @@ export const publicRouter = router({
               role: appUser.role,
               tenantId: appUser.tenantId,
               outletId: appUser.outletId,
-              is_provisioned: true,
-              onboardingComplete: true
+              onboardingStatus: 'COMPLETED' // ✅ Single authoritative flag
             }
           });
           console.log(`[Public] Synced Clerk Metadata for ${appUser.clerkId} -> ${appUser.role}`);
@@ -285,8 +295,7 @@ export const publicRouter = router({
             tenantId: dbUser.tenantId,
             outletId: dbUser.outletId,
             primary_org_slug: dbUser.tenant?.slug,
-            is_provisioned: true,
-            onboardingComplete: true
+            onboardingStatus: dbUser.tenant?.onboardingStatus // ✅ Single authoritative flag
           }
         });
         console.log(`[Public] Synced metadata for ${clerkUser.id} -> ${dbUser.role}`);

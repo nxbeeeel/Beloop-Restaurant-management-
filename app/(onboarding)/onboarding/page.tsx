@@ -72,22 +72,27 @@ export default function OnboardingPage() {
                     try {
                         const payload = JSON.parse(atob(token.split('.')[1]));
                         const metadata = payload.metadata || {};
-                        if (metadata.is_provisioned === true || metadata.onboardingComplete === true) {
-                            console.log('[Onboarding] JWT now has is_provisioned=true, redirecting');
+
+                        // ✅ ENTERPRISE FIX: Only redirect if onboarding is strictly COMPLETED
+                        if (metadata.onboardingStatus === 'COMPLETED') {
+                            console.log('[Onboarding] Status is COMPLETED, redirecting to dashboard');
                             window.location.href = '/';
                             return;
                         }
+                        console.log(`[Onboarding] Status: ${metadata.onboardingStatus}. Staying on page.`);
                     } catch (e) {
                         console.error('[Onboarding] Failed to parse JWT:', e);
                     }
                 }
                 attempts++;
-                console.log(`[Onboarding] JWT not updated yet, attempt ${attempts}/${maxAttempts}`);
+                // console.log(`[Onboarding] JWT not updated yet, attempt ${attempts}/${maxAttempts}`);
             }
 
-            // After retries, redirect anyway and let middleware handle it
-            console.log('[Onboarding] Max attempts reached, redirecting to / for middleware re-evaluation');
-            window.location.href = '/';
+            // If we're here, we are synced but NOT completed.
+            // Do NOT redirect. Just let the UI render.
+            console.log('[Onboarding] Check complete. Status still not COMPLETED. No redirect.');
+            setIsRefreshing(false);
+            // window.location.href = '/'; // REMOVED HARD REDIRECT
         } catch (error) {
             console.error('[Onboarding] Failed to refresh session:', error);
             setIsRefreshing(false);

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { acceptInvitation } from "@/server/actions/invitation";
 import { SignIn } from "@clerk/nextjs";
+import { redirect } from "next/navigation"; // ✅ Added import
 
 export default async function InvitePage({ params }: { params: { token: string } }) {
     const { token } = params;
@@ -80,7 +81,10 @@ export default async function InvitePage({ params }: { params: { token: string }
     // User is logged in, show accept button
     const handleAccept = async () => {
         "use server";
-        await acceptInvitation(token);
+        const result = await acceptInvitation(token);
+        if (result.redirectPath) {
+            redirect(result.redirectPath);
+        }
     };
 
     return (
