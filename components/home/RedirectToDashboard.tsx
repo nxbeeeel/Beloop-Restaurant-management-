@@ -18,7 +18,8 @@ export function RedirectToDashboard() {
                     router.push('/super/dashboard');
                     break;
                 case 'BRAND_ADMIN':
-                    router.push('/brand/dashboard');
+                    const slug = (user.publicMetadata.primary_org_slug as string) || (user.publicMetadata.orgSlug as string) || 'dashboard';
+                    router.push(`/brand/${slug}/dashboard`);
                     break;
                 case 'OUTLET_MANAGER':
                     router.push('/outlet/dashboard');
