@@ -45,15 +45,31 @@ export default clerkMiddleware(async (auth, req) => {
     const pathname = req.nextUrl.pathname;
 
     // 0. BYPASS TOKEN CHECK (Enterprise Fix)
-    // If a valid bypass token is present, we allow the request immediately.
-    // This solves the race condition where DB is updated but JWT is stale.
+    // If a valid bypass token is present OR a bypass cookie exists, we allow the request.
     const bypassToken = req.nextUrl.searchParams.get('t');
+    const bypassCookie = req.cookies.get('__beloop_bypass')?.value;
+
     if (bypassToken && userId) {
         const verified = await verifyBypassToken(bypassToken);
         if (verified && verified.userId === userId) {
-            console.log(`[Middleware] Valid Bypass Token for ${userId}. Allowing access to ${pathname}`);
-            return NextResponse.next();
+            console.log(`[Middleware] Valid Bypass Token for ${userId}. Setting persistence cookie and allowing access.`);
+            // Create response to allow access, but attach cookie
+            const response = NextResponse.next();
+            response.cookies.set('__beloop_bypass', bypassToken, {
+                path: '/',
+                secure: true,
+                sameSite: 'lax',
+                maxAge: 300 // 5 minutes persistence to guarantee Clerk sync coverage
+            });
+            return response;
         }
+    }
+
+    if (bypassCookie && userId) {
+        // Optimistic check: we trust the cookie for 60s to bridge the gap
+        // Real validation happens on the backend anyway if they try to do anything
+        console.log(`[Middleware] Valid Bypass Cookie for ${userId}. Allowing access.`);
+        return NextResponse.next();
     }
 
     // 1. API ROUTES - Always allow

@@ -21,11 +21,11 @@ export function AuthButtons() {
             {isSignedIn ? (
                 <div className="flex items-center gap-4">
                     <Link
-                        href="/super/dashboard"
+                        href={useUser().user?.publicMetadata?.role === 'BRAND_ADMIN' ? '/brand/dashboard' : '/super/dashboard'}
                         className="text-sm font-medium text-white bg-white/10 border border-white/10 hover:bg-white/20 px-4 py-2 rounded-md transition-colors flex items-center gap-2"
                     >
                         <LayoutDashboard className="w-4 h-4" />
-                        Command Center
+                        Dashboard
                     </Link>
                     <UserButton afterSignOutUrl="/" />
                 </div>
