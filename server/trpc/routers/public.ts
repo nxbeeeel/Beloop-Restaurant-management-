@@ -394,49 +394,4 @@ export const publicRouter = router({
 
       return { success: true, bypassToken: token };
     }),
-});,
-
-/**
- * FORCE COMPLETE ONBOARDING
- * For users stuck in "Pending Setup" loop despite having a tenant.
- */
-completeOnboarding: protectedProcedure
-  .mutation(async ({ ctx }) => {
-    const user = await prisma.user.findUnique({
-      where: { id: ctx.userId },
-      include: { tenant: true }
-    });
-
-    if (!user || !user.tenant) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "No tenant found for this user." });
-    }
-
-    if (user.role !== 'BRAND_ADMIN' && user.role !== 'SUPER') {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Only Brand Admins can complete setup." });
-    }
-
-    // Update Tenant to COMPLETED
-    await prisma.tenant.update({
-      where: { id: user.tenantId! },
-      data: {
-        onboardingStatus: 'COMPLETED',
-        onboardingCompletedAt: new Date(),
-        status: 'ACTIVE' // Ensure active
-      }
-    });
-
-    // Sync Metadata
-    const clerkClient = await import('@clerk/nextjs/server').then(m => m.clerkClient());
-    await clerkClient.users.updateUserMetadata(user.clerkId!, {
-      publicMetadata: {
-        onboardingStatus: 'COMPLETED'
-      }
-    });
-
-    // Generate Bypass Token
-    const { generateBypassToken } = await import("@/lib/tokens");
-    const token = await generateBypassToken(user.tenantId!, user.clerkId!);
-
-    return { success: true, bypassToken: token };
-  }),
 });
