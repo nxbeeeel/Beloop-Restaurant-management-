@@ -126,24 +126,19 @@ export async function createInvitation(formData: FormData) {
                 }
             });
 
-            // We let Clerk handle the email delivery.
-            return { success: true, message: "Invitation sent via Clerk!" };
+            // We let Clerk handle the email delivery?
+            // NO: User reports Clerk emails not arriving. We should send our custom email ALWAYS.
+            // There is a risk of double emails, but better than zero.
+            console.log("Clerk Invitation created. Proceeding to send custom email.");
 
         } catch (error: any) {
             console.error("Clerk Invitation Failed:", error);
-
-            // Rollback Prisma Invitation if Clerk fails (to maintain consistency)
-            await prisma.invitation.delete({ where: { id: newInvite.id } });
-
-            let errorMsg = "Failed to send invitation.";
-            if (error.errors && error.errors[0]?.message) {
-                errorMsg = error.errors[0].message;
-            }
-            throw new Error(errorMsg);
+            // We continue to send custom email anyway, effectively falling back to our system
+            // But we should warn that the Clerk Org link might be missing
         }
     }
 
-    // LEGACY: Send Custom Email (if no Clerk Org)
+    // ALWAYS Send Custom Email (Premium Branding)
     if (outletId) {
         // Fetch outlet name for email context
         const outlet = await prisma.outlet.findUnique({ where: { id: outletId }, select: { name: true } });

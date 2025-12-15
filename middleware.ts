@@ -140,7 +140,7 @@ export default clerkMiddleware(async (auth, req) => {
     // ============================================================
     if (pathname.startsWith('/onboarding')) {
         if (onboardingStatus === 'COMPLETED' && role) {
-            console.log(`[Middleware] Loop Breaker: User ${userId} is provisioned, exiting onboarding`);
+            // console.log(`[Middleware] Loop Breaker: User ${userId} is provisioned, exiting onboarding`);
 
             if (role === 'BRAND_ADMIN') {
                 const targetSlug = slug || 'dashboard';
@@ -198,8 +198,8 @@ export default clerkMiddleware(async (auth, req) => {
         }
     }
 
-    // 8. FALLBACK - User not provisioned, send to onboarding
-    console.log(`[Middleware] User ${userId} not provisioned, sending to onboarding`);
+    // 8. FALLBACK - User not provisioned, send to onboarding, use minimal logging
+    // console.log(`[Middleware] User ${userId} not provisioned, sending to onboarding`);
     return NextResponse.redirect(new URL('/onboarding', req.url));
 });
 
