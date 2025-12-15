@@ -54,6 +54,18 @@ export default function OnboardingPage() {
         }
     });
 
+    // Complete Onboarding Mutation
+    const completeMutation = trpc.public.completeOnboarding.useMutation({
+        onSuccess: (data) => {
+            console.log('[Onboarding] Setup completed successfully. Redirecting...');
+            window.location.href = `/?t=${data.bypassToken}`;
+        },
+        onError: (err) => {
+            console.error('[Onboarding] Failed to complete setup:', err);
+            alert("Failed to complete setup: " + err.message);
+        }
+    });
+
     useEffect(() => {
         // Auto-sync on mount if user is loaded
         if (isUserLoaded && user && syncStatus === 'idle') {
@@ -172,10 +184,26 @@ export default function OnboardingPage() {
                     </div>
                 ) : (
                     <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-left">
-                        <h3 className="font-semibold text-amber-400 mb-2">Pending Setup</h3>
-                        <p className="text-sm text-stone-300">
-                            You do not have access to any organizations yet. If you were invited, please check your email for the invitation link.
+                        <h3 className="font-semibold text-amber-400 mb-2">Setup Incomplete</h3>
+                        <p className="text-sm text-stone-300 mb-4">
+                            Your organization is created but setup is not marked as complete.
                         </p>
+                        {syncStatus === 'synced' && (
+                            <Button
+                                onClick={() => completeMutation.mutate()}
+                                disabled={completeMutation.isPending}
+                                className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                            >
+                                {completeMutation.isPending ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Completing Setup...
+                                    </>
+                                ) : (
+                                    "Complete Setup & Enter Dashboard"
+                                )}
+                            </Button>
+                        )}
                     </div>
                 )}
 

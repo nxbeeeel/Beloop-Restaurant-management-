@@ -1,6 +1,6 @@
 
 import { z } from "zod";
-import { router, publicProcedure } from "@/server/trpc/trpc";
+import { router, publicProcedure, protectedProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/server/db";
 import { currentUser, clerkClient } from '@clerk/nextjs/server';
@@ -15,14 +15,14 @@ export const publicRouter = router({
       primaryColor: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // Fetch Clerk User at top level for scope availability
+      const clerkUser = await currentUser();
+
+      if (!clerkUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to activate." });
+      }
+
       const txResult = await prisma.$transaction(async (tx) => {
-        // Fetch Clerk User (Authentic Source of Truth)
-        const clerkUser = await currentUser();
-
-        if (!clerkUser) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be signed in to activate." });
-        }
-
         const userEmail = clerkUser.emailAddresses[0]?.emailAddress;
         if (!userEmail) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Your account must have an email address." });
@@ -61,8 +61,6 @@ export const publicRouter = router({
 
         // B. Secure Email Check
         if (inviteEmail && userEmail !== inviteEmail) {
-          // Allow fuzzy match? No, strictly secure.
-          // But what if casing differs?
           if (userEmail.toLowerCase() !== inviteEmail.toLowerCase()) {
             throw new TRPCError({ code: "FORBIDDEN", message: `This invitation is for ${inviteEmail}, but you are signed in as ${userEmail}.` });
           }
@@ -163,10 +161,9 @@ export const publicRouter = router({
       // F. Sync Clerk Metadata (Crucial for Middleware)
       try {
         const client = await clerkClient();
-        const clerkUserContext = await currentUser();
-
-        if (clerkUserContext && txResult?.tenantId) {
-          await client.users.updateUserMetadata(clerkUserContext.id, {
+        // Use hoisted clerkUser
+        if (clerkUser && txResult?.tenantId) {
+          await client.users.updateUserMetadata(clerkUser.id, {
             publicMetadata: {
               app_role: 'BRAND_ADMIN',
               role: 'BRAND_ADMIN',
@@ -175,19 +172,16 @@ export const publicRouter = router({
               onboardingStatus: 'COMPLETED' // ✅ Single authoritative flag
             }
           });
-          console.log(`[Activate] Synced Clerk Metadata for ${clerkUserContext.id} -> BRAND_ADMIN`);
+          console.log(`[Activate] Synced Clerk Metadata for ${clerkUser.id} -> BRAND_ADMIN`);
         }
 
       } catch (err) {
         console.error("[Activate] Failed to sync Clerk metadata", err);
-        // Don't fail the request, user is created in DB.
       }
 
       // D. Generate Bypass Token (Enterprise Fix)
-      // Allows immediate access to dashboard even if middleware JWT is stale
-      const bypassToken = await generateBypassToken(txResult.tenantId, clerkUserContext?.id || 'unknown');
+      const bypassToken = await generateBypassToken(txResult.tenantId, clerkUser.id);
       const targetSlug = txResult.slug;
-      // Force reload to pick up query param
       const redirectUrl = `/brand/${targetSlug}/dashboard?t=${bypassToken}`;
 
       console.log(`[ActivateBrand] Success! Redirecting with bypass to: ${redirectUrl}`);
@@ -301,7 +295,8 @@ export const publicRouter = router({
 
         // ✅ Generate Bypass Token for immediate access
         let bypassToken: string | undefined;
-        if (dbUser.tenant?.onboardingStatus === 'COMPLETED') {
+        // Use explicit check or cast if types are not generated yet
+        if ((dbUser.tenant as any)?.onboardingStatus === 'COMPLETED') {
           const { generateBypassToken } = await import("@/lib/tokens");
           bypassToken = await generateBypassToken(dbUser.tenantId, clerkUser.id);
         }
@@ -310,7 +305,7 @@ export const publicRouter = router({
         return {
           synced: true,
           role: dbUser.role,
-          onboardingStatus: dbUser.tenant?.onboardingStatus,
+          onboardingStatus: (dbUser.tenant as any)?.onboardingStatus,
           bypassToken
         };
       } catch (err) {
@@ -355,4 +350,93 @@ export const publicRouter = router({
         role: invite.inviteRole
       };
     }),
+
+  /**
+   * FORCE COMPLETE ONBOARDING
+   * For users stuck in "Pending Setup" loop despite having a tenant.
+   */
+  completeOnboarding: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const user = await prisma.user.findUnique({
+        where: { id: ctx.userId },
+        include: { tenant: true }
+      });
+
+      if (!user || !user.tenant) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No tenant found for this user." });
+      }
+
+      if (user.role !== 'BRAND_ADMIN' && user.role !== 'SUPER') {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only Brand Admins can complete setup." });
+      }
+
+      // Update Tenant to COMPLETED
+      await prisma.tenant.update({
+        where: { id: user.tenantId! },
+        data: {
+          onboardingStatus: 'COMPLETED',
+          onboardingCompletedAt: new Date(),
+          status: 'ACTIVE' // Ensure active
+        }
+      });
+
+      // Sync Metadata
+      const clerkClient = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+      await clerkClient.users.updateUserMetadata(user.clerkId!, {
+        publicMetadata: {
+          onboardingStatus: 'COMPLETED'
+        }
+      });
+
+      // Generate Bypass Token
+      const { generateBypassToken } = await import("@/lib/tokens");
+      const token = await generateBypassToken(user.tenantId!, user.clerkId!);
+
+      return { success: true, bypassToken: token };
+    }),
+});,
+
+/**
+ * FORCE COMPLETE ONBOARDING
+ * For users stuck in "Pending Setup" loop despite having a tenant.
+ */
+completeOnboarding: protectedProcedure
+  .mutation(async ({ ctx }) => {
+    const user = await prisma.user.findUnique({
+      where: { id: ctx.userId },
+      include: { tenant: true }
+    });
+
+    if (!user || !user.tenant) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "No tenant found for this user." });
+    }
+
+    if (user.role !== 'BRAND_ADMIN' && user.role !== 'SUPER') {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Only Brand Admins can complete setup." });
+    }
+
+    // Update Tenant to COMPLETED
+    await prisma.tenant.update({
+      where: { id: user.tenantId! },
+      data: {
+        onboardingStatus: 'COMPLETED',
+        onboardingCompletedAt: new Date(),
+        status: 'ACTIVE' // Ensure active
+      }
+    });
+
+    // Sync Metadata
+    const clerkClient = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+    await clerkClient.users.updateUserMetadata(user.clerkId!, {
+      publicMetadata: {
+        onboardingStatus: 'COMPLETED'
+      }
+    });
+
+    // Generate Bypass Token
+    const { generateBypassToken } = await import("@/lib/tokens");
+    const token = await generateBypassToken(user.tenantId!, user.clerkId!);
+
+    return { success: true, bypassToken: token };
+  }),
 });
