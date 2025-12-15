@@ -21,7 +21,14 @@ export function AuthButtons() {
             {isSignedIn ? (
                 <div className="flex items-center gap-4">
                     <Link
-                        href={useUser().user?.publicMetadata?.role === 'BRAND_ADMIN' ? '/brand/dashboard' : '/super/dashboard'}
+                        href={(() => {
+                            const meta = useUser().user?.publicMetadata;
+                            if (meta?.role === 'BRAND_ADMIN') {
+                                const slug = (meta.primary_org_slug as string) || 'dashboard';
+                                return `/brand/${slug}/dashboard`;
+                            }
+                            return '/super/dashboard';
+                        })()}
                         className="text-sm font-medium text-white bg-white/10 border border-white/10 hover:bg-white/20 px-4 py-2 rounded-md transition-colors flex items-center gap-2"
                     >
                         <LayoutDashboard className="w-4 h-4" />
