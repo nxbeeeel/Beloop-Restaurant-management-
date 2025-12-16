@@ -202,8 +202,7 @@ export default clerkMiddleware(
         // 8. FALLBACK - User not provisioned, send to onboarding, use minimal logging
         // console.log(`[Middleware] User ${userId} not provisioned, sending to onboarding`);
         return NextResponse.redirect(new URL('/onboarding', req.url));
-    }
-);
+    });
 
 export const config = {
     matcher: [
