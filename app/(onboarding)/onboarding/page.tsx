@@ -33,12 +33,25 @@ export default function OnboardingPage() {
             if (data.synced) {
                 setSyncStatus('synced');
 
-                // ✅ ENTERPRISE FIX: Direct Redirect from DB State
-                if (data.onboardingStatus === 'COMPLETED') {
-                    console.log('[Onboarding] DB confirms COMPLETED. Redirecting with bypass...');
+                // ✅ ENTERPRISE FIX: Direct Redirect to Dashboard
+                if (data.onboardingStatus === 'COMPLETED' && data.role) {
+                    console.log('[Onboarding] DB confirms COMPLETED. Redirecting directly to dashboard...');
                     const bypassQuery = data.bypassToken ? `?t=${data.bypassToken}` : '';
-                    window.location.href = `/${bypassQuery}`; // Middleware handles routing
-                    return;
+
+                    // Direct dashboard routing based on role
+                    if (data.role === 'BRAND_ADMIN') {
+                        const slug = user?.publicMetadata?.primary_org_slug as string || 'dashboard';
+                        window.location.href = `/brand/${slug}/dashboard${bypassQuery}`;
+                        return;
+                    }
+                    if (data.role === 'OUTLET_MANAGER') {
+                        window.location.href = `/outlet/dashboard${bypassQuery}`;
+                        return;
+                    }
+                    if (data.role === 'STAFF') {
+                        window.location.href = `/outlet/orders${bypassQuery}`;
+                        return;
+                    }
                 }
 
                 // Only refresh if DB says not ready (rare edge case or lagging)
@@ -58,7 +71,21 @@ export default function OnboardingPage() {
     const completeMutation = trpc.public.completeOnboarding.useMutation({
         onSuccess: (data) => {
             console.log('[Onboarding] Setup completed successfully. Redirecting...');
-            window.location.href = `/?t=${data.bypassToken}`;
+            const bypassQuery = `?t=${data.bypassToken}`;
+
+            // Direct dashboard routing
+            const role = user?.publicMetadata?.role as string;
+            if (role === 'BRAND_ADMIN') {
+                const slug = user?.publicMetadata?.primary_org_slug as string || 'dashboard';
+                window.location.href = `/brand/${slug}/dashboard${bypassQuery}`;
+            } else if (role === 'OUTLET_MANAGER') {
+                window.location.href = `/outlet/dashboard${bypassQuery}`;
+            } else if (role === 'STAFF') {
+                window.location.href = `/outlet/orders${bypassQuery}`;
+            } else {
+                // Fallback to home if role unknown
+                window.location.href = `/${bypassQuery}`;
+            }
         },
         onError: (err) => {
             console.error('[Onboarding] Failed to complete setup:', err);
