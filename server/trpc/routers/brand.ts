@@ -144,7 +144,7 @@ export const brandRouter = router({
                 include: {
                     _count: { select: { users: true, products: true } },
                 },
-                orderBy: { createdAt: 'desc' },
+                orderBy: { name: 'asc' },
             });
         }),
 
@@ -195,6 +195,10 @@ export const brandRouter = router({
             status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']),
         }))
         .mutation(async ({ ctx, input }) => {
+            if (!ctx.user.tenantId) {
+                throw new TRPCError({ code: 'BAD_REQUEST', message: 'No tenant found' });
+            }
+
             const outlet = await ctx.prisma.outlet.findFirst({
                 where: { id: input.outletId, tenantId: ctx.user.tenantId }
             });
@@ -215,6 +219,10 @@ export const brandRouter = router({
     deleteOutlet: brandAdminProcedure
         .input(z.object({ outletId: z.string() }))
         .mutation(async ({ ctx, input }) => {
+            if (!ctx.user.tenantId) {
+                throw new TRPCError({ code: 'BAD_REQUEST', message: 'No tenant found' });
+            }
+
             const outlet = await ctx.prisma.outlet.findFirst({
                 where: { id: input.outletId, tenantId: ctx.user.tenantId }
             });
