@@ -22,6 +22,7 @@ export const tenantRouter = router({
         slug: true,
         logoUrl: true,
         primaryColor: true,
+        currency: true,
         expenseCategories: true,
         fruitCategories: true,
       },
