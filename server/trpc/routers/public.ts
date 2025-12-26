@@ -265,14 +265,70 @@ export const publicRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
       }
 
-      const dbUser = await prisma.user.findUnique({
+      const userEmail = clerkUser.emailAddresses[0]?.emailAddress;
+
+      let dbUser = await prisma.user.findUnique({
         where: { clerkId: clerkUser.id },
         include: { tenant: true }
       });
 
+      // If no user found by clerkId, try by email (might have been invited but not linked yet)
+      if (!dbUser && userEmail) {
+        dbUser = await prisma.user.findUnique({
+          where: { email: userEmail },
+          include: { tenant: true }
+        });
+
+        // If found by email, update to link with clerkId
+        if (dbUser) {
+          dbUser = await prisma.user.update({
+            where: { id: dbUser.id },
+            data: { clerkId: clerkUser.id },
+            include: { tenant: true }
+          });
+          console.log(`[SyncMetadata] Linked existing user ${userEmail} to Clerk ID ${clerkUser.id}`);
+        }
+      }
+
+      // Still no user? Check for pending invitation and create user
+      if (!dbUser && userEmail) {
+        const pendingInvite = await prisma.invitation.findFirst({
+          where: {
+            email: { equals: userEmail, mode: 'insensitive' },
+            status: 'PENDING',
+            expiresAt: { gt: new Date() }
+          },
+          include: { tenant: true }
+        });
+
+        if (pendingInvite) {
+          // Create user from invitation
+          dbUser = await prisma.user.create({
+            data: {
+              clerkId: clerkUser.id,
+              email: userEmail,
+              name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || userEmail,
+              role: pendingInvite.inviteRole,
+              tenantId: pendingInvite.tenantId,
+              outletId: pendingInvite.outletId,
+              isActive: true
+            },
+            include: { tenant: true }
+          });
+
+          // Mark invitation as accepted
+          await prisma.invitation.update({
+            where: { id: pendingInvite.id },
+            data: { status: 'ACCEPTED', acceptedAt: new Date(), acceptedBy: clerkUser.id }
+          });
+
+          console.log(`[SyncMetadata] Created user ${userEmail} from invitation ${pendingInvite.id}`);
+        }
+      }
+
       if (!dbUser) {
         // No DB user yet - that's okay, they're truly unprovisioned
-        return { synced: false, reason: "No DB user found" };
+        return { synced: false, reason: "No DB user found and no pending invitation" };
       }
 
       if (!dbUser.role || !dbUser.tenantId) {
