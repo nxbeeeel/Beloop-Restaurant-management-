@@ -270,40 +270,38 @@ function BrandInviteContent() {
                                         <Label className="text-sm font-medium flex items-center gap-2 text-gray-300">
                                             <Palette className="w-4 h-4" /> Brand Theme Color
                                         </Label>
-                                        <div className="flex items-center gap-3">
-                                            <div
-                                                className="h-11 w-11 rounded-full border-2 border-white/10 shadow-lg cursor-pointer overflow-hidden relative"
-                                                // eslint-disable-next-line
-                                                style={colorPreviewStyle}
-                                            >
-                                                <input
-                                                    type="color"
-                                                    title="Choose Brand Color"
-                                                    aria-label="Choose Brand Color"
-                                                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                                                    value={primaryColor}
-                                                    onChange={(e) => setPrimaryColor(e.target.value)}
-                                                />
-                                            </div>
-                                            <Input
-                                                type="text"
+                                        {/* eslint-disable-next-line */}
+                                        <div
+                                            className="h-11 w-11 rounded-full border-2 border-white/10 shadow-lg cursor-pointer overflow-hidden relative"
+                                            style={colorPreviewStyle}
+                                        >
+                                            <input
+                                                type="color"
+                                                title="Choose Brand Color"
+                                                aria-label="Choose Brand Color"
+                                                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                                                 value={primaryColor}
                                                 onChange={(e) => setPrimaryColor(e.target.value)}
-                                                className="font-mono uppercase w-32 bg-white/5 border-white/10 text-white"
-                                                placeholder="#E11D48"
-                                                maxLength={7}
                                             />
-                                            <div
-                                                className="h-11 flex-1 rounded-lg flex items-center px-4 text-white text-sm font-medium shadow-lg"
-                                                // eslint-disable-next-line
-                                                style={colorPreviewStyle}
-                                            >
-                                                Preview Button
-                                            </div>
+                                        </div>
+                                        <Input
+                                            type="text"
+                                            value={primaryColor}
+                                            onChange={(e) => setPrimaryColor(e.target.value)}
+                                            className="font-mono uppercase w-32 bg-white/5 border-white/10 text-white"
+                                            placeholder="#E11D48"
+                                            maxLength={7}
+                                        />
+                                        {/* eslint-disable-next-line */}
+                                        <div
+                                            className="h-11 flex-1 rounded-lg flex items-center px-4 text-white text-sm font-medium shadow-lg"
+                                            style={colorPreviewStyle}
+                                        >
+                                            Preview Button
                                         </div>
                                     </div>
                                 </div>
-                            </>
+                            </div>
                         )}
                     </div>
                     <div className="p-6 bg-white/5 border-t border-white/5">

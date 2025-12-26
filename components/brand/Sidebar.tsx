@@ -99,9 +99,9 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName, slug }: Si
                             >
                                 {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
                                 {/* @ts-ignore */}
+                                {/* eslint-disable-next-line */}
                                 <h2
                                     className="text-lg font-bold truncate text-[var(--brand-color)]"
-                                    // eslint-disable-next-line
                                     style={{ '--brand-color': brandColor } as React.CSSProperties}
                                 >
                                     {brandName}
@@ -153,7 +153,7 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName, slug }: Si
 
                 <div className="pt-4 mt-4 border-t border-gray-100">
                     <Link
-                        href="/support"
+                        href={`/brand/${slug}/support`}
                         className={cn(
                             "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative group text-blue-600 hover:bg-blue-50",
                             isCollapsed && "justify-center"

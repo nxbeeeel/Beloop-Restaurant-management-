@@ -28,9 +28,7 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
     const [outletId, setOutletId] = useState('');
 
     const utils = trpc.useUtils();
-    const { data: outlets, isLoading: isLoadingOutlets } = trpc.brand.listOutlets.useQuery(undefined, {
-        enabled: open // Only fetch when dialog is open
-    });
+    const { data: outlets, isLoading: isLoadingOutlets } = trpc.brand.listOutlets.useQuery();
 
     const inviteMutation = trpc.brand.inviteUser.useMutation({
         onSuccess: () => {
@@ -93,26 +91,25 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="outlet">Assign to Outlet</Label>
+                        <Label htmlFor="outlet">
+                            Assign to Outlet
+                            {outlets && <span className="text-xs text-muted-foreground ml-2">({outlets.length} available)</span>}
+                        </Label>
                         <Select value={outletId} onValueChange={setOutletId} disabled={isLoadingOutlets}>
                             <SelectTrigger>
-                                <SelectValue placeholder={isLoadingOutlets ? "Loading outlets..." : "Select outlet..."} />
+                                <SelectValue placeholder={isLoadingOutlets ? "Loading..." : "Select outlet..."} />
                             </SelectTrigger>
                             <SelectContent>
-                                {isLoadingOutlets ? (
-                                    <div className="p-2 flex items-center justify-center text-sm text-muted-foreground">
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...
-                                    </div>
-                                ) : (outlets && outlets.length > 0) ? (
+                                {(outlets && outlets.length > 0) ? (
                                     outlets.map((outlet) => (
                                         <SelectItem key={outlet.id} value={outlet.id}>
                                             {outlet.name}
                                         </SelectItem>
                                     ))
                                 ) : (
-                                    <div className="p-2 text-sm text-center text-muted-foreground">
-                                        No outlets found. Please create one first.
-                                    </div>
+                                    <SelectItem value="none" disabled>
+                                        No outlets found
+                                    </SelectItem>
                                 )}
                             </SelectContent>
                         </Select>
