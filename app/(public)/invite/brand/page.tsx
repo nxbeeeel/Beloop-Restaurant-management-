@@ -274,7 +274,6 @@ function BrandInviteContent() {
                                             {/* eslint-disable-next-line */}
                                             <div
                                                 className="h-11 w-11 rounded-full border-2 border-white/10 shadow-lg cursor-pointer overflow-hidden relative"
-                                                // eslint-disable-next-line react-dom/no-unsafe-inline-style
                                                 style={colorPreviewStyle}
                                             >
                                                 <input
@@ -294,7 +293,7 @@ function BrandInviteContent() {
                                                 placeholder="#E11D48"
                                                 maxLength={7}
                                             />
-                                            {/* eslint-disable-next-line react-dom/no-unsafe-inline-style */}
+                                            {/* eslint-disable-next-line */}
                                             <div className="h-11 flex-1 rounded-lg flex items-center px-4 text-white text-sm font-medium shadow-lg" style={colorPreviewStyle}>
                                                 Preview Button
                                             </div>

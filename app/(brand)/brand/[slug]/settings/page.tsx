@@ -196,15 +196,23 @@ export default function BrandSettingsPage() {
                                 {/* Preview */}
                                 <div className="border rounded-lg p-4 bg-muted/30">
                                     <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Preview</Label>
-                                    <div className="flex items-center gap-4 p-4 bg-white rounded border shadow-sm w-fit min-w-[300px]">
+                                    <div
+                                        className="flex items-center gap-4 p-4 bg-white rounded border shadow-sm w-fit min-w-[300px]"
+                                        style={{ '--preview-color': primaryColor } as React.CSSProperties}
+                                    >
                                         {logoUrl ? (
                                             // eslint-disable-next-line @next/next/no-img-element
-                                            <img src={logoUrl} alt="Logo" className="w-10 h-10 object-contain" onError={(e) => e.currentTarget.style.display = 'none'} />
+                                            <img
+                                                src={logoUrl}
+                                                alt="Logo"
+                                                className="w-10 h-10 object-contain"
+                                                onError={(e) => e.currentTarget.style.display = 'none'}
+                                            />
                                         ) : (
                                             <div className="w-10 h-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">Logo</div>
                                         )}
                                         <div>
-                                            <h3 className="font-bold text-lg" style={{ color: primaryColor }}>{name || 'Brand Name'}</h3>
+                                            <h3 className="font-bold text-lg text-[var(--preview-color)]">{name || 'Brand Name'}</h3>
                                             <p className="text-xs text-muted-foreground">Brand Admin Dashboard</p>
                                         </div>
                                     </div>

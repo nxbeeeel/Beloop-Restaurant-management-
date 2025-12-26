@@ -99,6 +99,7 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName, slug }: Si
                             >
                                 {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
                                 {/* @ts-ignore */}
+                                {/* eslint-disable-next-line react-dom/no-unsafe-inline-style */}
                                 <h2 className="text-lg font-bold truncate text-[var(--brand-color)]" style={{ '--brand-color': brandColor } as React.CSSProperties}>
                                     {brandName}
                                 </h2>
