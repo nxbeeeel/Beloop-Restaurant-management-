@@ -231,10 +231,9 @@ export const brandRouter = router({
                 throw new TRPCError({ code: 'NOT_FOUND', message: 'Outlet not found' });
             }
 
-            // Soft delete: set status to ARCHIVED
-            return ctx.prisma.outlet.update({
+            // Hard delete
+            return ctx.prisma.outlet.delete({
                 where: { id: input.outletId },
-                data: { status: 'ARCHIVED' },
             });
         }),
 
