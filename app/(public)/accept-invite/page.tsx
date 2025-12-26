@@ -25,11 +25,27 @@ function AcceptInviteContent() {
             try {
                 // Check Clerk's internal status
                 const clerkStatus = searchParams.get('__clerk_status');
+                const inviteToken = searchParams.get('__clerk_ticket') || searchParams.get('token');
 
                 if (clerkStatus === 'complete' || session) {
-                    setStatus('Syncing your permissions...');
+                    setStatus('Syncing your account...');
 
-                    // STEP 1: FORCE SESSION RELOAD to get new claims
+                    // STEP 1: SYNC/CREATE USER IN DATABASE
+                    // Call our API to ensure user exists in DB with correct role/outlet
+                    try {
+                        const response = await fetch('/api/trpc/public.syncUserMetadata', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ json: {} })
+                        });
+                        const syncResult = await response.json();
+                        console.log('[AcceptInvite] Sync result:', syncResult);
+                    } catch (syncError) {
+                        console.error('[AcceptInvite] Sync failed:', syncError);
+                        // Continue anyway - the onboarding page will handle this
+                    }
+
+                    // STEP 2: FORCE SESSION RELOAD to get new claims
                     if (session) {
                         await session.reload();
 
@@ -46,7 +62,7 @@ function AcceptInviteContent() {
                                 try {
                                     const payload = JSON.parse(atob(token.split('.')[1]));
                                     const metadata = payload.metadata || {};
-                                    if (metadata.is_provisioned === true) {
+                                    if (metadata.onboardingStatus === 'COMPLETED' || metadata.is_provisioned === true) {
                                         verified = true;
                                         break;
                                     }
@@ -60,7 +76,7 @@ function AcceptInviteContent() {
                         }
                     }
 
-                    // STEP 2: Navigate to home (Middleware routes correctly now because JWT is ready)
+                    // STEP 3: Navigate to home (Middleware routes correctly now because JWT is ready)
                     setStatus('Redirecting to your dashboard...');
                     window.location.href = '/';
                 } else {
