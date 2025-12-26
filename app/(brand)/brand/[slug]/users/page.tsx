@@ -76,7 +76,7 @@ export default function UsersPage() {
                 <InviteUserDialog
                     open={isInviteOpen}
                     onOpenChange={setIsInviteOpen}
-                    outlets={outlets || []}
+                    outlets={outlets?.map(o => ({ id: o.id, name: o.name })) || []}
                 />
             </div>
 
