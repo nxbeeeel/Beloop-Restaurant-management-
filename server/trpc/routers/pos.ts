@@ -101,6 +101,95 @@ export const posRouter = router({
             };
         }),
 
+    /**
+     * Legacy Login Alias (for compatibility)
+     */
+    login: protectedProcedure
+        .input(z.object({
+            outletId: z.string()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            // Forward to authenticate logic
+            // (Re-implementing logic here since we can't easily call sibling procedures in tRPC router definition object)
+            // Ideally we would extract the logic to a service function, but for now duplicate to ensure speed.
+
+            const { outletId } = input;
+            const { user } = ctx;
+
+            if (user.role !== 'SUPER' && user.role !== 'BRAND_ADMIN') {
+                if (user.outletId !== outletId) {
+                    throw new TRPCError({ code: 'FORBIDDEN', message: 'You are not assigned to this outlet' });
+                }
+            }
+
+            if (user.role === 'BRAND_ADMIN') {
+                const outlet = await ctx.prisma.outlet.findUnique({
+                    where: { id: outletId },
+                    select: { tenantId: true }
+                });
+                if (!outlet || outlet.tenantId !== user.tenantId) {
+                    throw new TRPCError({ code: 'FORBIDDEN', message: 'Outlet does not belong to your brand' });
+                }
+            }
+
+            const outlet = await ctx.prisma.outlet.findUnique({
+                where: { id: outletId },
+                select: {
+                    id: true,
+                    tenantId: true,
+                    status: true,
+                    isPosEnabled: true,
+                    name: true,
+                    tenant: { select: { name: true, slug: true } }
+                }
+            });
+
+            if (!outlet) throw new TRPCError({ code: 'NOT_FOUND', message: 'Outlet not found' });
+            if (outlet.status !== 'ACTIVE') throw new TRPCError({ code: 'FORBIDDEN', message: 'Outlet is not active' });
+            if (!outlet.isPosEnabled) throw new TRPCError({ code: 'FORBIDDEN', message: 'POS access is disabled' });
+
+            const token = signPosToken({
+                tenantId: outlet.tenantId,
+                outletId: outlet.id,
+                userId: user.id
+            });
+
+            return {
+                token,
+                outlet: {
+                    id: outlet.id,
+                    name: outlet.name,
+                    tenantName: outlet.tenant.name
+                },
+                user: {
+                    id: user.id,
+                    name: user.name,
+                    role: user.role
+                }
+            };
+        }),
+
+    /**
+     * Get Settings - Initial config for POS
+     */
+    getSettings: posProcedure
+        .query(async ({ ctx }) => {
+            const { outletId, tenantId } = ctx.posCredentials;
+            const outlet = await ctx.prisma.outlet.findUnique({
+                where: { id: outletId },
+                select: {
+                    id: true,
+                    name: true,
+
+                    address: true,
+                    phone: true,
+                    tenant: { select: { name: true, logoUrl: true, primaryColor: true, currency: true } }
+                }
+            });
+
+            return outlet;
+        }),
+
     // ============================================
     // READ OPERATIONS (Cached, Direct Response)
     // ============================================
