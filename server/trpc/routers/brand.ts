@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { router, protectedProcedure, requireRole } from '../trpc';
 import { TRPCError } from '@trpc/server';
+import crypto from 'crypto';
 
 // Brand Admin middleware - only BRAND_ADMIN and SUPER can access
 const brandAdminProcedure = protectedProcedure.use(requireRole(['BRAND_ADMIN', 'SUPER']));
