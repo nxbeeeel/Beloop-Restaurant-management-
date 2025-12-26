@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Plus, MapPin, Phone, Users, Store } from "lucide-react";
 import { OutletExportButton } from "@/components/brand/OutletExportButton";
-
+import { OutletActionsMenu } from "./OutletActionsMenu";
 import { SearchInput } from "@/components/common/SearchInput";
 
 export default async function OutletsPage({ searchParams }: { searchParams: { search?: string } }) {
@@ -104,6 +104,11 @@ export default async function OutletsPage({ searchParams }: { searchParams: { se
                                         </Button>
                                     </Link>
                                     <OutletExportButton outletId={outlet.id} outletName={outlet.name} />
+                                    <OutletActionsMenu
+                                        outletId={outlet.id}
+                                        outletName={outlet.name}
+                                        status={outlet.status}
+                                    />
                                 </div>
                             </div>
                         </CardContent>

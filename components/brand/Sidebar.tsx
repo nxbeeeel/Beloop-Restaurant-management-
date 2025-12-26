@@ -47,7 +47,7 @@ export function Sidebar({ brandName, brandLogo, brandColor, userName, slug }: Si
     const navItems = [
         { href: `/brand/${slug}/dashboard`, label: "Overview", icon: LayoutDashboard },
         { href: `/brand/${slug}/outlets`, label: "Outlets", icon: Store },
-        { href: `/brand/${slug}/invitations`, label: "Team", icon: Users },
+        { href: `/brand/${slug}/users`, label: "Team", icon: Users },
         { href: `/brand/${slug}/products`, label: "Menu", icon: Utensils },
         { href: `/brand/${slug}/reports`, label: "Reports", icon: FileBarChart },
         { href: `/brand/${slug}/settings`, label: "Settings", icon: Settings },
