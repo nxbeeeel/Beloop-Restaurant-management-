@@ -164,8 +164,13 @@ export const brandRouter = router({
             }
 
             // Check code uniqueness
+            // Check code uniqueness (ignore archived)
             const existing = await ctx.prisma.outlet.findFirst({
-                where: { tenantId: ctx.user.tenantId, code: input.code }
+                where: {
+                    tenantId: ctx.user.tenantId,
+                    code: input.code,
+                    status: { not: 'ARCHIVED' }
+                }
             });
 
             if (existing) {
