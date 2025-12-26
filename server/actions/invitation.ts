@@ -138,7 +138,9 @@ export async function createInvitation(formData: FormData) {
         }
     }
 
-    // ALWAYS Send Custom Email (Premium Branding)
+    // DISABLED: Inngest/Resend emails not working - Clerk org invitations handle email delivery
+    // If you fix Inngest authentication on Vercel, uncomment this to send premium branded emails
+    /*
     if (outletId) {
         // Fetch outlet name for email context
         const outlet = await prisma.outlet.findUnique({ where: { id: outletId }, select: { name: true } });
@@ -149,6 +151,7 @@ export async function createInvitation(formData: FormData) {
         // Fallback or Brand Admin invite without specific outlet (if applicable)
         await MailService.sendUserInvite(email, token, role, "Beloop Brand");
     }
+    */
 
     return { success: true, message: "Invitation sent successfully!" };
 }

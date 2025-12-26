@@ -93,11 +93,14 @@ export const outletsRouter = router({
             isPosEnabled: z.boolean().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
-            // Verify user has permission (BRAND_ADMIN or SUPER)
-            if (ctx.role !== 'BRAND_ADMIN' && ctx.role !== 'SUPER') {
+            // Verify user has permission (OUTLET_MANAGER for own outlet, BRAND_ADMIN, or SUPER)
+            const isOutletManager = ctx.role === 'OUTLET_MANAGER' && ctx.user.outletId === input.id;
+            const isAdmin = ctx.role === 'BRAND_ADMIN' || ctx.role === 'SUPER';
+
+            if (!isOutletManager && !isAdmin) {
                 throw new TRPCError({
                     code: 'FORBIDDEN',
-                    message: 'Only admins can update outlet details',
+                    message: 'Only managers can update their outlet details',
                 });
             }
 
@@ -149,7 +152,7 @@ export const outletsRouter = router({
         .input(
             z.object({
                 outletId: z.string(),
-                googleSheetsUrl: z.string().transform(val => val === '' ? null : val).pipe(z.string().url().optional().nullable()),
+                googleSheetsUrl: z.string().optional().nullable().transform(val => !val || val === '' ? null : val),
                 isPosEnabled: z.boolean().optional(),
             })
         )
