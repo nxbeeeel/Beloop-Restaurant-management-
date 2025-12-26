@@ -58,7 +58,49 @@ export const tenantRouter = router({
     };
   }),
 
-  // Update tenant settings
+  // Update tenant profile (brand settings)
+  updateProfile: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).optional(),
+        currency: z.string().optional(),
+        primaryColor: z.string().optional(),
+        logoUrl: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { tenantId, role } = ctx;
+
+      if (!tenantId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No tenant found',
+        });
+      }
+
+      // Only BRAND_ADMIN and SUPER can update profile settings
+      if (role !== 'BRAND_ADMIN' && role !== 'SUPER') {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Insufficient permissions to update brand profile',
+        });
+      }
+
+      return ctx.prisma.tenant.update({
+        where: { id: tenantId },
+        data: input,
+        select: {
+          id: true,
+          name: true,
+          currency: true,
+          primaryColor: true,
+          logoUrl: true,
+        },
+      });
+    }),
+
+
+  // Update tenant settings (categories)
   updateSettings: protectedProcedure
     .input(
       z.object({
