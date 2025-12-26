@@ -125,6 +125,11 @@ export default clerkMiddleware(
         const slug = metadata.primary_org_slug || orgSlug;
         const onboardingStatus = metadata.onboardingStatus || 'NOT_STARTED';
 
+        // DEBUG: Log metadata for troubleshooting (remove after fixing)
+        console.log(`[Middleware DEBUG] userId: ${userId}, pathname: ${pathname}`);
+        console.log(`[Middleware DEBUG] sessionClaims:`, JSON.stringify(sessionClaims, null, 2));
+        console.log(`[Middleware DEBUG] metadata: role=${role}, slug=${slug}, onboardingStatus=${onboardingStatus}`);
+
         // Super Admin override (from environment variable for security)
         const SUPER_ADMIN_ID = process.env.SUPER_ADMIN_CLERK_ID;
         const isSuperAdmin = SUPER_ADMIN_ID && userId === SUPER_ADMIN_ID;
