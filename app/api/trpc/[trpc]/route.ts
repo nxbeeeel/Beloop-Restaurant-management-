@@ -19,4 +19,16 @@ const handler = (req: Request) =>
                 : undefined,
     });
 
+export const OPTIONS = () => {
+    return new Response(null, {
+        status: 200,
+        headers: {
+            'Access-Control-Allow-Origin': 'https://beloop-pos-managment.vercel.app', // Explicit Allow
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-trpc-source',
+            'Access-Control-Allow-Credentials': 'true',
+        },
+    });
+};
+
 export { handler as GET, handler as POST };
