@@ -149,7 +149,7 @@ export const outletsRouter = router({
         .input(
             z.object({
                 outletId: z.string(),
-                googleSheetsUrl: z.string().url().optional().nullable(),
+                googleSheetsUrl: z.string().transform(val => val === '' ? null : val).pipe(z.string().url().optional().nullable()),
                 isPosEnabled: z.boolean().optional(),
             })
         )

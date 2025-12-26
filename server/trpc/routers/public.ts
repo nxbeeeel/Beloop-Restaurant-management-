@@ -282,6 +282,13 @@ export const publicRouter = router({
       // Sync to Clerk
       try {
         const client = await clerkClient();
+
+        // For OUTLET_MANAGER and STAFF, they're ready immediately (no brand onboarding needed)
+        const effectiveOnboardingStatus =
+          (dbUser.role === 'OUTLET_MANAGER' || dbUser.role === 'STAFF')
+            ? 'COMPLETED'
+            : dbUser.tenant?.onboardingStatus;
+
         await client.users.updateUserMetadata(clerkUser.id, {
           publicMetadata: {
             app_role: dbUser.role,
@@ -289,7 +296,7 @@ export const publicRouter = router({
             tenantId: dbUser.tenantId,
             outletId: dbUser.outletId,
             primary_org_slug: dbUser.tenant?.slug,
-            onboardingStatus: dbUser.tenant?.onboardingStatus // ✅ Single authoritative flag
+            onboardingStatus: effectiveOnboardingStatus
           }
         });
 

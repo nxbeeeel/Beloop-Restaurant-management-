@@ -258,13 +258,21 @@ export async function acceptInvitation(token: string) {
 
         if (dbUser?.tenant) {
             const client = await import('@clerk/nextjs/server').then(m => m.clerkClient());
+
+            // For OUTLET_MANAGER and STAFF, they're ready immediately (no brand onboarding needed)
+            // For BRAND_ADMIN, follow the tenant's onboarding status
+            const effectiveOnboardingStatus =
+                (dbUser.role === 'OUTLET_MANAGER' || dbUser.role === 'STAFF')
+                    ? 'COMPLETED'
+                    : (dbUser.tenant as any).onboardingStatus;
+
             await client.users.updateUserMetadata(user.id, {
                 publicMetadata: {
                     app_role: dbUser.role,
                     role: dbUser.role,
                     tenantId: dbUser.tenantId,
                     outletId: dbUser.outletId,
-                    onboardingStatus: (dbUser.tenant as any).onboardingStatus // ✅ Explicit cast to avoid type error until generation
+                    onboardingStatus: effectiveOnboardingStatus
                 }
             });
         }
