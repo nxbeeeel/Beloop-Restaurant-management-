@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, posProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
 import { InventoryService } from "@/server/services/inventory.service";
-import { CacheService } from "@/lib/cache";
+import { CacheService } from "@/server/services/cache.service";
 import { inngest } from "@/lib/inngest";
 
 /**

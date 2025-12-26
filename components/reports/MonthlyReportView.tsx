@@ -171,7 +171,7 @@ export function MonthlyReportView({ initialOutletId, outlets }: MonthlyReportVie
                                                 tickFormatter={(str) => format(new Date(str), 'd MMM')}
                                                 minTickGap={30}
                                             />
-                                            <YAxis removeFirst /> // Simplified Y-axis
+                                            <YAxis /> // Simplified Y-axis
                                             <Tooltip
                                                 labelFormatter={(label) => format(new Date(label), 'PPP')}
                                                 formatter={(value) => [formatCurrency(Number(value)), 'Sales']}
