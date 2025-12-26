@@ -20,15 +20,18 @@ import { Mail, Loader2 } from "lucide-react";
 interface InviteUserDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    outlets: { id: string; name: string }[];
 }
 
-export function InviteUserDialog({ open, onOpenChange, outlets }: InviteUserDialogProps) {
+export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) {
     const [email, setEmail] = useState('');
     const [role, setRole] = useState<'OUTLET_MANAGER' | 'STAFF'>('STAFF');
     const [outletId, setOutletId] = useState('');
 
     const utils = trpc.useUtils();
+    const { data: outlets, isLoading: isLoadingOutlets } = trpc.brand.listOutlets.useQuery(undefined, {
+        enabled: open // Only fetch when dialog is open
+    });
+
     const inviteMutation = trpc.brand.inviteUser.useMutation({
         onSuccess: () => {
             utils.brand.listUsers.invalidate();
@@ -91,19 +94,30 @@ export function InviteUserDialog({ open, onOpenChange, outlets }: InviteUserDial
 
                     <div className="space-y-2">
                         <Label htmlFor="outlet">Assign to Outlet</Label>
-                        <Select value={outletId} onValueChange={setOutletId}>
+                        <Select value={outletId} onValueChange={setOutletId} disabled={isLoadingOutlets}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Select outlet..." />
+                                <SelectValue placeholder={isLoadingOutlets ? "Loading outlets..." : "Select outlet..."} />
                             </SelectTrigger>
                             <SelectContent>
-                                {outlets.map((outlet) => (
-                                    <SelectItem key={outlet.id} value={outlet.id}>
-                                        {outlet.name}
-                                    </SelectItem>
-                                ))}
+                                {isLoadingOutlets ? (
+                                    <div className="p-2 flex items-center justify-center text-sm text-muted-foreground">
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...
+                                    </div>
+                                ) : (outlets && outlets.length > 0) ? (
+                                    outlets.map((outlet) => (
+                                        <SelectItem key={outlet.id} value={outlet.id}>
+                                            {outlet.name}
+                                        </SelectItem>
+                                    ))
+                                ) : (
+                                    <div className="p-2 text-sm text-center text-muted-foreground">
+                                        No outlets found. Please create one first.
+                                    </div>
+                                )}
                             </SelectContent>
                         </Select>
                     </div>
+
 
                     <DialogFooter className="pt-4">
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -114,8 +128,8 @@ export function InviteUserDialog({ open, onOpenChange, outlets }: InviteUserDial
                             Send Invitation
                         </Button>
                     </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
+                </form >
+            </DialogContent >
+        </Dialog >
     );
 }

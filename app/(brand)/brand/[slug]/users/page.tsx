@@ -32,7 +32,7 @@ export default function UsersPage() {
         role: roleFilter === 'ALL' ? undefined : (roleFilter as any)
     });
 
-    const { data: outlets } = trpc.brand.listOutlets.useQuery();
+
 
     const suspendMutation = trpc.brand.suspendUser.useMutation({
         onSuccess: () => {
@@ -76,7 +76,6 @@ export default function UsersPage() {
                 <InviteUserDialog
                     open={isInviteOpen}
                     onOpenChange={setIsInviteOpen}
-                    outlets={outlets?.map(o => ({ id: o.id, name: o.name })) || []}
                 />
             </div>
 
