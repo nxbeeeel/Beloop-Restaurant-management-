@@ -1,12 +1,9 @@
 import { prisma } from "@/server/db";
 import { auth } from "@clerk/nextjs/server";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import Link from "next/link";
-import { Plus, MapPin, Phone, Users, Store } from "lucide-react";
 import { OutletExportButton } from "@/components/brand/OutletExportButton";
 import { OutletActionsMenu } from "./OutletActionsMenu";
 import { SearchInput } from "@/components/common/SearchInput";
+import { AddOutletButton } from "./AddOutletButton";
 
 export default async function OutletsPage({ searchParams }: { searchParams: { search?: string } }) {
     const { userId, orgSlug } = await auth();
@@ -50,11 +47,7 @@ export default async function OutletsPage({ searchParams }: { searchParams: { se
                 </div>
                 <div className="flex items-center gap-4">
                     <SearchInput placeholder="Search outlets..." />
-                    <Link href={`/brand/${activeSlug}/outlets/new`}>
-                        <Button className="shadow-lg hover:shadow-xl transition-all duration-200">
-                            <Plus className="mr-2 h-4 w-4" /> Add Outlet
-                        </Button>
-                    </Link>
+                    <AddOutletButton />
                 </div>
             </div>
 
