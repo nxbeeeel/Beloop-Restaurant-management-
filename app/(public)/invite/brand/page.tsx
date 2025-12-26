@@ -301,32 +301,31 @@ function BrandInviteContent() {
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                    </>
-                    )}
-                </div>
-                <div className="p-6 bg-white/5 border-t border-white/5">
-                    {/* eslint-disable-next-line */}
-                    <Button
-                        className="w-full text-lg h-14 shadow-xl transition-all hover:scale-[1.02] bg-rose-600 hover:bg-rose-700 text-white rounded-xl"
-                        // eslint-disable-next-line react-dom/no-unsafe-inline-style
-                        style={user ? { backgroundColor: primaryColor } : {}}
-                        disabled={!user || isActivating || activateMutation.isPending}
-                        onClick={handleActivate}
-                    >
-                        {activateMutation.isPending ? (
-                            <>
-                                <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Setting Up...
-                            </>
-                        ) : (
-                            <>
-                                Activate Brand <CheckCircle2 className="ml-2 h-5 w-5" />
                             </>
                         )}
-                    </Button>
+                    </div>
+                    <div className="p-6 bg-white/5 border-t border-white/5">
+                        {/* eslint-disable-next-line */}
+                        <Button
+                            className="w-full text-lg h-14 shadow-xl transition-all hover:scale-[1.02] bg-rose-600 hover:bg-rose-700 text-white rounded-xl"
+                            // eslint-disable-next-line react-dom/no-unsafe-inline-style
+                            style={user ? { backgroundColor: primaryColor } : {}}
+                            disabled={!user || isActivating || activateMutation.isPending}
+                            onClick={handleActivate}
+                        >
+                            {activateMutation.isPending ? (
+                                <>
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Setting Up...
+                                </>
+                            ) : (
+                                <>
+                                    Activate Brand <CheckCircle2 className="ml-2 h-5 w-5" />
+                                </>
+                            )}
+                        </Button>
+                    </div>
                 </div>
             </div>
-        </div>
         </div >
     );
 }
