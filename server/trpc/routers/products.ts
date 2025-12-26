@@ -12,10 +12,14 @@ export const productsRouter = router({
         .query(async ({ ctx, input }) => {
             // Zero Trust: Verify outlet belongs to the user's tenant
             if (ctx.role !== 'SUPER') {
+                if (!ctx.user.tenantId) {
+                    throw new TRPCError({ code: 'FORBIDDEN', message: "No tenant found for user" });
+                }
+
                 const count = await ctx.prisma.outlet.count({
                     where: {
                         id: input.outletId,
-                        tenantId: ctx.user.tenantId || ''
+                        tenantId: ctx.user.tenantId
                     }
                 });
                 if (count === 0) {
@@ -66,9 +70,11 @@ export const productsRouter = router({
             const { applyToAllOutlets, recipe, ...productData } = input;
 
             if (applyToAllOutlets) {
+                if (!ctx.user.tenantId) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No tenant found' });
+
                 // Fetch all outlets for this tenant
                 const outlets = await ctx.prisma.outlet.findMany({
-                    where: { tenantId: ctx.user!.tenantId! },
+                    where: { tenantId: ctx.user.tenantId },
                     select: { id: true }
                 });
 
@@ -161,8 +167,10 @@ export const productsRouter = router({
                     throw new TRPCError({ code: 'NOT_FOUND', message: 'Product not found' });
                 }
 
+                if (!ctx.user.tenantId) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No tenant found' });
+
                 const outlets = await ctx.prisma.outlet.findMany({
-                    where: { tenantId: ctx.user!.tenantId! },
+                    where: { tenantId: ctx.user.tenantId },
                     select: { id: true }
                 });
 

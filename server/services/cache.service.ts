@@ -16,6 +16,11 @@ export class CacheService {
         tenantSettings: (tenantId: string) => `tenant:${tenantId}:settings`,
         userSession: (userId: string) => `user:${userId}:session`,
         dashboardStats: (outletId: string) => `dashboard:${outletId}:stats`,
+        // Inventory / Products
+        inventoryList: (outletId: string) => `outlet:${outletId}:inventory`,
+        fullMenu: (outletId: string) => `outlet:${outletId}:menu:full`,
+        lowStock: (outletId: string) => `outlet:${outletId}:stock:low`,
+        menuItem: (productId: string) => `product:${productId}:details`,
     };
 
     /**
