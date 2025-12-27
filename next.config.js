@@ -37,11 +37,8 @@ const nextConfig = {
             {
                 source: "/api/:path*",
                 headers: [
-                    { key: "Access-Control-Allow-Credentials", value: "true" },
-                    // Allow both Vercel domain (for testing) and Production Subdomain
-                    { key: "Access-Control-Allow-Origin", value: "https://pos.belooprms.app" },
-                    { key: "Access-Control-Allow-Methods", value: "GET,DELETE,PATCH,POST,PUT,OPTIONS" },
-                    { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, x-tenant-id, x-outlet-id" },
+                    // CORS handled by middleware.ts for multi-origin support
+                    { key: "X-Robots-Tag", value: "noindex" } // Example dummy header to keep structure or just remove
                 ]
             },
             {

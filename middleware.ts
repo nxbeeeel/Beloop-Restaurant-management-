@@ -73,9 +73,43 @@ export default clerkMiddleware(
             return NextResponse.next();
         }
 
-        // 1. API ROUTES - Always allow
+        // 1. API ROUTES - Handle CORS & Pass Through
         if (isApiRoute(req)) {
-            return NextResponse.next();
+            // CORS Configuration
+            const allowedOrigins = [
+                'https://pos.belooprms.app',
+                'https://beloop-pos-managment.vercel.app',
+                'http://localhost:3002',
+                'http://localhost:3000'
+            ];
+
+            const origin = req.headers.get('origin') || '';
+            const isAllowed = allowedOrigins.includes(origin);
+
+            // Handle Preflight OPTIONS
+            if (req.method === 'OPTIONS') {
+                return new NextResponse(null, {
+                    status: 200,
+                    headers: {
+                        'Access-Control-Allow-Origin': isAllowed ? origin : allowedOrigins[0],
+                        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                        'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-trpc-source, x-tenant-id, x-outlet-id',
+                        'Access-Control-Allow-Credentials': 'true',
+                    },
+                });
+            }
+
+            // For actual requests, we let them proceed but attach CORS headers to the response
+            const response = NextResponse.next();
+
+            if (isAllowed) {
+                response.headers.set('Access-Control-Allow-Origin', origin);
+                response.headers.set('Access-Control-Allow-Credentials', 'true');
+                response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+                response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-trpc-source, x-tenant-id, x-outlet-id');
+            }
+
+            return response;
         }
 
         // 2. PUBLIC ROUTES (except onboarding) - Allow without auth

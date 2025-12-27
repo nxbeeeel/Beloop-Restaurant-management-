@@ -19,18 +19,6 @@ const handler = (req: Request) =>
                 : undefined,
     });
 
-export const OPTIONS = () => {
-    return new Response(null, {
-        status: 200,
-        headers: {
-            // Ideally typical CORS setup mirrors the request origin if it matches a whitelist.
-            // For now, switching to the Production Subdomain as primary.
-            'Access-Control-Allow-Origin': 'https://pos.belooprms.app',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-trpc-source',
-            'Access-Control-Allow-Credentials': 'true',
-        },
-    });
-};
+// OPTIONS handled by middleware
 
 export { handler as GET, handler as POST };
