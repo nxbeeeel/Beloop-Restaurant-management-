@@ -688,17 +688,5 @@ export const posRouter = router({
                 }
             });
 
-            // To fix "productName", I should fetch them efficiently or allow frontend to pass them.
-            // For now, I'll update them in a second pass or require frontend to pass names. 
-            // Updating input schema safely...
-
-            return po;
-        });
-
-    // Post-update names (or we could fetch before creating, which is better)
-    // Ideally we fetch products first.
-    // Let's refactor slightly to be correct.
-    // But since this is a quick fix for syntax:
-    return po;
-}), // syntax fixed, removed semicolon
+        }),
 });
