@@ -688,5 +688,223 @@ export const posRouter = router({
                 }
             });
 
+            return po;
+        }),
+
+    // ============================================
+    // ENTERPRISE FEATURES (Void & Closing)
+    // ============================================
+
+    voidOrder: posProcedure
+        .input(z.object({
+            orderId: z.string(),
+            reason: z.string(),
+            pin: z.string().optional() // Can be used for supervisor authorization in future
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { tenantId, outletId, userId, user } = ctx.posCredentials;
+
+            return ctx.prisma.$transaction(async (tx) => {
+                // 1. Verify Order
+                const order = await tx.order.findUnique({
+                    where: { id: input.orderId },
+                    include: { items: true }
+                });
+
+                if (!order) throw new TRPCError({ code: 'NOT_FOUND', message: 'Order not found' });
+                if (order.outletId !== outletId) throw new TRPCError({ code: 'FORBIDDEN', message: 'Order belongs to another outlet' });
+                if (order.status === 'VOIDED') throw new TRPCError({ code: 'BAD_REQUEST', message: 'Order is already voided' });
+
+                // 2. Restore Inventory
+                for (const item of order.items) {
+                    if (item.productId) {
+                        await tx.product.update({
+                            where: { id: item.productId },
+                            data: {
+                                currentStock: { increment: item.quantity },
+                                version: { increment: 1 }
+                            }
+                        });
+
+                        // Log Stock Movement
+                        await tx.stockMove.create({
+                            data: {
+                                outletId,
+                                productId: item.productId,
+                                qty: item.quantity,
+                                type: 'ADJUSTMENT',
+                                date: new Date(),
+                                notes: `Voided Order #${order.id.slice(-6)}`
+                            }
+                        });
+                    }
+                }
+
+                // 3. Update Order Status
+                const updatedOrder = await tx.order.update({
+                    where: { id: input.orderId },
+                    data: {
+                        status: 'VOIDED',
+                        voidReason: input.reason,
+                        voidedBy: userId,
+                        voidedAt: new Date()
+                    }
+                });
+
+                // 4. Audit Log
+                await tx.auditLog.create({
+                    data: {
+                        tenantId,
+                        outletId,
+                        userId,
+                        userName: user.name,
+                        action: 'VOID_ORDER',
+                        tableName: 'Order',
+                        recordId: order.id,
+                        oldValue: { status: order.status },
+                        newValue: { status: 'VOIDED', reason: input.reason },
+                        timestamp: new Date()
+                    }
+                });
+
+                // Invalidate Cache
+                const { CacheService } = await import("@/server/services/cache.service");
+                await CacheService.invalidate(CacheService.keys.fullMenu(outletId));
+
+                return updatedOrder;
+            });
+        }),
+
+    getDailyStats: posProcedure
+        .input(z.object({
+            date: z.string() // YYYY-MM-DD
+        }))
+        .query(async ({ ctx, input }) => {
+            const { outletId } = ctx.posCredentials;
+            const startOfDay = new Date(input.date);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(input.date);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            const orders = await ctx.prisma.order.findMany({
+                where: {
+                    outletId,
+                    createdAt: { gte: startOfDay, lte: endOfDay },
+                    status: 'COMPLETED'
+                }
+            });
+
+            const stats = {
+                systemCash: 0,
+                systemCard: 0,
+                systemUPI: 0,
+                systemOther: 0,
+                systemTotal: 0,
+                orderCount: orders.length
+            };
+
+            for (const order of orders) {
+                const total = Number(order.totalAmount);
+                stats.systemTotal += total;
+                if (order.paymentMethod === 'CASH') stats.systemCash += total;
+                else if (order.paymentMethod === 'CARD') stats.systemCard += total;
+                else if (order.paymentMethod === 'UPI') stats.systemUPI += total;
+                else stats.systemOther += total;
+            }
+
+            return stats;
+        }),
+
+    submitDailyClose: posProcedure
+        .input(z.object({
+            date: z.string(),
+            declaredCash: z.number(),
+            declaredOnline: z.number(),
+            denominations: z.any().optional(),
+            notes: z.string().optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { tenantId, outletId, userId, user } = ctx.posCredentials;
+            const targetDate = new Date(input.date);
+            targetDate.setHours(0, 0, 0, 0); // Ensure midnight date
+
+            // 1. Calculate Expected System Totals
+            const startOfDay = new Date(input.date);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(input.date);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            const orders = await ctx.prisma.order.findMany({
+                where: {
+                    outletId,
+                    createdAt: { gte: startOfDay, lte: endOfDay },
+                    status: 'COMPLETED'
+                }
+            });
+
+            let systemCash = 0;
+            let systemOnline = 0;
+            let systemTotal = 0;
+
+            for (const order of orders) {
+                const total = Number(order.totalAmount);
+                systemTotal += total;
+                if (order.paymentMethod === 'CASH') systemCash += total;
+                else systemOnline += total;
+            }
+
+            const cashVariance = input.declaredCash - systemCash;
+
+            // 2. Create Closure Record
+            const closure = await ctx.prisma.dailyClosure.upsert({
+                where: {
+                    outletId_date: { outletId, date: targetDate }
+                },
+                update: {
+                    cashSale: systemCash,
+                    totalSale: systemTotal, // Using System total as official record
+                    declaredCash: input.declaredCash,
+                    declaredOnline: input.declaredOnline,
+                    cashVariance: cashVariance,
+                    denominations: input.denominations ?? {},
+                    notes: input.notes,
+                    closedBy: userId,
+                    updatedAt: new Date()
+                },
+                create: {
+                    outletId,
+                    date: targetDate,
+                    cashSale: systemCash,
+                    bankSale: systemOnline, // Assuming bank = all online for now
+                    totalSale: systemTotal,
+                    declaredCash: input.declaredCash,
+                    declaredOnline: input.declaredOnline,
+                    cashVariance: cashVariance,
+                    denominations: input.denominations ?? {},
+                    notes: input.notes,
+                    closedBy: userId
+                }
+            });
+
+            // 3. Audit Log
+            await ctx.prisma.auditLog.create({
+                data: {
+                    tenantId,
+                    outletId,
+                    userId,
+                    userName: user.name,
+                    action: 'DAILY_CLOSE',
+                    tableName: 'DailyClosure',
+                    recordId: closure.id,
+                    newValue: {
+                        date: input.date,
+                        declaredCash: input.declaredCash,
+                        variance: cashVariance
+                    },
+                    timestamp: new Date()
+                }
+            });
+
+            return closure;
         }),
 });
