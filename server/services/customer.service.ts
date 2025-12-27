@@ -85,24 +85,14 @@ export class CustomerService {
     }) {
         const { tenantId, name, phoneNumber } = params;
 
-        // Check if exists
-        let customer = await prisma.customer.findUnique({
-            where: { tenantId_phoneNumber: { tenantId, phoneNumber } }
-        });
-
-        if (customer) {
-            return customer;
-        }
-
-        // Create new
-        return prisma.customer.create({
-            data: {
+        // Use upsert to handle race conditions and potential updates
+        return prisma.customer.upsert({
+            where: { tenantId_phoneNumber: { tenantId, phoneNumber } },
+            update: { name }, // Update name if provided (re-registration)
+            create: {
                 tenantId,
                 name,
-                phoneNumber,
-                loyalty: {
-                    create: [] // No loyalty progress initially
-                }
+                phoneNumber
             }
         });
     }
