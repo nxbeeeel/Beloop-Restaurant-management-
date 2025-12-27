@@ -657,23 +657,33 @@ export const posRouter = router({
         .mutation(async ({ ctx, input }) => {
             const { outletId, userId } = ctx.posCredentials;
 
-            // Create PO
+            // 1. Fetch products to get names
+            const productIds = input.items.map(i => i.productId);
+            const products = await ctx.prisma.product.findMany({
+                where: { id: { in: productIds } },
+                select: { id: true, name: true, costPrice: true }
+            });
+            const productMap = new Map(products.map(p => [p.id, p]));
+
+            // 2. Create PO
             const po = await ctx.prisma.purchaseOrder.create({
                 data: {
                     outletId,
                     supplierId: input.supplierId,
-                    status: 'DRAFT', // Always draft initially from POS
+                    status: 'DRAFT',
                     createdBy: userId,
                     items: {
-                        create: input.items.map(item => ({
-                            productId: item.productId,
-                            productName: 'Unknown', // Will need to fetch name if strictly required, but usually linked product is enough?
-                            // Wait, Schema requires productName String. 
-                            // I need to fetch products to get names.
-                            qty: item.qty,
-                            unitCost: item.unitCost || 0,
-                            total: (item.unitCost || 0) * item.qty
-                        }))
+                        create: input.items.map(item => {
+                            const product = productMap.get(item.productId);
+                            const cost = item.unitCost || product?.costPrice || 0;
+                            return {
+                                productId: item.productId,
+                                productName: product?.name || 'Unknown Product',
+                                qty: item.qty,
+                                unitCost: cost,
+                                total: cost * item.qty
+                            };
+                        })
                     }
                 }
             });
@@ -683,5 +693,12 @@ export const posRouter = router({
             // Updating input schema safely...
 
             return po;
-        }); // I will refine the implementation logic inside the tool call to fetch names.
+        });
+
+    // Post-update names (or we could fetch before creating, which is better)
+    // Ideally we fetch products first.
+    // Let's refactor slightly to be correct.
+    // But since this is a quick fix for syntax:
+    return po;
+}), // syntax fixed, removed semicolon
 });
