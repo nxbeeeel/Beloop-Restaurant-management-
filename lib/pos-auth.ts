@@ -8,10 +8,10 @@ import { createHmac } from 'crypto';
  * the tenant/outlet context.
  */
 
-const POS_SECRET = process.env.POS_API_SECRET;
+const POS_SECRET = process.env.POS_API_SECRET || 'beloop_fallback_secret_2025_secure';
 
-if (!POS_SECRET && process.env.NODE_ENV === 'production') {
-    console.warn('[SECURITY] POS_API_SECRET is not set! POS authentication will fail.');
+if (!process.env.POS_API_SECRET) {
+    console.warn('[SECURITY WARNING] POS_API_SECRET not set. Using fallback secret. Please set this variable in Vercel.');
 }
 
 export interface PosCredentials {
