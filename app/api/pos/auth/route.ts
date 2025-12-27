@@ -88,7 +88,7 @@ export async function POST(req: Request) {
         }
 
         // 6. Generate signed POS token
-        const token = signPosToken({
+        const token = await signPosToken({
             tenantId: outlet.tenantId,
             outletId: outlet.id,
             userId: user.id,
@@ -154,7 +154,7 @@ export async function PUT(req: Request) {
         const { verifyPosToken, shouldRefreshToken } = await import('@/lib/pos-auth');
 
         const oldToken = authHeader.substring(7);
-        const credentials = verifyPosToken(oldToken);
+        const credentials = await verifyPosToken(oldToken);
 
         if (!credentials) {
             return NextResponse.json(
@@ -164,7 +164,7 @@ export async function PUT(req: Request) {
         }
 
         // Only refresh if within 1 hour of expiry
-        if (!shouldRefreshToken(oldToken)) {
+        if (!await shouldRefreshToken(oldToken)) {
             return NextResponse.json({
                 success: true,
                 refreshed: false,
@@ -173,7 +173,7 @@ export async function PUT(req: Request) {
         }
 
         // Issue new token
-        const newToken = signPosToken({
+        const newToken = await signPosToken({
             tenantId: credentials.tenantId,
             outletId: credentials.outletId,
             userId: credentials.userId,

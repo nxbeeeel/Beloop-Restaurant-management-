@@ -113,7 +113,7 @@ const posAuthMiddleware = t.middleware(async ({ ctx, next }) => {
 
     // Verify HMAC-signed token
     const token = authHeader.substring(7);
-    const credentials = verifyPosToken(token);
+    const credentials = await verifyPosToken(token);
 
     if (!credentials) {
         throw new TRPCError({

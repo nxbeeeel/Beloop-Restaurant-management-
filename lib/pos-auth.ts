@@ -1,14 +1,15 @@
-import { createHmac } from 'crypto';
+import { SignJWT, jwtVerify } from 'jose';
 
 /**
  * POS Authentication Service
  * 
- * Provides HMAC-signed tokens for secure POS API communication.
- * Eliminates header spoofing vulnerability by cryptographically signing
- * the tenant/outlet context.
+ * Uses standard JWT (JOSE) for secure, stateless authentication.
+ * Replaces custom HMAC implementation to ensure robust encoding/decoding.
  */
 
-const POS_SECRET = process.env.POS_API_SECRET || 'beloop_fallback_secret_2025_secure';
+// Use fallback if env var is missing to prevent runtime crashes (and 401s)
+const POS_SECRET_VAL = process.env.POS_API_SECRET || 'beloop_fallback_secret_2025_secure_jwt_key';
+const POS_SECRET = new TextEncoder().encode(POS_SECRET_VAL);
 
 if (!process.env.POS_API_SECRET) {
     console.warn('[SECURITY WARNING] POS_API_SECRET not set. Using fallback secret. Please set this variable in Vercel.');
@@ -18,95 +19,81 @@ export interface PosCredentials {
     tenantId: string;
     outletId: string;
     userId: string;
-    timestamp: number;
-    expiresAt: number;
+    // JWT standard claims
+    iat?: number;
+    exp?: number;
+    // Compatibility helpers
+    timestamp?: number;
+    expiresAt?: number;
 }
 
 /**
- * Sign POS credentials into a secure token
+ * Sign POS credentials into a standard JWT
  * Token is valid for 24 hours by default
  */
-export function signPosToken(
-    credentials: Omit<PosCredentials, 'timestamp' | 'expiresAt'>,
-    expiresInMs: number = 24 * 60 * 60 * 1000 // 24 hours
-): string {
-    if (!POS_SECRET) {
-        throw new Error('POS_API_SECRET is not configured');
+export async function signPosToken(
+    credentials: Omit<PosCredentials, 'timestamp' | 'expiresAt' | 'iat' | 'exp'>,
+    expiresIn: string | number = '24h'
+): Promise<string> {
+    try {
+        const alg = 'HS256';
+        const jwt = await new SignJWT({
+            tenantId: credentials.tenantId,
+            outletId: credentials.outletId,
+            userId: credentials.userId
+        })
+            .setProtectedHeader({ alg })
+            .setIssuedAt()
+            .setExpirationTime(expiresIn)
+            .sign(POS_SECRET);
+
+        return jwt;
+    } catch (err) {
+        console.error('[POS Auth] Sign Error:', err);
+        throw new Error('Failed to sign POS token');
     }
-
-    const fullCredentials: PosCredentials = {
-        ...credentials,
-        timestamp: Date.now(),
-        expiresAt: Date.now() + expiresInMs,
-    };
-
-    const payload = JSON.stringify(fullCredentials);
-    const signature = createHmac('sha256', POS_SECRET)
-        .update(payload)
-        .digest('hex');
-
-    return Buffer.from(
-        JSON.stringify({ payload, signature })
-    ).toString('base64');
 }
 
 /**
- * Verify and decode a POS token
+ * Verify and decode a POS JWT
  * Returns null if token is invalid, expired, or tampered with
  */
-export function verifyPosToken(token: string): PosCredentials | null {
-    if (!POS_SECRET) {
-        console.error('[POS Auth] POS_API_SECRET not configured');
-        return null;
-    }
-
+export async function verifyPosToken(token: string): Promise<PosCredentials | null> {
     try {
-        const decoded = JSON.parse(
-            Buffer.from(token, 'base64').toString('utf8')
-        );
+        const { payload } = await jwtVerify(token, POS_SECRET);
 
-        const { payload, signature } = decoded;
-
-        // Verify signature
-        const expectedSignature = createHmac('sha256', POS_SECRET)
-            .update(payload)
-            .digest('hex');
-
-        if (signature !== expectedSignature) {
-            console.warn('[POS Auth] Invalid signature - possible tampering');
-            return null;
-        }
-
-        const credentials: PosCredentials = JSON.parse(payload);
-
-        // Check expiration
-        if (Date.now() > credentials.expiresAt) {
-            console.warn('[POS Auth] Token expired');
-            return null;
-        }
-
-        return credentials;
+        // Map JWT payload to PosCredentials
+        return {
+            tenantId: payload.tenantId as string,
+            outletId: payload.outletId as string,
+            userId: payload.userId as string,
+            timestamp: payload.iat ? payload.iat * 1000 : Date.now(),
+            expiresAt: payload.exp ? payload.exp * 1000 : Date.now() + 86400000,
+            iat: payload.iat,
+            exp: payload.exp
+        };
     } catch (error) {
-        console.error('[POS Auth] Token verification failed:', error);
-        return null;
+        // Detailed error logging for debugging
+        console.error(`[POS Auth] Verify Failed:`, error);
+        return null; // Invalid token
     }
 }
 
 /**
  * Token age check (for refresh logic)
  */
-export function getTokenAge(token: string): number | null {
-    const credentials = verifyPosToken(token);
-    if (!credentials) return null;
+export async function getTokenAge(token: string): Promise<number | null> {
+    const credentials = await verifyPosToken(token);
+    if (!credentials || !credentials.timestamp) return null;
     return Date.now() - credentials.timestamp;
 }
 
 /**
  * Check if token needs refresh (within 1 hour of expiry)
  */
-export function shouldRefreshToken(token: string): boolean {
-    const credentials = verifyPosToken(token);
-    if (!credentials) return true;
+export async function shouldRefreshToken(token: string): Promise<boolean> {
+    const credentials = await verifyPosToken(token);
+    if (!credentials || !credentials.expiresAt) return true;
 
     const oneHour = 60 * 60 * 1000;
     return (credentials.expiresAt - Date.now()) < oneHour;
