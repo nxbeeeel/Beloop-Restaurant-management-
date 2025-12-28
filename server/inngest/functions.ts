@@ -285,18 +285,46 @@ export const processSale = inngest.createFunction(
 
         console.log(`[ProcessSale] Order created: ${order.id}`);
 
-        // Step 3: Deduct stock (skip if service doesn't exist)
+        // Step 3: Deduct stock (Recipe-Aware)
         await step.run("deduct-stock", async () => {
             try {
-                // Stock deduction logic - update product quantities
                 for (const item of data.order.items) {
-                    if (item.productId) {
+                    if (!item.productId) continue;
+
+                    // Fetch product with recipe to determine deduction strategy
+                    const product = await prisma.product.findUnique({
+                        where: { id: item.productId },
+                        include: {
+                            recipeItems: {
+                                include: { ingredient: true }
+                            }
+                        }
+                    });
+
+                    if (!product) continue;
+
+                    if (product.recipeItems.length > 0) {
+                        // Strategy A: Recipe Product (e.g. Burger) -> Deduct Ingredients
+                        console.log(`[ProcessSale] Deducting ingredients for recipe product: ${product.name}`);
+
+                        for (const recipeItem of product.recipeItems) {
+                            const deductionQty = recipeItem.quantity * item.quantity;
+
+                            await prisma.ingredient.update({
+                                where: { id: recipeItem.ingredientId },
+                                data: {
+                                    stock: { decrement: deductionQty }
+                                }
+                            });
+                        }
+                    } else {
+                        // Strategy B: Direct Product (e.g. Coke Can) -> Deduct Product Stock
+                        console.log(`[ProcessSale] Deducting direct stock for product: ${product.name}`);
+
                         await prisma.product.update({
                             where: { id: item.productId },
                             data: {
-                                currentStock: {
-                                    decrement: item.quantity
-                                }
+                                currentStock: { decrement: item.quantity }
                             }
                         });
                     }

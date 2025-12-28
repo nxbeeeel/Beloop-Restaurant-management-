@@ -544,7 +544,7 @@ export const posRouter = router({
         .input(z.object({
             limit: z.number().default(50),
             offset: z.number().default(0),
-            status: z.enum(['COMPLETED', 'PENDING', 'CANCELLED']).optional()
+            status: z.enum(['COMPLETED', 'PENDING', 'CANCELLED', 'VOIDED']).optional()
         }))
         .query(async ({ ctx, input }) => {
             const { outletId } = ctx.posCredentials;
@@ -552,7 +552,7 @@ export const posRouter = router({
             const orders = await ctx.prisma.order.findMany({
                 where: {
                     outletId,
-                    status: input.status
+                    status: input.status as any
                 },
                 include: { items: true },
                 orderBy: { createdAt: 'desc' },
@@ -661,7 +661,7 @@ export const posRouter = router({
             const productIds = input.items.map(i => i.productId);
             const products = await ctx.prisma.product.findMany({
                 where: { id: { in: productIds } },
-                select: { id: true, name: true, costPrice: true }
+                select: { id: true, name: true, price: true }
             });
             const productMap = new Map(products.map(p => [p.id, p]));
 
@@ -675,7 +675,7 @@ export const posRouter = router({
                     items: {
                         create: input.items.map(item => {
                             const product = productMap.get(item.productId);
-                            const cost = item.unitCost || product?.costPrice || 0;
+                            const cost = item.unitCost || 0; // Cost not on product model yet
                             return {
                                 productId: item.productId,
                                 productName: product?.name || 'Unknown Product',
@@ -702,7 +702,14 @@ export const posRouter = router({
             pin: z.string().optional() // Can be used for supervisor authorization in future
         }))
         .mutation(async ({ ctx, input }) => {
-            const { tenantId, outletId, userId, user } = ctx.posCredentials;
+            const { tenantId, outletId, userId } = ctx.posCredentials;
+
+            // Fetch user for Audit Log
+            const user = await ctx.prisma.user.findUnique({
+                where: { id: userId },
+                select: { name: true }
+            });
+            const userName = user?.name || 'Unknown Staff';
 
             return ctx.prisma.$transaction(async (tx) => {
                 // 1. Verify Order
@@ -757,7 +764,7 @@ export const posRouter = router({
                         tenantId,
                         outletId,
                         userId,
-                        userName: user.name,
+                        userName: userName,
                         action: 'VOID_ORDER',
                         tableName: 'Order',
                         recordId: order.id,
@@ -824,9 +831,16 @@ export const posRouter = router({
             notes: z.string().optional()
         }))
         .mutation(async ({ ctx, input }) => {
-            const { tenantId, outletId, userId, user } = ctx.posCredentials;
+            const { tenantId, outletId, userId } = ctx.posCredentials;
             const targetDate = new Date(input.date);
             targetDate.setHours(0, 0, 0, 0); // Ensure midnight date
+
+            // Fetch user for Audit Log
+            const user = await ctx.prisma.user.findUnique({
+                where: { id: userId },
+                select: { name: true }
+            });
+            const userName = user?.name || 'Unknown Staff';
 
             // 1. Calculate Expected System Totals
             const startOfDay = new Date(input.date);
@@ -861,8 +875,8 @@ export const posRouter = router({
                     outletId_date: { outletId, date: targetDate }
                 },
                 update: {
-                    cashSale: systemCash,
-                    totalSale: systemTotal, // Using System total as official record
+                    cashSale: systemCash, // Standardizing to system calculated for consistency
+                    totalSale: systemTotal,
                     declaredCash: input.declaredCash,
                     declaredOnline: input.declaredOnline,
                     cashVariance: cashVariance,
@@ -875,7 +889,7 @@ export const posRouter = router({
                     outletId,
                     date: targetDate,
                     cashSale: systemCash,
-                    bankSale: systemOnline, // Assuming bank = all online for now
+                    bankSale: systemOnline,
                     totalSale: systemTotal,
                     declaredCash: input.declaredCash,
                     declaredOnline: input.declaredOnline,
@@ -892,7 +906,7 @@ export const posRouter = router({
                     tenantId,
                     outletId,
                     userId,
-                    userName: user.name,
+                    userName: userName,
                     action: 'DAILY_CLOSE',
                     tableName: 'DailyClosure',
                     recordId: closure.id,
