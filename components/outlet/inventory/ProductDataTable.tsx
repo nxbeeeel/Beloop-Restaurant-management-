@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { DataTable } from "@/components/ui/data-table";
 import { TableSkeleton } from "@/components/skeletons/TableSkeleton";
@@ -28,12 +28,6 @@ type Product = {
 
 export function ProductDataTable({ outletId }: ProductDataTableProps) {
     const utils = trpc.useUtils();
-    // Using filtered query from server or client side filtering?
-    // The previous implementation fetched ALL and filtered client side.
-    // For performance, we should ideally filter server side, but `DataTable` handles client side searching well.
-    // Let's stick to listAll for now as per optimized select router.
-
-    // NOTE: passing undefined for search to get all, DataTable handles local search
     const { data: products, isLoading } = trpc.products.list.useQuery({ outletId });
 
     const adjustMutation = trpc.inventory.adjustStock.useMutation({
@@ -44,11 +38,7 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
         onError: (err) => toast.error(err.message)
     });
 
-    if (isLoading) {
-        return <TableSkeleton colCount={5} rowCount={10} />;
-    }
-
-    const handleAdjust = (productId: string, qty: number) => {
+    const handleAdjust = useCallback((productId: string, qty: number) => {
         adjustMutation.mutate({
             productId,
             outletId,
@@ -56,7 +46,9 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
             type: 'ADJUSTMENT',
             notes: 'Quick adjustment from inventory list'
         });
-    };
+    }, [adjustMutation.mutate, outletId]);
+
+    const isPending = adjustMutation.isPending;
 
     const columns: ColumnDef<Product>[] = useMemo(() => [
         {
@@ -153,7 +145,7 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
                             size="icon"
                             className="h-8 w-8 text-red-600 border-red-100 hover:bg-red-50 hover:text-red-700"
                             onClick={() => handleAdjust(p.id, -1)}
-                            disabled={adjustMutation.isPending || isRecipeItem}
+                            disabled={isPending || isRecipeItem}
                             title={isRecipeItem ? "Adjust ingredients instead" : "Reduce stock"}
                         >
                             <Minus className="w-3 h-3" />
@@ -163,7 +155,7 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
                             size="icon"
                             className="h-8 w-8 text-green-600 border-green-100 hover:bg-green-50 hover:text-green-700"
                             onClick={() => handleAdjust(p.id, 1)}
-                            disabled={adjustMutation.isPending || isRecipeItem}
+                            disabled={isPending || isRecipeItem}
                             title={isRecipeItem ? "Adjust ingredients instead" : "Increase stock"}
                         >
                             <Plus className="w-3 h-3" />
@@ -172,7 +164,11 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
                 );
             }
         }
-    ], [adjustMutation]);
+    ], [handleAdjust, isPending]);
+
+    if (isLoading) {
+        return <TableSkeleton colCount={5} rowCount={10} />;
+    }
 
     return (
         <DataTable
@@ -183,3 +179,4 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
         />
     );
 }
+

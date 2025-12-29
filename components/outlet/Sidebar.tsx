@@ -64,6 +64,7 @@ export function Sidebar({ user, outlet }: SidebarProps) {
         {
             title: "Operations",
             items: [
+                { name: "Open POS", href: "https://pos.belooprms.app", icon: ShoppingCart, external: true },
                 { name: "Sales Entry", href: "/outlet/sales/entry", icon: ShoppingBag },
                 { name: "Expenses", href: "/outlet/entries", icon: Receipt },
                 { name: "Purchase Orders", href: "/outlet/purchase-orders", icon: Truck },
@@ -120,21 +121,34 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                             {section.title}
                         </h3>
                         <div className="space-y-1">
-                            {section.items.map((item) => (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    onMouseEnter={() => handlePrefetch(item.href)}
-                                    className={cn(
-                                        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-                                        isActive(item.href)
-                                            ? "bg-primary/10 text-primary shadow-sm"
-                                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                                    )}
-                                >
-                                    <item.icon className={cn("w-4 h-4", isActive(item.href) ? "text-primary" : "text-gray-400")} />
-                                    {item.name}
-                                </Link>
+                            {section.items.map((item: any) => (
+                                item.external ? (
+                                    <a
+                                        key={item.href}
+                                        href={item.href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-primary hover:bg-primary/10"
+                                    >
+                                        <item.icon className="w-4 h-4 text-primary" />
+                                        {item.name}
+                                    </a>
+                                ) : (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        onMouseEnter={() => handlePrefetch(item.href)}
+                                        className={cn(
+                                            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                                            isActive(item.href)
+                                                ? "bg-primary/10 text-primary shadow-sm"
+                                                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                                        )}
+                                    >
+                                        <item.icon className={cn("w-4 h-4", isActive(item.href) ? "text-primary" : "text-gray-400")} />
+                                        {item.name}
+                                    </Link>
+                                )
                             ))}
                         </div>
                     </div>
