@@ -90,21 +90,43 @@ export async function POST(req: Request) {
             );
         }
 
-        // 4. Check user is assigned to the requested outlet
-        if (user.outletId !== outletId) {
-            console.warn(`[POS Auth] User ${userId} attempted access to outlet ${outletId} but assigned to ${user.outletId}`);
-            return NextResponse.json(
-                { error: 'Forbidden', message: 'You do not have access to this outlet' },
-                { status: 403 }
-            );
+        // 4. Check user has access to the requested outlet
+        // SUPER and BRAND_ADMIN can access any outlet in their tenant
+        // STAFF and OUTLET_MANAGER must be assigned to the specific outlet
+        if (user.role !== 'SUPER' && user.role !== 'BRAND_ADMIN') {
+            if (user.outletId !== outletId) {
+                console.warn(`[POS Auth] User ${userId} attempted access to outlet ${outletId} but assigned to ${user.outletId}`);
+                return NextResponse.json(
+                    { error: 'Forbidden', message: 'You do not have access to this outlet' },
+                    { status: 403 }
+                );
+            }
         }
 
         // 5. Verify outlet exists and is POS-enabled
-        const outlet = user.outlet;
+        // For BRAND_ADMIN/SUPER, we need to fetch the outlet directly since user.outlet may be null
+        let outlet = user.outlet;
+        if (!outlet || outlet.id !== outletId) {
+            outlet = await prisma.outlet.findUnique({
+                where: { id: outletId },
+                include: {
+                    tenant: { select: { id: true, name: true, slug: true } }
+                }
+            });
+        }
+
         if (!outlet) {
             return NextResponse.json(
                 { error: 'Not Found', message: 'Outlet not found' },
                 { status: 404 }
+            );
+        }
+
+        // Brand Admins can only access outlets in their own tenant
+        if (user.role === 'BRAND_ADMIN' && outlet.tenantId !== user.tenantId) {
+            return NextResponse.json(
+                { error: 'Forbidden', message: 'Outlet does not belong to your brand' },
+                { status: 403 }
             );
         }
 
