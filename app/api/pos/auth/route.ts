@@ -17,7 +17,28 @@ import { NextResponse } from 'next/server';
  * @route POST /api/pos/auth
  */
 
-// CORS is handled by middleware.ts - no OPTIONS handler needed here
+// Explicit OPTIONS handler for CORS preflight
+const ALLOWED_ORIGINS = [
+    'https://pos.belooprms.app',
+    'https://beloop-pos-managment.vercel.app',
+    'http://localhost:3002',
+    'http://localhost:3000'
+];
+
+export async function OPTIONS(req: Request) {
+    const origin = req.headers.get('origin') || '';
+    const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+
+    return new NextResponse(null, {
+        status: 200,
+        headers: {
+            'Access-Control-Allow-Origin': allowedOrigin,
+            'Access-Control-Allow-Methods': 'POST, PUT, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Allow-Credentials': 'true',
+        },
+    });
+}
 
 export async function POST(req: Request) {
     try {
