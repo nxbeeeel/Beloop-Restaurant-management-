@@ -1,4 +1,4 @@
-import { auth } from '@clerk/nextjs/server';
+import { auth, clerkClient } from '@clerk/nextjs/server';
 import { prisma } from '@/server/db';
 import { signPosToken } from '@/lib/pos-auth';
 import { NextResponse } from 'next/server';
@@ -10,16 +10,50 @@ import { NextResponse } from 'next/server';
  * for their assigned outlet. This token is used for all subsequent
  * POS API calls instead of raw outlet/tenant IDs.
  * 
+ * Supports:
+ * - Cookie-based Clerk auth (same-origin)
+ * - Bearer token Clerk auth (cross-origin from POS app)
+ * 
  * @route POST /api/pos/auth
  */
+
+// CORS preflight
+export async function OPTIONS() {
+    return new NextResponse(null, {
+        status: 200,
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, PUT, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        },
+    });
+}
+
 export async function POST(req: Request) {
     try {
-        // 1. Verify Clerk authentication
-        const { userId } = await auth();
+        // 1. Try cookie-based auth first (same-origin)
+        let { userId } = await auth();
+
+        // 2. If no userId from cookie, try Bearer token (cross-origin from POS)
+        if (!userId) {
+            const authHeader = req.headers.get('Authorization');
+            if (authHeader?.startsWith('Bearer ')) {
+                const sessionToken = authHeader.substring(7);
+                try {
+                    // Verify the Clerk session token
+                    const client = await clerkClient();
+                    const sessionClaims = await client.verifyToken(sessionToken);
+                    userId = sessionClaims.sub;
+                } catch (tokenError) {
+                    console.error('[POS Auth] Token verification failed:', tokenError);
+                }
+            }
+        }
+
         if (!userId) {
             return NextResponse.json(
                 { error: 'Unauthorized', message: 'Not authenticated with Clerk' },
-                { status: 401 }
+                { status: 401, headers: { 'Access-Control-Allow-Origin': '*' } }
             );
         }
 
