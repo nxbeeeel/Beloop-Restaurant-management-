@@ -26,6 +26,7 @@ const isPublicRoute = createRouteMatcher([
 // API routes - always allow
 const isApiRoute = createRouteMatcher([
     '/api/(.*)',
+    '/api/trpc/pos(.*)', // Explicitly allow POS routes (HMAC Auth)
 ]);
 
 // Metadata shape expected from Clerk JWT
