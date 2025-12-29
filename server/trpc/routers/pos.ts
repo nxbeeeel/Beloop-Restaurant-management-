@@ -154,15 +154,16 @@ export const posRouter = router({
 
                 // 3. Guard & Write
                 if (dbProducts && dbProducts.length > 0) {
+                    console.log(`[POS] DB Hit: Found ${dbProducts.length} products for ${outletId}`);
                     // Only cache if we have products
                     await CacheService.set(cacheKey, dbProducts, 3600); // 1 hour TTL
                     products = dbProducts;
                 } else {
-                    // Empty array? Return it but DO NOT write to cache (or cache very briefly)
-                    // This allows immediate retry if it was a glitch
-                    console.warn(`[POS] Negative Cache Guard triggered for ${outletId}. DB returned 0 products. Skipping cache write.`);
+                    console.warn(`[POS] Negative Cache Guard: DB returned 0 products for ${outletId}`);
                     products = dbProducts || [];
                 }
+            } else {
+                console.log(`[POS] Cache Hit: Returned ${products.length} products`);
             }
 
             // Get outlet info

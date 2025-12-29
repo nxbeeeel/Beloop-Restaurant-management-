@@ -17,17 +17,7 @@ import { NextResponse } from 'next/server';
  * @route POST /api/pos/auth
  */
 
-// CORS preflight
-export async function OPTIONS() {
-    return new NextResponse(null, {
-        status: 200,
-        headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, PUT, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-    });
-}
+// CORS is handled by middleware.ts - no OPTIONS handler needed here
 
 export async function POST(req: Request) {
     try {
@@ -54,7 +44,7 @@ export async function POST(req: Request) {
         if (!userId) {
             return NextResponse.json(
                 { error: 'Unauthorized', message: 'Not authenticated with Clerk' },
-                { status: 401, headers: { 'Access-Control-Allow-Origin': '*' } }
+                { status: 401 }
             );
         }
 
