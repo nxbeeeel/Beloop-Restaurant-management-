@@ -332,10 +332,23 @@ export const processSale = inngest.createFunction(
                         for (const recipeItem of product.recipeItems) {
                             const deductionQty = recipeItem.quantity * item.quantity;
 
+                            // 1. Update Stock
                             await prisma.ingredient.update({
                                 where: { id: recipeItem.ingredientId },
                                 data: {
                                     stock: { decrement: deductionQty }
+                                }
+                            });
+
+                            // 2. Audit Move
+                            await prisma.stockMove.create({
+                                data: {
+                                    outletId: data.outletId,
+                                    ingredientId: recipeItem.ingredientId,
+                                    qty: deductionQty,
+                                    type: 'SALE',
+                                    date: new Date(),
+                                    notes: `Used in sale of ${item.quantity}x ${product.name} (Ref: ${order.id.slice(-4)})`
                                 }
                             });
                         }
@@ -343,10 +356,23 @@ export const processSale = inngest.createFunction(
                         // Strategy B: Direct Product (e.g. Coke Can) -> Deduct Product Stock
                         console.log(`[ProcessSale] Deducting direct stock for product: ${product.name}`);
 
+                        // 1. Update Stock
                         await prisma.product.update({
                             where: { id: item.productId },
                             data: {
                                 currentStock: { decrement: item.quantity }
+                            }
+                        });
+
+                        // 2. Audit Move
+                        await prisma.stockMove.create({
+                            data: {
+                                outletId: data.outletId,
+                                productId: item.productId,
+                                qty: item.quantity,
+                                type: 'SALE',
+                                date: new Date(),
+                                notes: `Sold in order ${order.id.slice(-4)}`
                             }
                         });
                     }
