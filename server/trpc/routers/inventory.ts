@@ -109,5 +109,62 @@ export const inventoryRouter = router({
                 type: input.type,
                 notes: input.notes
             });
+        }),
+
+    getUnifiedStock: protectedProcedure
+        .use(enforceTenant)
+        .input(z.object({ outletId: z.string() }))
+        .query(async ({ ctx, input }) => {
+            const [products, ingredients] = await Promise.all([
+                // Fetch products that are NOT recipe items (direct stock)
+                ctx.prisma.product.findMany({
+                    where: {
+                        outletId: input.outletId,
+                        // Ideally we would filter by _count here but Prisma doesn't support generic filtering on relation counts easily in findMany
+                        // So we fetch and filter in memory, or use raw query. For now, fetch and filter is safer content-wise.
+                    },
+                    include: {
+                        _count: { select: { recipeItems: true } }
+                    }
+                }),
+                // Fetch all ingredients
+                ctx.prisma.ingredient.findMany({
+                    where: { outletId: input.outletId }
+                })
+            ]);
+
+            // Transform Products -> Stock Items
+            // Filter out recipe items (where count > 0)
+            const productItems = products
+                .filter(p => (p._count?.recipeItems || 0) === 0)
+                .map(p => ({
+                    id: p.id,
+                    type: 'PRODUCT' as const,
+                    name: p.name,
+                    sku: p.sku || '',
+                    stock: p.currentStock,
+                    minStock: p.minStock,
+                    unit: p.unit,
+                    price: Number(p.price),
+                    value: p.currentStock * Number(p.price)
+                }));
+
+            // Transform Ingredients -> Stock Items
+            const ingredientItems = ingredients.map(i => ({
+                id: i.id,
+                type: 'INGREDIENT' as const,
+                name: i.name,
+                sku: '', // Ingredients typically don't fail properly on SKU in this schema, using empty
+                stock: i.stock,
+                minStock: i.minStock,
+                unit: i.purchaseUnit,
+                price: Number(i.costPerPurchaseUnit),
+                value: i.stock * Number(i.costPerPurchaseUnit)
+            }));
+
+            // Combine and Sort by Name
+            return [...productItems, ...ingredientItems].sort((a, b) =>
+                a.name.localeCompare(b.name)
+            );
         })
 });

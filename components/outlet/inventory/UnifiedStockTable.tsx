@@ -7,40 +7,43 @@ import { TableSkeleton } from "@/components/skeletons/TableSkeleton";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Minus, ArrowUpDown } from "lucide-react";
+import { Plus, Minus, ArrowUpDown, Package, UtensilsCrossed } from "lucide-react";
 import { toast } from "sonner";
 
-interface ProductDataTableProps {
+interface UnifiedStockTableProps {
     outletId: string;
 }
 
-type Product = {
+type StockItem = {
     id: string;
+    type: 'PRODUCT' | 'INGREDIENT';
     name: string;
     sku: string;
-    price: number | any; // prisma decimal handling
-    currentStock: number;
+    stock: number;
     minStock: number;
     unit: string;
-    imageUrl?: string | null;
-    _count?: { recipeItems: number };
+    price: number;
+    value: number;
 };
 
-export function ProductDataTable({ outletId }: ProductDataTableProps) {
+export function UnifiedStockTable({ outletId }: UnifiedStockTableProps) {
     const utils = trpc.useUtils();
-    const { data: products, isLoading } = trpc.products.list.useQuery({ outletId });
+    const { data: stockItems, isLoading } = trpc.inventory.getUnifiedStock.useQuery({ outletId });
 
     const adjustMutation = trpc.inventory.adjustStock.useMutation({
         onSuccess: () => {
-            utils.products.list.invalidate({ outletId });
+            utils.inventory.getUnifiedStock.invalidate({ outletId });
             toast.success("Stock updated");
         },
         onError: (err) => toast.error(err.message)
     });
 
-    const handleAdjust = useCallback((productId: string, qty: number) => {
+    const isPending = adjustMutation.isPending;
+
+    const handleAdjust = useCallback((item: StockItem, qty: number) => {
         adjustMutation.mutate({
-            productId,
+            productId: item.type === 'PRODUCT' ? item.id : undefined,
+            ingredientId: item.type === 'INGREDIENT' ? item.id : undefined,
             outletId,
             qty,
             type: 'ADJUSTMENT',
@@ -48,25 +51,34 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
         });
     }, [adjustMutation.mutate, outletId]);
 
-    const isPending = adjustMutation.isPending;
-
-    const columns: ColumnDef<Product>[] = useMemo(() => [
+    const columns: ColumnDef<StockItem>[] = useMemo(() => [
         {
             accessorKey: "name",
             header: ({ column }) => {
                 return (
                     <Button variant="ghost" className="p-0 hover:bg-transparent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-                        Product
+                        Item Details
                         <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                 )
             },
             cell: ({ row }) => {
-                const p = row.original;
+                const item = row.original;
                 return (
                     <div>
-                        <div className="font-bold text-gray-900">{p.name}</div>
-                        <div className="text-xs text-gray-500 font-mono mt-0.5">{p.sku}</div>
+                        <div className="font-bold text-gray-900 flex items-center gap-2">
+                            {item.name}
+                            {item.type === 'PRODUCT' ? (
+                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-blue-50 text-blue-700 border-blue-100">
+                                    Product
+                                </Badge>
+                            ) : (
+                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-amber-50 text-amber-700 border-amber-100">
+                                    Ingredient
+                                </Badge>
+                            )}
+                        </div>
+                        {item.sku && <div className="text-xs text-gray-500 font-mono mt-0.5">{item.sku}</div>}
                     </div>
                 );
             }
@@ -75,59 +87,42 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
             accessorKey: "status",
             header: "Status",
             cell: ({ row }) => {
-                const p = row.original;
-                const isRecipeItem = (p._count?.recipeItems || 0) > 0;
+                const item = row.original;
 
-                if (isRecipeItem) {
-                    return <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100">Made to Order</Badge>;
-                }
-
-                if (p.currentStock === 0) {
+                if (item.stock === 0) {
                     return <Badge variant="destructive" className="bg-red-50 text-red-700 hover:bg-red-100 border-red-100">Out of Stock</Badge>;
                 }
-                if (p.currentStock <= p.minStock) {
+                if (item.stock <= item.minStock) {
                     return <Badge variant="secondary" className="bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border-yellow-100">Low Stock</Badge>;
                 }
                 return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">In Stock</Badge>;
             }
         },
         {
-            accessorKey: "currentStock",
-            header: "Stock",
+            accessorKey: "stock",
+            header: "Current Stock",
             cell: ({ row }) => {
-                const p = row.original;
-                const isRecipeItem = (p._count?.recipeItems || 0) > 0;
-
-                if (isRecipeItem) {
-                    return (
-                        <div>
-                            <div className="font-bold text-blue-600 text-sm bg-blue-50 px-2 py-1 rounded inline-block">
-                                Recipe Item
-                            </div>
-                            <div className="text-xs text-gray-400 mt-1">Managed via Ingredients</div>
-                        </div>
-                    );
-                }
-
+                const item = row.original;
                 return (
                     <div>
                         <div className="font-bold text-gray-900 text-lg">
-                            {p.currentStock} <span className="text-gray-400 text-xs font-normal">{p.unit}</span>
+                            {item.stock} <span className="text-gray-400 text-xs font-normal">{item.unit}</span>
                         </div>
-                        <div className="text-xs text-gray-400">Min: {p.minStock}</div>
+                        <div className="text-xs text-gray-400">Min: {item.minStock}</div>
                     </div>
                 );
             }
         },
         {
             id: "value",
-            header: "Value",
+            header: "Est. Value",
             cell: ({ row }) => {
-                const p = row.original;
+                const item = row.original;
                 return (
-                    <span className="text-gray-600 font-medium">
-                        ₹{(p.currentStock * Number(p.price)).toLocaleString()}
-                    </span>
+                    <div className="flex flex-col">
+                        <span className="text-gray-900 font-medium">₹{item.value.toLocaleString()}</span>
+                        <span className="text-xs text-gray-400">₹{item.price} / {item.unit}</span>
+                    </div>
                 );
             }
         },
@@ -135,18 +130,16 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
             id: "actions",
             header: () => <div className="text-right">Quick Adjust</div>,
             cell: ({ row }) => {
-                const p = row.original;
-                const isRecipeItem = (p._count?.recipeItems || 0) > 0;
-
+                const item = row.original;
                 return (
                     <div className="flex justify-end gap-1">
                         <Button
                             variant="outline"
                             size="icon"
                             className="h-8 w-8 text-red-600 border-red-100 hover:bg-red-50 hover:text-red-700"
-                            onClick={() => handleAdjust(p.id, -1)}
-                            disabled={isPending || isRecipeItem}
-                            title={isRecipeItem ? "Adjust ingredients instead" : "Reduce stock"}
+                            onClick={() => handleAdjust(item, -1)}
+                            disabled={isPending}
+                            title="Reduce stock"
                         >
                             <Minus className="w-3 h-3" />
                         </Button>
@@ -154,9 +147,9 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
                             variant="outline"
                             size="icon"
                             className="h-8 w-8 text-green-600 border-green-100 hover:bg-green-50 hover:text-green-700"
-                            onClick={() => handleAdjust(p.id, 1)}
-                            disabled={isPending || isRecipeItem}
-                            title={isRecipeItem ? "Adjust ingredients instead" : "Increase stock"}
+                            onClick={() => handleAdjust(item, 1)}
+                            disabled={isPending}
+                            title="Increase stock"
                         >
                             <Plus className="w-3 h-3" />
                         </Button>
@@ -173,10 +166,9 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
     return (
         <DataTable
             columns={columns}
-            data={(products as any[]) || []}
+            data={stockItems || []}
             searchKey="name"
-            searchPlaceholder="Search products..."
+            searchPlaceholder="Search products or ingredients..."
         />
     );
 }
-

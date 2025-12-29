@@ -1,14 +1,11 @@
 "use client";
 
 import { trpc } from "@/lib/trpc";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ProductsTab } from "@/components/outlet/inventory/ProductsTab";
-import { IngredientsTab } from "@/components/outlet/inventory/IngredientsTab";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import Link from "next/link";
 import { StockMovementModal } from "@/components/outlet/inventory/StockMovementModal";
+import { UnifiedStockTable } from "@/components/outlet/inventory/UnifiedStockTable";
 
 export default function InventoryPage() {
     const { data: user, isLoading } = trpc.dashboard.getUser.useQuery();
@@ -43,7 +40,7 @@ export default function InventoryPage() {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 tracking-tight">Inventory Management</h1>
-                    <p className="text-gray-500 text-sm lg:text-base">Track stock levels for products and raw ingredients.</p>
+                    <p className="text-gray-500 text-sm lg:text-base">Track stock levels for products and ingredients.</p>
                 </div>
                 <div className="flex gap-3">
                     <Button
@@ -63,18 +60,9 @@ export default function InventoryPage() {
                 </div>
             </div>
 
-            <Tabs defaultValue="products" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-                    <TabsTrigger value="products">Products (Direct)</TabsTrigger>
-                    <TabsTrigger value="ingredients">Ingredients (Recipe)</TabsTrigger>
-                </TabsList>
-                <TabsContent value="products" className="mt-6">
-                    <ProductsTab outletId={outletId} />
-                </TabsContent>
-                <TabsContent value="ingredients" className="mt-6">
-                    <IngredientsTab outletId={outletId} />
-                </TabsContent>
-            </Tabs>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-1">
+                <UnifiedStockTable outletId={outletId} />
+            </div>
 
             <StockMovementModal
                 isOpen={modalConfig.isOpen}
