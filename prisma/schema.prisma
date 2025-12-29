@@ -52,20 +52,20 @@ model Tenant {
   deletedAt           DateTime?
 
   // Onboarding (Single Authoritative State)
-  onboardingStatus    OnboardingStatus   @default(NOT_STARTED)
+  onboardingStatus      OnboardingStatus @default(NOT_STARTED)
   onboardingCompletedAt DateTime?
 
   // Subscription & Billing
-  status          TenantStatus @default(ACTIVE)
+  status TenantStatus @default(ACTIVE)
 
-  pricePerOutlet  Float        @default(250)
-  currency        String       @default("INR")
-  billingCycle    String       @default("MONTHLY")
-  nextBillingDate DateTime?
-  isPaymentDue    Boolean      @default(false)
-  Ticket          Ticket[]
-  customers       Customer[]
-  orders          Order[]
+  pricePerOutlet    Float              @default(250)
+  currency          String             @default("INR")
+  billingCycle      String             @default("MONTHLY")
+  nextBillingDate   DateTime?
+  isPaymentDue      Boolean            @default(false)
+  Ticket            Ticket[]
+  customers         Customer[]
+  orders            Order[]
   dailyBrandMetrics DailyBrandMetric[]
 
   @@index([slug, subscriptionStatus])
@@ -78,74 +78,75 @@ enum OnboardingStatus {
 }
 
 model Outlet {
-  id               String            @id @default(cuid())
-  tenantId         String
-  name             String
-  code             String
-  address          String?
-  phone            String?
-  email            String?
-  googleSheetsUrl  String?
-  status           OutletStatus      @default(ACTIVE)
-  isPosEnabled     Boolean           @default(false) // Controls POS access
-  sheetExportUrl   String?
-  spreadsheetId    String?
-  lastSyncAt       DateTime?
-  dailyClosures    DailyClosure[]
-  expenses         Expense[]
-  invitations      Invitation[]
-  monthlySummaries MonthlySummary[]
+  id                           String                       @id @default(cuid())
+  tenantId                     String
+  name                         String
+  code                         String
+  address                      String?
+  phone                        String?
+  email                        String?
+  googleSheetsUrl              String?
+  status                       OutletStatus                 @default(ACTIVE)
+  isPosEnabled                 Boolean                      @default(false) // Controls POS access
+  sheetExportUrl               String?
+  spreadsheetId                String?
+  lastSyncAt                   DateTime?
+  dailyClosures                DailyClosure[]
+  expenses                     Expense[]
+  invitations                  Invitation[]
+  monthlySummaries             MonthlySummary[]
   historicalInventorySummaries HistoricalInventorySummary[]
-  deletedAt        DateTime?
-  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  products         Product[]
-  productSaleLinks ProductSaleLink[]
-  purchaseOrders   PurchaseOrder[]
-  sales            Sale[]
-  stockChecks      StockCheck[]
-  stockMoves       StockMove[]
-  users            User[]
-  wastages         Wastage[]
-  orders           Order[]
-  loyaltyProgress  LoyaltyProgress[]
-  loyaltyRule      LoyaltyRule?
-  Category         Category[]
-  ingredients      Ingredient[]
-  stockVerifications StockVerification[]
-  payments         SupplierPayment[]
-  dailyOutletMetrics DailyOutletMetric[]
+  deletedAt                    DateTime?
+  tenant                       Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products                     Product[]
+  productSaleLinks             ProductSaleLink[]
+  purchaseOrders               PurchaseOrder[]
+  sales                        Sale[]
+  stockChecks                  StockCheck[]
+  stockMoves                   StockMove[]
+  users                        User[]
+  wastages                     Wastage[]
+  orders                       Order[]
+  loyaltyProgress              LoyaltyProgress[]
+  loyaltyRule                  LoyaltyRule?
+  Category                     Category[]
+  ingredients                  Ingredient[]
+  stockVerifications           StockVerification[]
+  payments                     SupplierPayment[]
+  dailyOutletMetrics           DailyOutletMetric[]
+  discounts                    Discount[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
 }
 
 model User {
-  id                 String             @id @default(cuid())
+  id                 String              @id @default(cuid())
   tenantId           String?
   outletId           String?
-  email              String             @unique
-  clerkId            String             @unique
+  email              String              @unique
+  clerkId            String              @unique
   name               String
-  role               UserRole           @default(STAFF)
+  role               UserRole            @default(STAFF)
   permissions        Json?
   passwordChangedAt  DateTime?
-  mustChangePassword Boolean            @default(false)
-  isActive           Boolean            @default(true)
+  mustChangePassword Boolean             @default(false)
+  isActive           Boolean             @default(true)
   lastLoginAt        DateTime?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   deletedAt          DateTime?
   auditLogs          AuditLog[]
   expenses           Expense[]
   sales              Sale[]
   stockChecks        StockCheck[]
   tempPassword       TemporaryPassword?
-  outlet             Outlet?            @relation(fields: [outletId], references: [id], onDelete: SetNull)
-  tenant             Tenant?            @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  outlet             Outlet?             @relation(fields: [outletId], references: [id], onDelete: SetNull)
+  tenant             Tenant?             @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   Ticket             Ticket[]
   TicketComment      TicketComment[]
   stockVerifications StockVerification[]
-  purchaseOrders     PurchaseOrder[] @relation("CreatedBy")
+  purchaseOrders     PurchaseOrder[]     @relation("CreatedBy")
 
   @@index([tenantId, role])
   @@index([outletId])
@@ -183,8 +184,8 @@ model Sale {
   staff             User      @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   // Optimization for Brand Analytics
-  tenantId          String?
-  tenant            Tenant?   @relation(fields: [tenantId], references: [id])
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
   @@unique([outletId, date])
   @@index([outletId, date])
@@ -213,8 +214,8 @@ model Expense {
   purchaseOrder PurchaseOrder?
 
   // Optimization
-  tenantId      String?
-  tenant        Tenant?        @relation(fields: [tenantId], references: [id])
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
   @@index([outletId, date])
   @@index([staffId, date])
@@ -242,10 +243,10 @@ model MonthlySummary {
   totalWastage     Decimal  @default(0) @db.Decimal(12, 2)
   wastageRatio     Decimal  @default(0) @db.Decimal(5, 2)
   outlet           Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  
+
   // Optimization
-  tenantId         String?
-  tenant           Tenant?  @relation(fields: [tenantId], references: [id])
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
   @@unique([outletId, month])
   @@index([outletId, month])
@@ -253,23 +254,23 @@ model MonthlySummary {
 }
 
 model HistoricalInventorySummary {
-  id            String   @id @default(cuid())
-  outletId      String
-  date          DateTime @db.Date
-  
-  // Aggregated values for the day
-  totalPurchase Decimal  @default(0) @db.Decimal(12, 2)
-  totalWaste    Decimal  @default(0) @db.Decimal(12, 2)
-  totalUsage    Decimal  @default(0) @db.Decimal(12, 2) // Sales consumption
-  closingValue  Decimal  @default(0) @db.Decimal(12, 2) // Total stock value at EOD
-  
-  // JSON storage for detailed category breakdown if needed for graphs
-  breakdown     Json?
+  id       String   @id @default(cuid())
+  outletId String
+  date     DateTime @db.Date
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  outlet        Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  // Aggregated values for the day
+  totalPurchase Decimal @default(0) @db.Decimal(12, 2)
+  totalWaste    Decimal @default(0) @db.Decimal(12, 2)
+  totalUsage    Decimal @default(0) @db.Decimal(12, 2) // Sales consumption
+  closingValue  Decimal @default(0) @db.Decimal(12, 2) // Total stock value at EOD
+
+  // JSON storage for detailed category breakdown if needed for graphs
+  breakdown Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  outlet Outlet @relation(fields: [outletId], references: [id], onDelete: Cascade)
 
   @@unique([outletId, date])
   @@index([outletId, date])
@@ -288,32 +289,32 @@ model Category {
 }
 
 model Product {
-  id              String            @id @default(cuid())
-  outletId        String
-  supplierId      String?
-  categoryId      String?
-  sku             String
-  name            String
-  description     String?
-  imageUrl        String?
-  price           Decimal           @default(0) @db.Decimal(10, 2)
-  unit            String
-  minStock        Float             @default(0)
-  currentStock    Float             @default(0)
-  version         Int               @default(1)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  deletedAt       DateTime?
-  poItems         POItem[]
-  outlet          Outlet            @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  supplier        Supplier?         @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  category        Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  saleLinks       ProductSaleLink[]
-  stockCheckItems StockCheckItem[]
-  stockMoves      StockMove[]
-  wastages        Wastage[]
-  orderItems      OrderItem[]
-  recipeItems     RecipeItem[]
+  id                     String                  @id @default(cuid())
+  outletId               String
+  supplierId             String?
+  categoryId             String?
+  sku                    String
+  name                   String
+  description            String?
+  imageUrl               String?
+  price                  Decimal                 @default(0) @db.Decimal(10, 2)
+  unit                   String
+  minStock               Float                   @default(0)
+  currentStock           Float                   @default(0)
+  version                Int                     @default(1)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  deletedAt              DateTime?
+  poItems                POItem[]
+  outlet                 Outlet                  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier               Supplier?               @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  category               Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  saleLinks              ProductSaleLink[]
+  stockCheckItems        StockCheckItem[]
+  stockMoves             StockMove[]
+  wastages               Wastage[]
+  orderItems             OrderItem[]
+  recipeItems            RecipeItem[]
   stockVerificationItems StockVerificationItem[]
 
   @@unique([outletId, sku])
@@ -365,19 +366,19 @@ model PurchaseOrder {
 }
 
 model SupplierPayment {
-  id          String   @id @default(cuid())
-  outletId    String
-  supplierId  String
-  amount      Decimal  @db.Decimal(12, 2)
-  date        DateTime @default(now())
-  method      String   // "CASH", "UPI", "BANK_TRANSFER", "CHEQUE"
-  reference   String?  // Transaction ID or Cheque No
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  outletId   String
+  supplierId String
+  amount     Decimal  @db.Decimal(12, 2)
+  date       DateTime @default(now())
+  method     String // "CASH", "UPI", "BANK_TRANSFER", "CHEQUE"
+  reference  String? // Transaction ID or Cheque No
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  outlet      Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  outlet   Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
   @@index([outletId, supplierId])
   @@index([date])
@@ -483,19 +484,19 @@ model SaleArchive {
 }
 
 model Supplier {
-  id             String          @id @default(cuid())
+  id             String            @id @default(cuid())
   tenantId       String
   name           String
   whatsappNumber String?
   email          String?
   paymentTerms   String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
   products       Product[]
   ingredients    Ingredient[]
   purchaseOrders PurchaseOrder[]
   payments       SupplierPayment[]
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
 }
@@ -529,25 +530,25 @@ model StockCheckItem {
 }
 
 model DailyClosure {
-  id                String   @id @default(cuid())
-  outletId          String
-  date              DateTime
-  cashSale          Decimal  @default(0)
-  bankSale          Decimal  @default(0)
-  zomatoSale        Decimal  @default(0)
-  swiggySale        Decimal  @default(0)
-  totalSale         Decimal  @default(0)
-  totalExpense      Decimal  @default(0)
-  profit            Decimal  @default(0)
-  
+  id           String   @id @default(cuid())
+  outletId     String
+  date         DateTime
+  cashSale     Decimal  @default(0)
+  bankSale     Decimal  @default(0)
+  zomatoSale   Decimal  @default(0)
+  swiggySale   Decimal  @default(0)
+  totalSale    Decimal  @default(0)
+  totalExpense Decimal  @default(0)
+  profit       Decimal  @default(0)
+
   // Enterprise Closing Features
-  declaredCash      Decimal  @default(0) @db.Decimal(12, 2)
-  declaredOnline    Decimal  @default(0) @db.Decimal(12, 2)
-  cashVariance      Decimal  @default(0) @db.Decimal(12, 2)
-  denominations     Json?    // { "500": 10, "100": 5 }
-  notes             String?
-  closedBy          String?  // ID of staff performing closure
-  
+  declaredCash   Decimal @default(0) @db.Decimal(12, 2)
+  declaredOnline Decimal @default(0) @db.Decimal(12, 2)
+  cashVariance   Decimal @default(0) @db.Decimal(12, 2)
+  denominations  Json? // { "500": 10, "100": 5 }
+  notes          String?
+  closedBy       String? // ID of staff performing closure
+
   stockSnapshot     Json?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -578,49 +579,49 @@ model Wastage {
 }
 
 model Ingredient {
-  id               String   @id @default(cuid())
-  outletId         String
-  supplierId       String?
-  name             String
-  
+  id         String  @id @default(cuid())
+  outletId   String
+  supplierId String?
+  name       String
+
   // Purchase/Stock Unit (Physical counting - what staff counts)
-  purchaseUnit     String   @default("pcs") // "tub", "bottle", "bag", "box", "pcs"
-  qtyPerUnit       Float    @default(1) // How much usage unit in 1 purchase unit (e.g., 2.5 kg per tub)
-  
+  purchaseUnit String @default("pcs") // "tub", "bottle", "bag", "box", "pcs"
+  qtyPerUnit   Float  @default(1) // How much usage unit in 1 purchase unit (e.g., 2.5 kg per tub)
+
   // Usage Unit (Recipe/Consumption - what recipes use)
-  usageUnit        String   @default("kg") // "kg", "g", "L", "ml"
-  baseUnit         String   @default("kg") // Standardized base unit for calculations
-  conversionFactor Float    @default(1) // Conversion to base unit
-  
+  usageUnit        String @default("kg") // "kg", "g", "L", "ml"
+  baseUnit         String @default("kg") // Standardized base unit for calculations
+  conversionFactor Float  @default(1) // Conversion to base unit
+
   // Cost tracking
   costPerPurchaseUnit Decimal @default(0) @db.Decimal(10, 2) // Cost per tub/bottle/bag
   costPerUsageUnit    Decimal @default(0) @db.Decimal(10, 2) // Cost per kg/L (calculated)
-  
-  // Stock (in purchase units for easy counting by staff)
-  stock            Float    @default(0) // e.g., 3 tubs
-  minStock         Float    @default(0) // e.g., 1 tub
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
 
-  outlet           Outlet       @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  supplier         Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  recipeItems      RecipeItem[]
+  // Stock (in purchase units for easy counting by staff)
+  stock    Float @default(0) // e.g., 3 tubs
+  minStock Float @default(0) // e.g., 1 tub
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  outlet                 Outlet                  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  supplier               Supplier?               @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  recipeItems            RecipeItem[]
   stockVerificationItems StockVerificationItem[]
-  poItems          POItem[]
+  poItems                POItem[]
 
   @@index([outletId])
 }
 
 model RecipeItem {
-  id           String     @id @default(cuid())
+  id           String @id @default(cuid())
   productId    String
   ingredientId String
-  quantity     Float      // Amount of ingredient used
-  unit         String     @default("g") // Unit of measurement: "g", "kg", "ml", "L"
-  
-  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  quantity     Float // Amount of ingredient used
+  unit         String @default("g") // Unit of measurement: "g", "kg", "ml", "L"
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
 
   @@unique([productId, ingredientId])
   @@index([productId])
@@ -641,48 +642,44 @@ enum SubscriptionStatus {
 
 // Stock Verification Models
 model StockVerification {
-  id          String   @id @default(cuid())
-  outletId    String
-  date        DateTime @default(now())
-  type        String   // "OPENING" | "CLOSING"
-  verifiedBy  String
-  status      String   @default("PENDING") // "PENDING" | "COMPLETED"
-  notes       String?
-  createdAt   DateTime @default(now())
-  
-  outlet      Outlet   @relation(fields: [outletId], references: [id])
-  user        User     @relation(fields: [verifiedBy], references: [id])
-  items       StockVerificationItem[]
-  
+  id         String   @id @default(cuid())
+  outletId   String
+  date       DateTime @default(now())
+  type       String // "OPENING" | "CLOSING"
+  verifiedBy String
+  status     String   @default("PENDING") // "PENDING" | "COMPLETED"
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  outlet Outlet                  @relation(fields: [outletId], references: [id])
+  user   User                    @relation(fields: [verifiedBy], references: [id])
+  items  StockVerificationItem[]
+
   @@index([outletId, date, type])
 }
 
 model StockVerificationItem {
-  id                String   @id @default(cuid())
-  verificationId    String
-  ingredientId      String?
-  productId         String?
-  
-  totalUnits        Float    // Total physical count
-  openedUnits       Float    // Opened/partial units
-  closedUnits       Float    // Sealed units
-  
-  systemStock       Float    // What system says
-  actualStock       Float    // What was counted
-  difference        Float    // Variance
-  
-  notes             String?
-  
-  verification      StockVerification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
-  ingredient        Ingredient?       @relation(fields: [ingredientId], references: [id])
-  product           Product?          @relation(fields: [productId], references: [id])
-  
+  id             String  @id @default(cuid())
+  verificationId String
+  ingredientId   String?
+  productId      String?
+
+  totalUnits  Float // Total physical count
+  openedUnits Float // Opened/partial units
+  closedUnits Float // Sealed units
+
+  systemStock Float // What system says
+  actualStock Float // What was counted
+  difference  Float // Variance
+
+  notes String?
+
+  verification StockVerification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient?       @relation(fields: [ingredientId], references: [id])
+  product      Product?          @relation(fields: [productId], references: [id])
+
   @@index([verificationId])
 }
-
-
-
-
 
 enum OutletStatus {
   ACTIVE
@@ -811,45 +808,53 @@ model TicketComment {
 }
 
 model Order {
-  id              String      @id @default(cuid())
-  idempotencyKey  String?     @unique  // POS deduplication key
-  outletId        String
-  customerName    String?
-  status          OrderStatus @default(PENDING)
-  totalAmount     Decimal     @db.Decimal(12, 2)
-  discount        Decimal     @default(0) @db.Decimal(12, 2)
-  tax             Decimal     @default(0) @db.Decimal(12, 2)
-  paymentMethod   String?     // CASH, CARD, UPI, etc. (null until paid)
-  items           OrderItem[]
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  
-  outlet          Outlet      @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  customer        Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  customerId      String?
+  id             String      @id @default(cuid())
+  idempotencyKey String?     @unique // POS deduplication key
+  outletId       String
+  customerName   String?
+  status         OrderStatus @default(PENDING)
+  totalAmount    Decimal     @db.Decimal(12, 2)
+  discount       Decimal     @default(0) @db.Decimal(12, 2)
+  tax            Decimal     @default(0) @db.Decimal(12, 2)
+  paymentMethod  String? // CASH, CARD, UPI, etc. (null until paid)
+  items          OrderItem[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  outlet     Outlet    @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId String?
+
+  // --- Discounts & Coupons ---
+  discountId  String?
+  discountObj Discount? @relation(fields: [discountId], references: [id], onDelete: SetNull)
+
+  // --- Split Bill / Payments ---
+  payments      OrderPayment[]
+  paymentStatus String    @default("PENDING") // PENDING, PARTIAL, PAID
 
   // ============================================
   // ENTERPRISE POS FEATURES
   // ============================================
 
   // --- Order Type & Table Management ---
-  orderType       OrderType   @default(TAKEAWAY)
-  tableNumber     String?     // For DINE_IN orders
-  isOpen          Boolean     @default(false)  // True while customer is seated
-  openedAt        DateTime?   // When table/order was opened
-  closedAt        DateTime?   // When bill was finalized
+  orderType   OrderType @default(TAKEAWAY)
+  tableNumber String? // For DINE_IN orders
+  isOpen      Boolean   @default(false) // True while customer is seated
+  openedAt    DateTime? // When table/order was opened
+  closedAt    DateTime? // When bill was finalized
 
   // --- Order Notes & Modifiers ---
-  notes           String?     // General order notes ("No plastic bag")
-  
+  notes String? // General order notes ("No plastic bag")
+
   // --- Hold Order ---
-  isHold          Boolean     @default(false)  // Parked order
-  holdReason      String?     // "Customer went to ATM"
+  isHold     Boolean @default(false) // Parked order
+  holdReason String? // "Customer went to ATM"
 
   // --- Void Logic ---
-  voidReason      String?
-  voidedBy        String?
-  voidedAt        DateTime?
+  voidReason String?
+  voidedBy   String?
+  voidedAt   DateTime?
 
   // --- Kitchen Display ---
   kitchenStatus   KitchenStatus @default(NEW)
@@ -857,17 +862,31 @@ model Order {
   prepCompletedAt DateTime?
 
   // --- Staff & Shift ---
-  createdBy       String?     // Staff who created order
-  shiftId         String?     // Which shift this order belongs to
+  createdBy String? // Staff who created order
+  shiftId   String? // Which shift this order belongs to
 
-  tenantId       String?
-  tenant         Tenant?     @relation(fields: [tenantId], references: [id])
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
   @@index([outletId, status, createdAt])
   @@index([outletId, isOpen])
   @@index([outletId, tableNumber])
   @@index([customerId])
   @@index([tenantId, createdAt])
+}
+
+model OrderPayment {
+  id        String   @id @default(cuid())
+  orderId   String
+  amount    Decimal  @db.Decimal(12, 2)
+  method    String   // CASH, CARD, UPI, OTHER
+  status    String   @default("SUCCESS") // SUCCESS, FAILED, PENDING
+  reference String?  // Transaction ID or Note
+  createdAt DateTime @default(now())
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  @@index([orderId])
 }
 
 enum OrderType {
@@ -888,59 +907,58 @@ enum KitchenStatus {
 // ----------------------------------------------------
 
 model DailyBrandMetric {
-// ... existing ... 
-// (I will use separate chunks for separate models to be safe/clear, or one multi-replace)
+  // ... existing ... 
+  // (I will use separate chunks for separate models to be safe/clear, or one multi-replace)
 
-  id               String   @id @default(cuid())
-  tenantId         String
-  date             DateTime @db.Date // midnight UTC
-  
-  totalRevenue     Decimal  @default(0) @db.Decimal(12, 2)
-  totalExpenses    Decimal  @default(0) @db.Decimal(12, 2)
-  grossProfit      Decimal  @default(0) @db.Decimal(12, 2)
-  netProfit        Decimal  @default(0) @db.Decimal(12, 2)
-  
-  totalOrders      Int      @default(0)
-  avgTicketValue   Decimal  @default(0) @db.Decimal(10, 2)
-  
-  updatedAt        DateTime @updatedAt // When this aggregation was last run
+  id       String   @id @default(cuid())
+  tenantId String
+  date     DateTime @db.Date // midnight UTC
 
-  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  totalRevenue  Decimal @default(0) @db.Decimal(12, 2)
+  totalExpenses Decimal @default(0) @db.Decimal(12, 2)
+  grossProfit   Decimal @default(0) @db.Decimal(12, 2)
+  netProfit     Decimal @default(0) @db.Decimal(12, 2)
+
+  totalOrders    Int     @default(0)
+  avgTicketValue Decimal @default(0) @db.Decimal(10, 2)
+
+  updatedAt DateTime @updatedAt // When this aggregation was last run
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, date])
   @@index([tenantId, date])
 }
 
 model DailyOutletMetric {
-  id               String   @id @default(cuid())
-  outletId         String
-  tenantId         String
-  date             DateTime @db.Date
-  
-  totalRevenue     Decimal  @default(0) @db.Decimal(12, 2)
-  totalExpenses    Decimal  @default(0) @db.Decimal(12, 2)
-  totalWastage     Decimal  @default(0) @db.Decimal(12, 2)
-  netProfit        Decimal  @default(0) @db.Decimal(12, 2)
-  
-  orderCount       Int      @default(0)
-  
-  outlet           Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  id       String   @id @default(cuid())
+  outletId String
+  tenantId String
+  date     DateTime @db.Date
+
+  totalRevenue  Decimal @default(0) @db.Decimal(12, 2)
+  totalExpenses Decimal @default(0) @db.Decimal(12, 2)
+  totalWastage  Decimal @default(0) @db.Decimal(12, 2)
+  netProfit     Decimal @default(0) @db.Decimal(12, 2)
+
+  orderCount Int @default(0)
+
+  outlet Outlet @relation(fields: [outletId], references: [id], onDelete: Cascade)
 
   @@unique([outletId, date])
   @@index([outletId, date])
   @@index([tenantId, date])
 }
 
-
 model BrandInvitation {
-  id          String   @id @default(cuid())
-  token       String   @unique
-  brandName   String   // Proposed name for the new Tenant
-  email       String   // Target Admin Email
-  status      String   @default("PENDING") // PENDING, USED, EXPIRED
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  token     String   @unique
+  brandName String // Proposed name for the new Tenant
+  email     String // Target Admin Email
+  status    String   @default("PENDING") // PENDING, USED, EXPIRED
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([token])
   @@index([email])
@@ -954,11 +972,11 @@ model OrderItem {
   quantity  Int
   price     Decimal @db.Decimal(10, 2)
   total     Decimal @db.Decimal(12, 2)
-  modifiers Json?   // Store modifiers as JSON for now
+  modifiers Json? // Store modifiers as JSON for now
   notes     String? // Item-level notes: "No onions", "Extra spicy"
-  
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
 }
@@ -978,10 +996,10 @@ model Customer {
   email       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  loyalty     LoyaltyProgress[]
-  orders      Order[]
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  loyalty LoyaltyProgress[]
+  orders  Order[]
 
   @@unique([tenantId, phoneNumber])
   @@index([phoneNumber])
@@ -989,30 +1007,55 @@ model Customer {
 }
 
 model LoyaltyProgress {
-  id          String   @id @default(cuid())
-  customerId  String
-  outletId    String
-  stamps      Int      @default(0)
-  totalSpend  Decimal  @default(0) @db.Decimal(12, 2)
-  lastVisit   DateTime @default(now())
-  
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  outlet      Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  customerId String
+  outletId   String
+  stamps     Int      @default(0)
+  totalSpend Decimal  @default(0) @db.Decimal(12, 2)
+  lastVisit  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  outlet   Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
 
   @@unique([customerId, outletId])
   @@index([outletId])
 }
 
-model LoyaltyRule {
-  id                String   @id @default(cuid())
-  outletId          String   @unique
-  minSpendPerVisit  Decimal  @default(0) @db.Decimal(10, 2)
-  visitsRequired    Int      @default(6)
-  rewardType        String   @default("PERCENTAGE") // PERCENTAGE, FLAT
-  rewardValue       Decimal  @db.Decimal(10, 2)
-  isActive          Boolean  @default(true)
+model Discount {
+  id          String    @id @default(cuid())
+  outletId    String
+  code        String // e.g. "WELCOME10"
+  type        String // "PERCENTAGE" or "FIXED"
+  value       Decimal   @db.Decimal(10, 2)
+  minOrderVal Decimal   @default(0) @db.Decimal(12, 2)
+  maxDiscount Decimal?  @db.Decimal(12, 2) // Cap for percentage (e.g. 50% up to ₹100)
+  startDate   DateTime?
+  endDate     DateTime?
+  usageLimit  Int? // Total global uses allowed
+  usedCount   Int       @default(0)
+  isActive    Boolean   @default(true)
 
-  outlet            Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  outlet Outlet  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@unique([outletId, code]) // Code unique per outlet
+  @@index([outletId, isActive])
+  @@index([code])
+}
+
+model LoyaltyRule {
+  id               String  @id @default(cuid())
+  outletId         String  @unique
+  minSpendPerVisit Decimal @default(0) @db.Decimal(10, 2)
+  visitsRequired   Int     @default(6)
+  rewardType       String  @default("PERCENTAGE") // PERCENTAGE, FLAT
+  rewardValue      Decimal @db.Decimal(10, 2)
+  isActive         Boolean @default(true)
+
+  outlet Outlet @relation(fields: [outletId], references: [id], onDelete: Cascade)
 }
 
 model BrandApplication {
@@ -1038,52 +1081,52 @@ enum ApplicationStatus {
 // ============================================
 
 model Shift {
-  id            String    @id @default(cuid())
-  outletId      String
-  userId        String
-  startedAt     DateTime  @default(now())
-  endedAt       DateTime?
-  
+  id        String    @id @default(cuid())
+  outletId  String
+  userId    String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
   // Opening Cash
-  openingCash   Decimal   @default(0) @db.Decimal(12, 2)
-  
+  openingCash Decimal @default(0) @db.Decimal(12, 2)
+
   // Closing Counts (filled when shift ends)
-  closingCash   Decimal?  @db.Decimal(12, 2)
-  expectedCash  Decimal?  @db.Decimal(12, 2)
-  variance      Decimal?  @db.Decimal(12, 2)
-  
+  closingCash  Decimal? @db.Decimal(12, 2)
+  expectedCash Decimal? @db.Decimal(12, 2)
+  variance     Decimal? @db.Decimal(12, 2)
+
   // Summary (calculated at end)
-  totalSales    Decimal   @default(0) @db.Decimal(12, 2)
-  totalRefunds  Decimal   @default(0) @db.Decimal(12, 2)
-  orderCount    Int       @default(0)
-  
-  notes         String?
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  totalSales   Decimal @default(0) @db.Decimal(12, 2)
+  totalRefunds Decimal @default(0) @db.Decimal(12, 2)
+  orderCount   Int     @default(0)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([outletId, startedAt])
   @@index([userId])
 }
 
 model CashDrawerTransaction {
-  id            String    @id @default(cuid())
-  outletId      String
-  shiftId       String?
-  type          CashDrawerType
-  amount        Decimal   @db.Decimal(12, 2)
-  reason        String?   // "Manager pickup", "Change for customer"
-  performedBy   String    // User ID
-  createdAt     DateTime  @default(now())
+  id          String         @id @default(cuid())
+  outletId    String
+  shiftId     String?
+  type        CashDrawerType
+  amount      Decimal        @db.Decimal(12, 2)
+  reason      String? // "Manager pickup", "Change for customer"
+  performedBy String // User ID
+  createdAt   DateTime       @default(now())
 
   @@index([outletId, createdAt])
   @@index([shiftId])
 }
 
 enum CashDrawerType {
-  FLOAT       // Opening cash
-  DROP        // Remove cash to safe
-  PICKUP      // Manager takes cash
-  PAY_IN      // Add cash (tips, change)
-  PAY_OUT     // Petty cash expense
+  FLOAT // Opening cash
+  DROP // Remove cash to safe
+  PICKUP // Manager takes cash
+  PAY_IN // Add cash (tips, change)
+  PAY_OUT // Petty cash expense
 }

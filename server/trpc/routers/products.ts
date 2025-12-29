@@ -52,7 +52,7 @@ export const productsRouter = router({
                                     id: true,
                                     quantity: true,
                                     unit: true,
-                                    ingredient: { select: { id: true, name: true } }
+                                    ingredient: { select: { id: true, name: true, unit: true, usageUnit: true, costPerUsageUnit: true } }
                                 }
                             }
                         },

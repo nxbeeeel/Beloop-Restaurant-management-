@@ -563,6 +563,40 @@ export const posRouter = router({
             return orders;
         }),
 
+    voidOrder: posProcedure
+        .input(z.object({
+            orderId: z.string(),
+            reason: z.string().optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { outletId, userId } = ctx.posCredentials;
+
+            const order = await ctx.prisma.order.findUnique({
+                where: { id: input.orderId }
+            });
+
+            if (!order || order.outletId !== outletId) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Order not found' });
+            }
+
+            if (order.status === 'VOIDED' || order.status === 'CANCELLED') {
+                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Order is already voided/cancelled' });
+            }
+
+            // Update status to VOIDED
+            // We cast status to any because Prisma enum might strict check, but typically pure string works if it matches
+            const updated = await ctx.prisma.order.update({
+                where: { id: input.orderId },
+                data: {
+                    status: 'VOIDED' as any,
+                    // notes: input.reason ? `Voided: ${input.reason}` : undefined // If notes field exists
+                }
+            });
+
+            console.log(`[POS] Order ${input.orderId} voided by user ${userId}`);
+            return updated;
+        }),
+
     // ============================================
     // INVENTORY MANAGEMENT (Stock Count / PO)
     // ============================================
@@ -820,6 +854,75 @@ export const posRouter = router({
             }
 
             return stats;
+        }),
+
+
+
+    // ============================================
+    // PAYMENTS (Split Bill)
+    // ============================================
+
+    addPayment: posProcedure
+        .input(z.object({
+            orderId: z.string(),
+            amount: z.number(),
+            method: z.string(), // CASH, CARD, UPI, OTHER
+            reference: z.string().optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { orderId, amount, method, reference } = input;
+            const { prisma } = ctx;
+
+            // 1. Validations
+            const order = await prisma.order.findUnique({
+                where: { id: orderId },
+                include: { payments: true }
+            });
+
+            if (!order) throw new TRPCError({ code: 'NOT_FOUND', message: 'Order not found' });
+            if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
+                throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Order is already finalized' });
+            }
+
+            // 2. Add Payment
+            const payment = await prisma.orderPayment.create({
+                data: {
+                    orderId,
+                    amount,
+                    method,
+                    reference
+                }
+            });
+
+            // 3. Check Balance & Update Status
+            const totalPaid = order.payments.reduce((sum, p) => sum + Number(p.amount), 0) + amount;
+            const totalDue = Number(order.totalAmount);
+            const remaining = totalDue - totalPaid;
+
+            let newPaymentStatus = 'PARTIAL';
+            if (remaining <= 0.01) newPaymentStatus = 'PAID'; // Floating point tolerance
+
+            // Update Order
+            const updatedOrder = await prisma.order.update({
+                where: { id: orderId },
+                data: {
+                    paymentStatus: newPaymentStatus,
+                    // If fully paid, we can technically mark as COMPLETED, but usually checkout() does that.
+                    // For now, we update the primary paymentMethod if it's the first one, or set to "SPLIT"
+                    paymentMethod: order.payments.length === 0 ? method : 'SPLIT'
+                }
+            });
+
+            return { payment, order: updatedOrder, remaining };
+        }),
+
+    getOrderPayments: posProcedure
+        .input(z.string())
+        .query(async ({ ctx, input }) => {
+            return await ctx.prisma.orderPayment.findMany({
+                where: { orderId: input },
+                orderBy: { createdAt: 'desc' }
+            });
         }),
 
     submitDailyClose: posProcedure
@@ -1345,6 +1448,80 @@ export const posRouter = router({
             });
 
             return transaction;
+        }),
+
+    // ============================================
+    // ENTERPRISE: DISCOUNTS & COUPONS
+    // ============================================
+
+    getCoupons: posProcedure
+        .query(async ({ ctx }) => {
+            const { outletId } = ctx.posCredentials;
+            return await ctx.prisma.discount.findMany({
+                where: { outletId, isActive: true },
+                orderBy: { createdAt: 'desc' }
+            });
+        }),
+
+    validateCoupon: posProcedure
+        .input(z.object({
+            code: z.string(),
+            orderTotal: z.number()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { outletId } = ctx.posCredentials;
+            const coupon = await ctx.prisma.discount.findUnique({
+                where: { outletId_code: { outletId, code: input.code } }
+            });
+
+            if (!coupon || !coupon.isActive) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Invalid or expired coupon' });
+            }
+
+            // Check Validity
+            const now = new Date();
+            if (coupon.startDate && coupon.startDate > now) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Coupon not yet active' });
+            if (coupon.endDate && coupon.endDate < now) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Coupon expired' });
+            if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Coupon usage limit exceeded' });
+            if (input.orderTotal < (Number(coupon.minOrderVal) || 0)) throw new TRPCError({ code: 'BAD_REQUEST', message: `Minimum order value of ${coupon.minOrderVal} required` });
+
+            // Calculate Discount
+            let discountAmount = 0;
+            if (coupon.type === 'PERCENTAGE') {
+                discountAmount = (input.orderTotal * Number(coupon.value)) / 100;
+                if (coupon.maxDiscount && discountAmount > Number(coupon.maxDiscount)) {
+                    discountAmount = Number(coupon.maxDiscount);
+                }
+            } else {
+                discountAmount = Number(coupon.value);
+            }
+
+            // Ensure we don't discount more than total
+            discountAmount = Math.min(discountAmount, input.orderTotal);
+
+            return {
+                ...coupon,
+                calculatedDiscount: discountAmount
+            };
+        }),
+
+    createCoupon: posProcedure
+        .input(z.object({
+            code: z.string().transform(v => v.toUpperCase()),
+            type: z.enum(['PERCENTAGE', 'FIXED']),
+            value: z.number(),
+            minOrderVal: z.number().default(0),
+            maxDiscount: z.number().optional(),
+            endDate: z.date().optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { outletId } = ctx.posCredentials;
+            return await ctx.prisma.discount.create({
+                data: {
+                    outletId,
+                    ...input,
+                }
+            });
         }),
 });
 
