@@ -112,6 +112,31 @@ export class ProcurementService {
         const supplier = await prisma.supplier.findUnique({ where: { id: params.supplierId } });
         if (!supplier) throw new TRPCError({ code: "NOT_FOUND", message: "Supplier not found" });
 
+        // Pre-fetch items to get names for WhatsApp message
+        const productIds = params.items.filter(i => i.productId).map(i => i.productId!);
+        const ingredientIds = params.items.filter(i => i.ingredientId).map(i => i.ingredientId!);
+
+        const [products, ingredients] = await Promise.all([
+            prisma.product.findMany({ where: { id: { in: productIds } } }),
+            prisma.ingredient.findMany({ where: { id: { in: ingredientIds } } })
+        ]);
+
+        const productMap = new Map(products.map(p => [p.id, p]));
+        const ingredientMap = new Map(ingredients.map(i => [i.id, i]));
+
+        // Generate WhatsApp Message
+        let message = `*New Order for ${supplier.name}*\n\n`;
+        params.items.forEach(item => {
+            if (item.productId) {
+                const p = productMap.get(item.productId);
+                message += `- ${p?.name}: ${item.qty} ${p?.unit}\n`;
+            } else if (item.ingredientId) {
+                const i = ingredientMap.get(item.ingredientId);
+                message += `- ${i?.name}: ${item.qty} ${i?.purchaseUnit}\n`;
+            }
+        });
+        message += `\nDate: ${new Date().toLocaleDateString()}`;
+
         // Calculate total
         const totalAmount = params.items.reduce((sum, item) => sum + (item.qty * (item.unitCost || 0)), 0);
 
@@ -121,16 +146,12 @@ export class ProcurementService {
                 supplierId: params.supplierId,
                 status: params.status,
                 totalAmount,
+                whatsappMessage: message,
                 items: {
-                    create: await Promise.all(params.items.map(async (item) => {
+                    create: params.items.map(item => {
                         let name = "Unknown";
-                        if (item.productId) {
-                            const p = await prisma.product.findUnique({ where: { id: item.productId } });
-                            name = p?.name || "Unknown";
-                        } else if (item.ingredientId) {
-                            const i = await prisma.ingredient.findUnique({ where: { id: item.ingredientId } });
-                            name = i?.name || "Unknown";
-                        }
+                        if (item.productId) name = productMap.get(item.productId)?.name || "Unknown";
+                        else if (item.ingredientId) name = ingredientMap.get(item.ingredientId)?.name || "Unknown";
 
                         return {
                             productId: item.productId,
@@ -140,9 +161,10 @@ export class ProcurementService {
                             unitCost: item.unitCost || 0,
                             total: item.qty * (item.unitCost || 0)
                         };
-                    }))
+                    })
                 }
-            }
+            },
+            include: { supplier: true } // Return supplier for phone number
         });
     }
 
@@ -212,7 +234,18 @@ export class ProcurementService {
                             where: { id: poItem.ingredientId },
                             data: { stock: { increment: itemInput.receivedQty } }
                         });
-                        // Note: StockMove for ingredients not fully supported in schema yet
+
+                        // Audit Move (Ingredient)
+                        await tx.stockMove.create({
+                            data: {
+                                outletId: po.outletId,
+                                ingredientId: poItem.ingredientId,
+                                qty: itemInput.receivedQty,
+                                type: 'PURCHASE',
+                                date: new Date(),
+                                notes: `Received PO ${po.id.slice(-6)}`
+                            }
+                        });
                     }
                 }
             }

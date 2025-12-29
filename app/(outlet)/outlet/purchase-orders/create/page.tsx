@@ -24,8 +24,16 @@ export default function CreatePurchaseOrderPage() {
     const { data: ingredients } = trpc.ingredients.list.useQuery({ outletId }, { enabled: !!outletId });
 
     const createMutation = trpc.procurement.createOrder.useMutation({
-        onSuccess: () => {
+        onSuccess: (order) => {
             toast.success("Order created successfully");
+
+            // Open WhatsApp if supplier has number and message exists
+            if (order.supplier?.whatsappNumber && order.whatsappMessage) {
+                const encodedMessage = encodeURIComponent(order.whatsappMessage);
+                const waLink = `https://wa.me/${order.supplier.whatsappNumber}?text=${encodedMessage}`;
+                window.open(waLink, '_blank');
+            }
+
             router.push("/outlet/purchase-orders");
         },
         onError: (err) => toast.error(err.message)
