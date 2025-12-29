@@ -71,7 +71,9 @@ export default clerkMiddleware(
         }
 
         // 1. API ROUTES - Handle CORS & Pass Through
-        if (isApiRoute(req)) {
+        // EXCEPTION: /api/pos/auth handles its own CORS to avoid duplicate headers
+        const isPosAuthRoute = req.nextUrl.pathname === '/api/pos/auth';
+        if (isApiRoute(req) && !isPosAuthRoute) {
             const allowedOrigins = [
                 'https://pos.belooprms.app',
                 'https://beloop-pos-managment.vercel.app',
