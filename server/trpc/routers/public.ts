@@ -384,6 +384,7 @@ export const publicRouter = router({
             tenantId: dbUser.tenantId,
             outletId: dbUser.outletId,
             primary_org_slug: dbUser.tenant?.slug,
+            is_provisioned: true, // Critical for middleware routing
             onboardingStatus: effectiveOnboardingStatus
           }
         });

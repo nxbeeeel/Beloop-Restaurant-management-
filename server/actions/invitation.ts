@@ -275,6 +275,7 @@ export async function acceptInvitation(token: string) {
                     role: dbUser.role,
                     tenantId: dbUser.tenantId,
                     outletId: dbUser.outletId,
+                    is_provisioned: true, // Critical for middleware routing
                     onboardingStatus: effectiveOnboardingStatus
                 }
             });
