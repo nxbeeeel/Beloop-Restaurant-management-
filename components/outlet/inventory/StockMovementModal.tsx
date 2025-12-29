@@ -58,14 +58,8 @@ export function StockMovementModal({ isOpen, onClose, outletId, type }: StockMov
             for (const item of items) {
                 await adjustMutation.mutateAsync({
                     outletId,
-                    productId: item.id, // The API currently expects 'productId' but let's check if it handles ingredients
-                    // WAIT: The backend adjustStock might only handle products. 
-                    // Let's assume for now we only support Products for this specific modal 
-                    // or we need to update the backend to support ingredients adjustment.
-                    // For the sake of this task, let's limit to Products or risk breaking.
-                    // Actually, looking at inventoryRouter, it finds `product` by `productId`.
-                    // Does it handle Ingredients? Likely not yet. 
-                    // I will restrict this modal to PRODUCTS ONLY for safety in this iteration.
+                    productId: category === 'product' ? item.id : undefined,
+                    ingredientId: category === 'ingredient' ? item.id : undefined,
                     qty: type === 'IN' ? item.qty : -item.qty,
                     type: type === 'IN' ? 'PURCHASE' : 'WASTE',
                     notes: notes
@@ -98,7 +92,7 @@ export function StockMovementModal({ isOpen, onClose, outletId, type }: StockMov
                     <Tabs value={category} onValueChange={(v) => setCategory(v as any)} className="w-full">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="product">Products</TabsTrigger>
-                            <TabsTrigger value="ingredient" disabled title="Ingredient API pending">Ingredients (Coming Soon)</TabsTrigger>
+                            <TabsTrigger value="ingredient">Ingredients</TabsTrigger>
                         </TabsList>
                     </Tabs>
 

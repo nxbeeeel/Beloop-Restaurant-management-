@@ -255,26 +255,44 @@ export class InventoryService {
      * Centralized stock adjustment with audit trail (StockMove).
      */
     static async adjustStock(prisma: PrismaClient, params: {
-        productId: string;
+        productId?: string;
+        ingredientId?: string;
         outletId: string;
         qty: number;
         type: 'PURCHASE' | 'SALE' | 'WASTE' | 'ADJUSTMENT';
         notes?: string;
         date?: Date;
     }) {
+        if (!params.productId && !params.ingredientId) {
+            throw new Error("Must provide either productId or ingredientId");
+        }
+
         return prisma.$transaction(async (tx) => {
-            const product = await tx.product.update({
-                where: { id: params.productId },
-                data: {
-                    currentStock: { increment: params.qty },
-                    version: { increment: 1 }
-                }
-            });
+            let item;
+
+            if (params.productId) {
+                item = await tx.product.update({
+                    where: { id: params.productId },
+                    data: {
+                        currentStock: { increment: params.qty },
+                        version: { increment: 1 }
+                    }
+                });
+                await CacheService.invalidate(CacheService.keys.fullMenu(params.outletId));
+            } else if (params.ingredientId) {
+                item = await tx.ingredient.update({
+                    where: { id: params.ingredientId },
+                    data: {
+                        stock: { increment: params.qty }
+                    }
+                });
+            }
 
             await tx.stockMove.create({
                 data: {
                     outletId: params.outletId,
                     productId: params.productId,
+                    ingredientId: params.ingredientId, // Now supported
                     qty: params.qty,
                     type: params.type,
                     date: params.date || new Date(),
@@ -282,8 +300,7 @@ export class InventoryService {
                 }
             });
 
-            await CacheService.invalidate(CacheService.keys.fullMenu(params.outletId));
-            return product;
+            return item;
         });
     }
     static async createProduct(prisma: PrismaClient, params: {

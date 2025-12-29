@@ -93,7 +93,8 @@ export const inventoryRouter = router({
     adjustStock: protectedProcedure
         .use(enforceTenant)
         .input(z.object({
-            productId: z.string(),
+            productId: z.string().optional(),
+            ingredientId: z.string().optional(),
             outletId: z.string(),
             qty: z.number(), // Positive for add, negative for remove
             type: z.enum(['PURCHASE', 'SALE', 'WASTE', 'ADJUSTMENT']),
@@ -102,6 +103,7 @@ export const inventoryRouter = router({
         .mutation(async ({ ctx, input }) => {
             return InventoryService.adjustStock(ctx.prisma, {
                 productId: input.productId,
+                ingredientId: input.ingredientId,
                 outletId: input.outletId,
                 qty: input.qty,
                 type: input.type,

@@ -258,23 +258,23 @@ model MonthlySummary {
 // THE CUBE (Project Phoenix Phase 3)
 // Optimized for instant dashboard loading / specialized analytics
 model MonthlyMetric {
-  id           String   @id @default(cuid())
-  tenantId     String
-  outletId     String?  // Optional: can be null if representing Tenant-wide agg
-  month        String   // YYYY-MM
-  
-  totalRevenue Decimal  @default(0) @db.Decimal(12, 2)
-  totalOrders  Int      @default(0)
+  id       String  @id @default(cuid())
+  tenantId String
+  outletId String? // Optional: can be null if representing Tenant-wide agg
+  month    String // YYYY-MM
+
+  totalRevenue  Decimal @default(0) @db.Decimal(12, 2)
+  totalOrders   Int     @default(0)
   avgOrderValue Decimal @default(0) @db.Decimal(10, 2)
-  
+
   // Top Performers (JSON snapshot)
-  topItems     Json?    // [{ name: "Burger", qty: 100, rev: 500 }]
-  categorySplit Json?   // [{ name: "Food", rev: 1000 }, { name: "Bev", rev: 500 }]
-  
+  topItems      Json? // [{ name: "Burger", qty: 100, rev: 500 }]
+  categorySplit Json? // [{ name: "Food", rev: 1000 }, { name: "Bev", rev: 500 }]
+
   lastRefreshed DateTime @default(now())
 
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  outlet       Outlet?  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  outlet Outlet? @relation(fields: [outletId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, outletId, month]) // One metric per outlet per month (or one per tenant per month if outletId is null)
   @@index([tenantId, month])
@@ -352,19 +352,22 @@ model Product {
 }
 
 model StockMove {
-  id        String   @id @default(cuid())
-  outletId  String
-  productId String
-  qty       Float
-  type      MoveType
-  date      DateTime @db.Date
-  notes     String?
-  createdAt DateTime @default(now())
-  outlet    Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id           String      @id @default(cuid())
+  outletId     String
+  productId    String?
+  ingredientId String?
+  qty          Float
+  type         MoveType
+  date         DateTime    @db.Date
+  notes        String?
+  createdAt    DateTime    @default(now())
+  outlet       Outlet      @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  product      Product?    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient? @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
 
   @@index([outletId, date])
   @@index([productId, type, date])
+  @@index([ingredientId, type, date])
 }
 
 model PurchaseOrder {
@@ -636,6 +639,7 @@ model Ingredient {
   recipeItems            RecipeItem[]
   stockVerificationItems StockVerificationItem[]
   poItems                POItem[]
+  stockMoves             StockMove[]
 
   @@index([outletId])
 }
@@ -858,7 +862,7 @@ model Order {
 
   // --- Split Bill / Payments ---
   payments      OrderPayment[]
-  paymentStatus String    @default("PENDING") // PENDING, PARTIAL, PAID
+  paymentStatus String         @default("PENDING") // PENDING, PARTIAL, PAID
 
   // ============================================
   // ENTERPRISE POS FEATURES
@@ -906,13 +910,13 @@ model OrderPayment {
   id        String   @id @default(cuid())
   orderId   String
   amount    Decimal  @db.Decimal(12, 2)
-  method    String   // CASH, CARD, UPI, OTHER
+  method    String // CASH, CARD, UPI, OTHER
   status    String   @default("SUCCESS") // SUCCESS, FAILED, PENDING
-  reference String?  // Transaction ID or Note
+  reference String? // Transaction ID or Note
   createdAt DateTime @default(now())
 
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
   @@index([orderId])
 }
 
