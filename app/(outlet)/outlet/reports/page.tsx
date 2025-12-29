@@ -51,20 +51,20 @@ export default function ReportsPage() {
             toast.promise(
                 async () => {
                     const journal = await utils.client.ledger.getJournal.query({
-                        outletId: user.outletId,
-                        startDate,
-                        endDate
+                        outletId: user.outletId!,
+                        startDate: startDate || undefined,
+                        endDate: endDate || undefined
                     });
 
                     // CSV Header
                     const rows = [["Date", "Description", "Ref Type", "Ref ID", "Account", "Debit", "Credit"]];
 
                     // Flatten Data
-                    journal.forEach(entry => {
+                    journal.forEach((entry: JournalEntry) => {
                         entry.lines.forEach(line => {
                             rows.push([
                                 format(new Date(entry.date), 'yyyy-MM-dd'),
-                                `"${entry.description.replace(/"/g, '""')}"`, // Escape quotes
+                                `"${(entry.description || "").replace(/"/g, '""')}"`, // Escape quotes
                                 entry.referenceType || "",
                                 entry.referenceId || "",
                                 `"${line.account.name}"`,
