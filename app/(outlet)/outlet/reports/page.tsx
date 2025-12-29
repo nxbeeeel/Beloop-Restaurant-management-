@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import { type RouterOutput } from "@/server/trpc/trpc";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from "date-fns";
 import { Download, TrendingUp, ShoppingBag, Users, CreditCard, Loader2, Calendar } from "lucide-react";
+
+type JournalEntry = RouterOutput['ledger']['getJournal'][number];
 
 export default function ReportsPage() {
     const [range, setRange] = useState("thisMonth");
