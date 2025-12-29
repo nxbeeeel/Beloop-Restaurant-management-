@@ -117,6 +117,8 @@ model Outlet {
   dailyOutletMetrics           DailyOutletMetric[]
   discounts                    Discount[]
   monthlyMetrics               MonthlyMetric[] // Project Phoenix Phase 3
+  financialAccounts            FinancialAccount[]
+  journalEntries               JournalEntry[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -412,6 +414,67 @@ model SupplierPayment {
 
   @@index([outletId, supplierId])
   @@index([date])
+}
+
+// ==========================================
+// CIRCULAR ERP: FINANCIAL LEDGER (PHASE 3)
+// ==========================================
+
+model FinancialAccount {
+  id       String      @id @default(cuid())
+  outletId String
+  name     String // "Cash on Hand", "Sales Revenue", "COGS", "Accounts Payable"
+  type     AccountType // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+  code     String? // e.g. "1001", "2000"
+  balance  Decimal     @default(0) @db.Decimal(12, 2)
+  isSystem Boolean     @default(false) // If true, cannot be deleted (e.g. Cash)
+
+  lines  JournalLine[] @relation("AccountLines")
+  outlet Outlet        @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, name])
+  @@index([outletId, type])
+}
+
+model JournalEntry {
+  id            String   @id @default(cuid())
+  outletId      String
+  date          DateTime @default(now())
+  description   String
+  referenceId   String? // ID of Sale, PO, or Expense
+  referenceType String? // "SALE", "PURCHASE_ORDER", "EXPENSE", "ADJUSTMENT"
+
+  lines  JournalLine[] @relation("EntryLines")
+  outlet Outlet        @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([outletId, date])
+  @@index([referenceId])
+}
+
+model JournalLine {
+  id          String  @id @default(cuid())
+  journalId   String
+  accountId   String
+  debit       Decimal @default(0) @db.Decimal(12, 2)
+  credit      Decimal @default(0) @db.Decimal(12, 2)
+  description String?
+
+  journal JournalEntry     @relation("EntryLines", fields: [journalId], references: [id], onDelete: Cascade)
+  account FinancialAccount @relation("AccountLines", fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([journalId])
+  @@index([accountId])
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
 }
 
 model POItem {

@@ -383,16 +383,82 @@ export const processSale = inngest.createFunction(
             }
         });
 
-        // Step 4: Update daily metrics
-        await step.run("update-metrics", async () => {
+        // Step 4: Update daily metrics & Financials (Circular ERP)
+        await step.run("update-metrics-and-financials", async () => {
             try {
                 const { AggregationService } = await import("@/server/services/aggregation.service");
+                const { LedgerService } = await import("@/server/services/ledger.service");
+
+                // 1. Update Metrics
                 if (data.tenantId) {
                     await AggregationService.refreshToday(data.tenantId);
                 }
+
+                // 2. Calculate COGS (Best Effort)
+                let totalCOGS = 0;
+
+                // We need to re-fetch items/recipes to calculate cost if not already in scop
+                // Since this is a separate step, we do a quick fetch
+                const orderItems = await prisma.orderItem.findMany({
+                    where: { orderId: order.id },
+                    include: {
+                        product: {
+                            include: {
+                                recipeItems: { include: { ingredient: true } }
+                            }
+                        }
+                    }
+                });
+
+                for (const item of orderItems) {
+                    if (!item.product) continue;
+
+                    if (item.product.recipeItems.length > 0) {
+                        // Recipe Cost
+                        const itemCost = item.product.recipeItems.reduce((sum, r) => {
+                            return sum + (r.quantity * Number(r.ingredient.costPerUsageUnit || 0));
+                        }, 0);
+                        totalCOGS += itemCost * item.quantity;
+                    } else {
+                        // Direct Product Cost (Missing field, assuming 0 for now or fetch recent PO?)
+                        // TODO: Add costPrice to Product model
+                        totalCOGS += 0;
+                    }
+                }
+
+                // 3. Post Financial Entry (Revenue)
+                const paymentAccount = (order.paymentMethod === 'CASH' || order.paymentMethod === 'SPLIT')
+                    ? "Cash on Hand"
+                    : "Bank Account"; // Simplified mappng
+
+                await LedgerService.postEntry(prisma, {
+                    outletId: data.outletId,
+                    description: `Proceesed Sale #${order.id.slice(-4)}`,
+                    referenceId: order.id,
+                    referenceType: 'SALE',
+                    lines: [
+                        { accountName: paymentAccount, debit: Number(order.totalAmount), credit: 0 },
+                        { accountName: "Sales Revenue", debit: 0, credit: Number(order.totalAmount) }
+                    ]
+                });
+
+                // 4. Post Financial Entry (COGS)
+                if (totalCOGS > 0) {
+                    await LedgerService.postEntry(prisma, {
+                        outletId: data.outletId,
+                        description: `COGS for Sale #${order.id.slice(-4)}`,
+                        referenceId: order.id,
+                        referenceType: 'SALE',
+                        lines: [
+                            { accountName: "Cost of Goods Sold", debit: totalCOGS, credit: 0 },
+                            { accountName: "Inventory Asset", debit: 0, credit: totalCOGS }
+                        ]
+                    });
+                }
+
             } catch (error) {
-                console.error(`[ProcessSale] Metrics update failed:`, error);
-                // Non-critical - will be caught by nightly aggregation
+                console.error(`[ProcessSale] Metrics/Financials update failed:`, error);
+                // Non-critical
             }
         });
 

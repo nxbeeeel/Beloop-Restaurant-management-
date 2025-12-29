@@ -182,7 +182,7 @@ export class ProcurementService {
         return prisma.$transaction(async (tx) => {
             const po = await tx.purchaseOrder.findUnique({
                 where: { id: params.orderId },
-                include: { items: true }
+                include: { items: true, supplier: true }
             });
             if (!po) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -263,6 +263,31 @@ export class ProcurementService {
                     status: allReceived ? 'RECEIVED' : (anyReceived ? 'PARTIALLY_RECEIVED' : po.status)
                 }
             });
+
+            // ------------------------------------------------
+            // CIRCULAR ERP: FINANCIAL ENTRY (PHASE 3)
+            // ------------------------------------------------
+            // Debit: Inventory Asset (Increase)
+            // Credit: Accounts Payable (Increase Liability)
+
+            const totalReceivedValue = params.receivedItems.reduce((sum, itemInput) => {
+                const poItem = po.items.find(i => i.id === itemInput.itemId);
+                return sum + (itemInput.receivedQty * Number(poItem?.unitCost || 0));
+            }, 0);
+
+            if (totalReceivedValue > 0) {
+                const { LedgerService } = await import("./ledger.service");
+                await LedgerService.postEntry(tx, {
+                    outletId: po.outletId,
+                    description: `GRN for PO ${po.id.slice(-6)} from ${po.supplier?.name}`,
+                    referenceId: po.id,
+                    referenceType: 'PURCHASE_ORDER',
+                    lines: [
+                        { accountName: "Inventory Asset", debit: totalReceivedValue, credit: 0 },
+                        { accountName: "Accounts Payable", debit: 0, credit: totalReceivedValue }
+                    ]
+                });
+            }
 
             return { success: true };
         }, {

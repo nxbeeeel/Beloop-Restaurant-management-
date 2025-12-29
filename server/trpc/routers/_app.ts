@@ -11,9 +11,10 @@ import { procurementRouter } from "./procurement";
 import { dailyClosureRouter } from "./dailyClosure";
 import { wastageRouter } from "./wastage";
 import { adjustmentsRouter } from "./adjustments";
+import { ledgerRouter } from "./ledger";
+import { outletsRouter } from "./outlets";
 import { analyticsRouter } from "./analytics";
 import { tenantRouter } from "./tenant";
-import { outletsRouter } from "./outlets";
 import { superRouter } from "./super";
 import { superAnalyticsRouter } from "./superAnalytics";
 import { paymentRouter } from "./payment";
@@ -45,6 +46,7 @@ export const appRouter = router({
     dailyClosure: dailyClosureRouter,
     wastage: wastageRouter,
     adjustments: adjustmentsRouter,
+    ledger: ledgerRouter,
     analytics: analyticsRouter,
     tenant: tenantRouter,
     outlets: outletsRouter,

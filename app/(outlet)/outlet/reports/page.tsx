@@ -41,6 +41,59 @@ export default function ReportsPage() {
 
     const isLoading = statsLoading || trendLoading || itemsLoading || paymentsLoading;
 
+    const { data: user } = trpc.dashboard.getUser.useQuery();
+    const utils = trpc.useUtils();
+
+    const handleExport = async () => {
+        if (!user?.outletId) return;
+
+        try {
+            toast.promise(
+                async () => {
+                    const journal = await utils.client.ledger.getJournal.query({
+                        outletId: user.outletId,
+                        startDate,
+                        endDate
+                    });
+
+                    // CSV Header
+                    const rows = [["Date", "Description", "Ref Type", "Ref ID", "Account", "Debit", "Credit"]];
+
+                    // Flatten Data
+                    journal.forEach(entry => {
+                        entry.lines.forEach(line => {
+                            rows.push([
+                                format(new Date(entry.date), 'yyyy-MM-dd'),
+                                `"${entry.description.replace(/"/g, '""')}"`, // Escape quotes
+                                entry.referenceType || "",
+                                entry.referenceId || "",
+                                `"${line.account.name}"`,
+                                line.debit.toString(),
+                                line.credit.toString()
+                            ]);
+                        });
+                    });
+
+                    const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", `financials_${format(startDate, 'yyyyMMdd')}-${format(endDate, 'yyyyMMdd')}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+                {
+                    loading: 'Preparing download...',
+                    success: 'Download started',
+                    error: 'Export failed'
+                }
+            );
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     return (
         <div className="space-y-6 pb-24 lg:pb-6">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -62,7 +115,7 @@ export default function ReportsPage() {
                             <SelectItem value="lastMonth">Last Month</SelectItem>
                         </SelectContent>
                     </Select>
-                    <Button variant="outline" className="gap-2 bg-white hover:bg-gray-50">
+                    <Button variant="outline" className="gap-2 bg-white hover:bg-gray-50" onClick={handleExport}>
                         <Download className="w-4 h-4" /> Export
                     </Button>
                 </div>
