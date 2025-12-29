@@ -47,6 +47,7 @@ export const productsRouter = router({
                             supplier: { select: { id: true, name: true } },
                             category: { select: { id: true, name: true } },
                             supplierId: true,
+                            _count: { select: { recipeItems: true } },
                             recipeItems: {
                                 select: {
                                     id: true,

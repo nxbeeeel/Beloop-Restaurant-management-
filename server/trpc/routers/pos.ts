@@ -1365,7 +1365,7 @@ export const posRouter = router({
                 where: {
                     outletId,
                     kitchenStatus: { in: ['NEW', 'PREPARING'] },
-                    status: { in: ['PENDING', 'COMPLETED'] }
+                    status: { in: ['PENDING', 'VOIDED'] } // Valid statuses
                 },
                 include: { items: true },
                 orderBy: { createdAt: 'asc' }

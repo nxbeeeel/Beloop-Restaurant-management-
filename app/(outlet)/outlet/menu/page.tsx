@@ -33,7 +33,7 @@ interface Product {
     category?: { id: string; name: string } | null;
     description?: string | null;
     currentStock: number;
-    recipeItems?: { ingredientId: string; quantity: number; ingredient: { name: string; unit: string; cost: number } }[];
+    recipeItems?: { ingredientId: string; quantity: number; unit?: string; ingredient: { name: string; usageUnit?: string; costPerUsageUnit?: number } }[];
 }
 
 export default function MenuPage() {

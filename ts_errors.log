@@ -1,0 +1,6 @@
+app/(outlet)/outlet/menu/page.tsx(171,25): error TS2339: Property 'unit' does not exist on type '{ ingredientId: string; quantity: number; ingredient: { name: string; unit: string; cost: number; }; }'.
+app/(outlet)/outlet/menu/page.tsx(171,47): error TS2339: Property 'usageUnit' does not exist on type '{ name: string; unit: string; cost: number; }'.
+app/api/pos/auth/route.ts(45,56): error TS2339: Property 'verifyToken' does not exist on type 'ClerkClient'.
+server/trpc/routers/pos.ts(582,46): error TS2367: This comparison appears to be unintentional because the types '"COMPLETED" | "PENDING" | "REFUNDED"' and '"CANCELLED"' have no overlap.
+server/trpc/routers/pos.ts(732,5): error TS1117: An object literal cannot have multiple properties with the same name.
+server/trpc/routers/pos.ts(883,49): error TS2367: This comparison appears to be unintentional because the types '"PENDING" | "REFUNDED" | "VOIDED"' and '"CANCELLED"' have no overlap.

@@ -20,7 +20,7 @@ export function ProductsTab({ outletId }: ProductsTabProps) {
     // Stats Calculation
     const totalItems = products?.length || 0;
     const lowStockItems = products?.filter((p: any) => p.currentStock <= p.minStock && p.currentStock > 0).length || 0;
-    const outOfStockItems = products?.filter((p: any) => p.currentStock === 0).length || 0;
+    const outOfStockItems = products?.filter((p: any) => p.currentStock === 0 && (p._count?.recipeItems || 0) === 0).length || 0;
     const totalValue = products?.reduce((sum: number, p: any) => sum + (p.currentStock * Number(p.price)), 0) || 0;
 
     return (

@@ -23,6 +23,7 @@ type Product = {
     minStock: number;
     unit: string;
     imageUrl?: string | null;
+    _count?: { recipeItems: number };
 };
 
 export function ProductDataTable({ outletId }: ProductDataTableProps) {
@@ -83,6 +84,12 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
             header: "Status",
             cell: ({ row }) => {
                 const p = row.original;
+                const isRecipeItem = (p._count?.recipeItems || 0) > 0;
+
+                if (isRecipeItem) {
+                    return <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100">Made to Order</Badge>;
+                }
+
                 if (p.currentStock === 0) {
                     return <Badge variant="destructive" className="bg-red-50 text-red-700 hover:bg-red-100 border-red-100">Out of Stock</Badge>;
                 }
