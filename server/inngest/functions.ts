@@ -227,6 +227,7 @@ type POSSaleEvent = {
             }>;
         }
     };
+};
 
 /**
  * Process POS Sale - Async Worker
@@ -235,143 +236,143 @@ type POSSaleEvent = {
  * in the background, making POS resilient to Admin API downtime.
  */
 export const processSale = inngest.createFunction(
-        { id: "pos-process-sale", retries: 5 },
-        { event: "pos/sale.created" },
-        async ({ event, step }) => {
-            const { prisma } = await import("@/lib/prisma");
-            const data = event.data as POSSaleEvent['data'];
+    { id: "pos-process-sale", retries: 5 },
+    { event: "pos/sale.created" },
+    async ({ event, step }) => {
+        const { prisma } = await import("@/lib/prisma");
+        const data = event.data as POSSaleEvent['data'];
 
-            console.log(`[ProcessSale] Processing order ${data.idempotencyKey}`);
+        console.log(`[ProcessSale] Processing order ${data.idempotencyKey}`);
 
-            // Step 1: Check idempotency using unique idempotencyKey
-            const existingOrder = await step.run("check-idempotency", async () => {
-                return prisma.order.findUnique({
-                    where: { idempotencyKey: data.idempotencyKey }
-                });
+        // Step 1: Check idempotency using unique idempotencyKey
+        const existingOrder = await step.run("check-idempotency", async () => {
+            return prisma.order.findUnique({
+                where: { idempotencyKey: data.idempotencyKey }
             });
+        });
 
-            if (existingOrder) {
-                console.log(`[ProcessSale] Order already processed: ${existingOrder.id}`);
-                return { skipped: true, orderId: existingOrder.id };
-            }
+        if (existingOrder) {
+            console.log(`[ProcessSale] Order already processed: ${existingOrder.id}`);
+            return { skipped: true, orderId: existingOrder.id };
+        }
 
-            // Step 2: Create order
-            const order = await step.run("create-order", async () => {
-                return prisma.$transaction(async (tx) => {
-                    const payments = data.order.payments || [];
-                    const primaryMethod = payments.length > 1 ? 'SPLIT' : (data.order.paymentMethod || 'CASH');
+        // Step 2: Create order
+        const order = await step.run("create-order", async () => {
+            return prisma.$transaction(async (tx) => {
+                const payments = data.order.payments || [];
+                const primaryMethod = payments.length > 1 ? 'SPLIT' : (data.order.paymentMethod || 'CASH');
 
-                    // Create the order (with idempotencyKey for deduplication)
-                    const newOrder = await tx.order.create({
-                        data: {
-                            idempotencyKey: data.idempotencyKey,
-                            outletId: data.outletId,
-                            tenantId: data.tenantId,
-                            status: 'COMPLETED',
-                            totalAmount: data.order.total,
-                            discount: data.order.discount || 0,
-                            tax: 0,
-                            paymentMethod: primaryMethod,
-                            customerName: data.order.customerName,
-                        },
-                    });
+                // Create the order (with idempotencyKey for deduplication)
+                const newOrder = await tx.order.create({
+                    data: {
+                        idempotencyKey: data.idempotencyKey,
+                        outletId: data.outletId,
+                        tenantId: data.tenantId,
+                        status: 'COMPLETED',
+                        totalAmount: data.order.total,
+                        discount: data.order.discount || 0,
+                        tax: 0,
+                        paymentMethod: primaryMethod,
+                        customerName: data.order.customerName,
+                    },
+                });
 
-                    // Create order items
-                    await tx.orderItem.createMany({
-                        data: data.order.items.map(item => ({
+                // Create order items
+                await tx.orderItem.createMany({
+                    data: data.order.items.map(item => ({
+                        orderId: newOrder.id,
+                        productId: item.productId,
+                        name: item.name,
+                        quantity: item.quantity,
+                        price: item.price,
+                        total: item.totalPrice,
+                    })),
+                });
+
+                // Create payments if provided (New in Phase 6)
+                if (payments.length > 0) {
+                    await tx.orderPayment.createMany({
+                        data: payments.map(p => ({
                             orderId: newOrder.id,
-                            productId: item.productId,
-                            name: item.name,
-                            quantity: item.quantity,
-                            price: item.price,
-                            total: item.totalPrice,
-                        })),
+                            amount: p.amount,
+                            method: p.method,
+                            reference: p.reference
+                        }))
+                    });
+                }
+
+                return newOrder;
+            });
+        });
+
+        console.log(`[ProcessSale] Order created: ${order.id}`);
+
+        // Step 3: Deduct stock (Recipe-Aware)
+        await step.run("deduct-stock", async () => {
+            try {
+                for (const item of data.order.items) {
+                    if (!item.productId) continue;
+
+                    // Fetch product with recipe to determine deduction strategy
+                    const product = await prisma.product.findUnique({
+                        where: { id: item.productId },
+                        include: {
+                            recipeItems: {
+                                include: { ingredient: true }
+                            }
+                        }
                     });
 
-                    // Create payments if provided (New in Phase 6)
-                    if (payments.length > 0) {
-                        await tx.orderPayment.createMany({
-                            data: payments.map(p => ({
-                                orderId: newOrder.id,
-                                amount: p.amount,
-                                method: p.method,
-                                reference: p.reference
-                            }))
-                        });
-                    }
+                    if (!product) continue;
 
-                    return newOrder;
-                });
-            });
+                    if (product.recipeItems.length > 0) {
+                        // Strategy A: Recipe Product (e.g. Burger) -> Deduct Ingredients
+                        console.log(`[ProcessSale] Deducting ingredients for recipe product: ${product.name}`);
 
-            console.log(`[ProcessSale] Order created: ${order.id}`);
+                        for (const recipeItem of product.recipeItems) {
+                            const deductionQty = recipeItem.quantity * item.quantity;
 
-            // Step 3: Deduct stock (Recipe-Aware)
-            await step.run("deduct-stock", async () => {
-                try {
-                    for (const item of data.order.items) {
-                        if (!item.productId) continue;
-
-                        // Fetch product with recipe to determine deduction strategy
-                        const product = await prisma.product.findUnique({
-                            where: { id: item.productId },
-                            include: {
-                                recipeItems: {
-                                    include: { ingredient: true }
-                                }
-                            }
-                        });
-
-                        if (!product) continue;
-
-                        if (product.recipeItems.length > 0) {
-                            // Strategy A: Recipe Product (e.g. Burger) -> Deduct Ingredients
-                            console.log(`[ProcessSale] Deducting ingredients for recipe product: ${product.name}`);
-
-                            for (const recipeItem of product.recipeItems) {
-                                const deductionQty = recipeItem.quantity * item.quantity;
-
-                                await prisma.ingredient.update({
-                                    where: { id: recipeItem.ingredientId },
-                                    data: {
-                                        stock: { decrement: deductionQty }
-                                    }
-                                });
-                            }
-                        } else {
-                            // Strategy B: Direct Product (e.g. Coke Can) -> Deduct Product Stock
-                            console.log(`[ProcessSale] Deducting direct stock for product: ${product.name}`);
-
-                            await prisma.product.update({
-                                where: { id: item.productId },
+                            await prisma.ingredient.update({
+                                where: { id: recipeItem.ingredientId },
                                 data: {
-                                    currentStock: { decrement: item.quantity }
+                                    stock: { decrement: deductionQty }
                                 }
                             });
                         }
-                    }
-                } catch (error) {
-                    console.error(`[ProcessSale] Stock deduction failed:`, error);
-                    // Don't fail the entire order - stock can be reconciled later
-                }
-            });
+                    } else {
+                        // Strategy B: Direct Product (e.g. Coke Can) -> Deduct Product Stock
+                        console.log(`[ProcessSale] Deducting direct stock for product: ${product.name}`);
 
-            // Step 4: Update daily metrics
-            await step.run("update-metrics", async () => {
-                try {
-                    const { AggregationService } = await import("@/server/services/aggregation.service");
-                    if (data.tenantId) {
-                        await AggregationService.refreshToday(data.tenantId);
+                        await prisma.product.update({
+                            where: { id: item.productId },
+                            data: {
+                                currentStock: { decrement: item.quantity }
+                            }
+                        });
                     }
-                } catch (error) {
-                    console.error(`[ProcessSale] Metrics update failed:`, error);
-                    // Non-critical - will be caught by nightly aggregation
                 }
-            });
+            } catch (error) {
+                console.error(`[ProcessSale] Stock deduction failed:`, error);
+                // Don't fail the entire order - stock can be reconciled later
+            }
+        });
 
-            return { success: true, orderId: order.id };
-        }
-    );
+        // Step 4: Update daily metrics
+        await step.run("update-metrics", async () => {
+            try {
+                const { AggregationService } = await import("@/server/services/aggregation.service");
+                if (data.tenantId) {
+                    await AggregationService.refreshToday(data.tenantId);
+                }
+            } catch (error) {
+                console.error(`[ProcessSale] Metrics update failed:`, error);
+                // Non-critical - will be caught by nightly aggregation
+            }
+        });
+
+        return { success: true, orderId: order.id };
+    }
+);
 
 /**
  * Process Stock Move - Async Worker
