@@ -11,7 +11,7 @@ import Link from "next/link";
 import { StockMovementModal } from "@/components/outlet/inventory/StockMovementModal";
 
 export default function InventoryPage() {
-    const { data: user } = trpc.dashboard.getUser.useQuery();
+    const { data: user, isLoading } = trpc.dashboard.getUser.useQuery();
     const outletId = user?.outletId || "";
 
     const [modalConfig, setModalConfig] = useState<{ isOpen: boolean; type: 'IN' | 'OUT' }>({
@@ -19,7 +19,24 @@ export default function InventoryPage() {
         type: 'IN'
     });
 
-    if (!outletId) return null;
+    // Loading state - must be after all hooks
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="animate-spin w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full"></div>
+            </div>
+        );
+    }
+
+    // No outlet assigned - must be after all hooks
+    if (!outletId) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+                <p className="text-gray-500 text-lg">No outlet assigned to your account.</p>
+                <p className="text-gray-400 text-sm mt-2">Please contact your administrator.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6 pb-24 lg:pb-6">

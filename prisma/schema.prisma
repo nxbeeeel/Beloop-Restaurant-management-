@@ -815,11 +815,11 @@ model Order {
   idempotencyKey  String?     @unique  // POS deduplication key
   outletId        String
   customerName    String?
-  status          OrderStatus @default(COMPLETED)
+  status          OrderStatus @default(PENDING)
   totalAmount     Decimal     @db.Decimal(12, 2)
   discount        Decimal     @default(0) @db.Decimal(12, 2)
   tax             Decimal     @default(0) @db.Decimal(12, 2)
-  paymentMethod   String // CASH, CARD, UPI, etc.
+  paymentMethod   String?     // CASH, CARD, UPI, etc. (null until paid)
   items           OrderItem[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -828,17 +828,59 @@ model Order {
   customer        Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
   customerId      String?
 
-  // Void Logic
+  // ============================================
+  // ENTERPRISE POS FEATURES
+  // ============================================
+
+  // --- Order Type & Table Management ---
+  orderType       OrderType   @default(TAKEAWAY)
+  tableNumber     String?     // For DINE_IN orders
+  isOpen          Boolean     @default(false)  // True while customer is seated
+  openedAt        DateTime?   // When table/order was opened
+  closedAt        DateTime?   // When bill was finalized
+
+  // --- Order Notes & Modifiers ---
+  notes           String?     // General order notes ("No plastic bag")
+  
+  // --- Hold Order ---
+  isHold          Boolean     @default(false)  // Parked order
+  holdReason      String?     // "Customer went to ATM"
+
+  // --- Void Logic ---
   voidReason      String?
   voidedBy        String?
   voidedAt        DateTime?
+
+  // --- Kitchen Display ---
+  kitchenStatus   KitchenStatus @default(NEW)
+  prepStartedAt   DateTime?
+  prepCompletedAt DateTime?
+
+  // --- Staff & Shift ---
+  createdBy       String?     // Staff who created order
+  shiftId         String?     // Which shift this order belongs to
 
   tenantId       String?
   tenant         Tenant?     @relation(fields: [tenantId], references: [id])
 
   @@index([outletId, status, createdAt])
+  @@index([outletId, isOpen])
+  @@index([outletId, tableNumber])
   @@index([customerId])
   @@index([tenantId, createdAt])
+}
+
+enum OrderType {
+  TAKEAWAY
+  DINE_IN
+  DELIVERY
+}
+
+enum KitchenStatus {
+  NEW
+  PREPARING
+  READY
+  SERVED
 }
 
 // ----------------------------------------------------
@@ -913,6 +955,7 @@ model OrderItem {
   price     Decimal @db.Decimal(10, 2)
   total     Decimal @db.Decimal(12, 2)
   modifiers Json?   // Store modifiers as JSON for now
+  notes     String? // Item-level notes: "No onions", "Extra spicy"
   
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -988,4 +1031,59 @@ enum ApplicationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// ============================================
+// ENTERPRISE POS: SHIFT & CASH MANAGEMENT
+// ============================================
+
+model Shift {
+  id            String    @id @default(cuid())
+  outletId      String
+  userId        String
+  startedAt     DateTime  @default(now())
+  endedAt       DateTime?
+  
+  // Opening Cash
+  openingCash   Decimal   @default(0) @db.Decimal(12, 2)
+  
+  // Closing Counts (filled when shift ends)
+  closingCash   Decimal?  @db.Decimal(12, 2)
+  expectedCash  Decimal?  @db.Decimal(12, 2)
+  variance      Decimal?  @db.Decimal(12, 2)
+  
+  // Summary (calculated at end)
+  totalSales    Decimal   @default(0) @db.Decimal(12, 2)
+  totalRefunds  Decimal   @default(0) @db.Decimal(12, 2)
+  orderCount    Int       @default(0)
+  
+  notes         String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([outletId, startedAt])
+  @@index([userId])
+}
+
+model CashDrawerTransaction {
+  id            String    @id @default(cuid())
+  outletId      String
+  shiftId       String?
+  type          CashDrawerType
+  amount        Decimal   @db.Decimal(12, 2)
+  reason        String?   // "Manager pickup", "Change for customer"
+  performedBy   String    // User ID
+  createdAt     DateTime  @default(now())
+
+  @@index([outletId, createdAt])
+  @@index([shiftId])
+}
+
+enum CashDrawerType {
+  FLOAT       // Opening cash
+  DROP        // Remove cash to safe
+  PICKUP      // Manager takes cash
+  PAY_IN      // Add cash (tips, change)
+  PAY_OUT     // Petty cash expense
 }

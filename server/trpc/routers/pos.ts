@@ -921,4 +921,430 @@ export const posRouter = router({
 
             return closure;
         }),
+
+    // ============================================
+    // ENTERPRISE: TABLE MANAGEMENT
+    // ============================================
+
+    /**
+     * Open a new table for Dine-In
+     */
+    openTable: posProcedure
+        .input(z.object({
+            tableNumber: z.string(),
+            customerName: z.string().optional(),
+            customerId: z.string().optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { outletId, tenantId } = ctx.posCredentials;
+
+            // Check if table is already occupied
+            const existingOrder = await ctx.prisma.order.findFirst({
+                where: {
+                    outletId,
+                    tableNumber: input.tableNumber,
+                    isOpen: true
+                }
+            });
+
+            if (existingOrder) {
+                throw new TRPCError({
+                    code: 'CONFLICT',
+                    message: `Table ${input.tableNumber} is already occupied`
+                });
+            }
+
+            const order = await ctx.prisma.order.create({
+                data: {
+                    outletId,
+                    tenantId,
+                    orderType: 'DINE_IN',
+                    tableNumber: input.tableNumber,
+                    isOpen: true,
+                    openedAt: new Date(),
+                    status: 'PENDING',
+                    totalAmount: 0,
+                    customerName: input.customerName,
+                    customerId: input.customerId
+                }
+            });
+
+            return order;
+        }),
+
+    /**
+     * Add items to an open table order
+     */
+    addItemsToTable: posProcedure
+        .input(z.object({
+            orderId: z.string(),
+            items: z.array(z.object({
+                productId: z.string(),
+                name: z.string(),
+                quantity: z.number(),
+                price: z.number(),
+                notes: z.string().optional(),
+                modifiers: z.any().optional()
+            }))
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { outletId } = ctx.posCredentials;
+
+            // Verify order exists and is open
+            const order = await ctx.prisma.order.findFirst({
+                where: { id: input.orderId, outletId, isOpen: true }
+            });
+
+            if (!order) {
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: 'Open order not found'
+                });
+            }
+
+            // Add items
+            const itemsToCreate = input.items.map(item => ({
+                orderId: input.orderId,
+                productId: item.productId,
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+                total: item.price * item.quantity,
+                notes: item.notes,
+                modifiers: item.modifiers
+            }));
+
+            await ctx.prisma.orderItem.createMany({
+                data: itemsToCreate
+            });
+
+            // Update order total
+            const allItems = await ctx.prisma.orderItem.findMany({
+                where: { orderId: input.orderId }
+            });
+
+            const newTotal = allItems.reduce((sum, item) => sum + Number(item.total), 0);
+
+            const updatedOrder = await ctx.prisma.order.update({
+                where: { id: input.orderId },
+                data: {
+                    totalAmount: newTotal,
+                    kitchenStatus: 'PREPARING',
+                    prepStartedAt: order.prepStartedAt || new Date()
+                },
+                include: { items: true }
+            });
+
+            return updatedOrder;
+        }),
+
+    /**
+     * Get all open tables
+     */
+    getOpenTables: posProcedure
+        .query(async ({ ctx }) => {
+            const { outletId } = ctx.posCredentials;
+
+            const openOrders = await ctx.prisma.order.findMany({
+                where: {
+                    outletId,
+                    isOpen: true,
+                    orderType: 'DINE_IN'
+                },
+                include: { items: true },
+                orderBy: { openedAt: 'asc' }
+            });
+
+            return openOrders;
+        }),
+
+    /**
+     * Close table and process payment
+     */
+    closeTable: posProcedure
+        .input(z.object({
+            orderId: z.string(),
+            paymentMethod: z.string(),
+            discount: z.number().optional(),
+            notes: z.string().optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { outletId, tenantId, userId } = ctx.posCredentials;
+
+            const order = await ctx.prisma.order.findFirst({
+                where: { id: input.orderId, outletId, isOpen: true },
+                include: { items: true }
+            });
+
+            if (!order) {
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: 'Open order not found'
+                });
+            }
+
+            // Queue for processing (inventory deduction, etc.)
+            const idempotencyKey = `${outletId}-${order.id}-${Date.now()}`;
+
+            await inngest.send({
+                name: 'pos/sale.created',
+                data: {
+                    idempotencyKey,
+                    tenantId: tenantId || order.tenantId,
+                    outletId,
+                    order: {
+                        items: order.items.map(item => ({
+                            productId: item.productId || item.id,
+                            name: item.name,
+                            quantity: item.quantity,
+                            price: Number(item.price),
+                            totalPrice: Number(item.total)
+                        })),
+                        total: Number(order.totalAmount) - (input.discount || 0),
+                        discount: input.discount || 0,
+                        paymentMethod: input.paymentMethod,
+                        customerName: order.customerName || undefined
+                    },
+                    timestamp: Date.now()
+                }
+            });
+
+            // Close the order
+            const closedOrder = await ctx.prisma.order.update({
+                where: { id: input.orderId },
+                data: {
+                    isOpen: false,
+                    closedAt: new Date(),
+                    status: 'COMPLETED',
+                    paymentMethod: input.paymentMethod,
+                    discount: input.discount || 0,
+                    notes: input.notes,
+                    kitchenStatus: 'SERVED'
+                },
+                include: { items: true }
+            });
+
+            return closedOrder;
+        }),
+
+    // ============================================
+    // ENTERPRISE: SHIFT MANAGEMENT
+    // ============================================
+
+    startShift: posProcedure
+        .input(z.object({
+            openingCash: z.number()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { outletId, userId } = ctx.posCredentials;
+
+            // Check for existing open shift
+            const existingShift = await ctx.prisma.shift.findFirst({
+                where: { outletId, userId, endedAt: null }
+            });
+
+            if (existingShift) {
+                throw new TRPCError({
+                    code: 'CONFLICT',
+                    message: 'You already have an open shift'
+                });
+            }
+
+            const shift = await ctx.prisma.shift.create({
+                data: {
+                    outletId,
+                    userId,
+                    openingCash: input.openingCash
+                }
+            });
+
+            return shift;
+        }),
+
+    endShift: posProcedure
+        .input(z.object({
+            shiftId: z.string(),
+            closingCash: z.number(),
+            notes: z.string().optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { outletId, userId } = ctx.posCredentials;
+
+            const shift = await ctx.prisma.shift.findFirst({
+                where: { id: input.shiftId, outletId, userId, endedAt: null }
+            });
+
+            if (!shift) {
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: 'Active shift not found'
+                });
+            }
+
+            // Calculate expected cash (simplified - just opening + cash orders)
+            const orders = await ctx.prisma.order.findMany({
+                where: {
+                    outletId,
+                    createdAt: { gte: shift.startedAt },
+                    status: 'COMPLETED',
+                    paymentMethod: 'CASH'
+                }
+            });
+
+            const cashFromSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+            const expectedCash = Number(shift.openingCash) + cashFromSales;
+            const variance = input.closingCash - expectedCash;
+
+            const closedShift = await ctx.prisma.shift.update({
+                where: { id: input.shiftId },
+                data: {
+                    endedAt: new Date(),
+                    closingCash: input.closingCash,
+                    expectedCash,
+                    variance,
+                    totalSales: cashFromSales,
+                    orderCount: orders.length,
+                    notes: input.notes
+                }
+            });
+
+            return closedShift;
+        }),
+
+    getActiveShift: posProcedure
+        .query(async ({ ctx }) => {
+            const { outletId, userId } = ctx.posCredentials;
+
+            const shift = await ctx.prisma.shift.findFirst({
+                where: { outletId, userId, endedAt: null }
+            });
+
+            return shift;
+        }),
+
+    // ============================================
+    // ENTERPRISE: KITCHEN DISPLAY
+    // ============================================
+
+    updateKitchenStatus: posProcedure
+        .input(z.object({
+            orderId: z.string(),
+            status: z.enum(['NEW', 'PREPARING', 'READY', 'SERVED'])
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { outletId } = ctx.posCredentials;
+
+            const updateData: any = {
+                kitchenStatus: input.status
+            };
+
+            if (input.status === 'PREPARING' && !updateData.prepStartedAt) {
+                updateData.prepStartedAt = new Date();
+            }
+            if (input.status === 'READY') {
+                updateData.prepCompletedAt = new Date();
+            }
+
+            const order = await ctx.prisma.order.update({
+                where: { id: input.orderId },
+                data: updateData,
+                include: { items: true }
+            });
+
+            return order;
+        }),
+
+    getKitchenOrders: posProcedure
+        .query(async ({ ctx }) => {
+            const { outletId } = ctx.posCredentials;
+
+            const orders = await ctx.prisma.order.findMany({
+                where: {
+                    outletId,
+                    kitchenStatus: { in: ['NEW', 'PREPARING'] },
+                    status: { in: ['PENDING', 'COMPLETED'] }
+                },
+                include: { items: true },
+                orderBy: { createdAt: 'asc' }
+            });
+
+            return orders;
+        }),
+
+    // ============================================
+    // ENTERPRISE: HOLD ORDERS
+    // ============================================
+
+    holdOrder: posProcedure
+        .input(z.object({
+            orderId: z.string(),
+            reason: z.string().optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const order = await ctx.prisma.order.update({
+                where: { id: input.orderId },
+                data: {
+                    isHold: true,
+                    holdReason: input.reason
+                }
+            });
+            return order;
+        }),
+
+    resumeOrder: posProcedure
+        .input(z.object({
+            orderId: z.string()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const order = await ctx.prisma.order.update({
+                where: { id: input.orderId },
+                data: {
+                    isHold: false,
+                    holdReason: null
+                }
+            });
+            return order;
+        }),
+
+    getHeldOrders: posProcedure
+        .query(async ({ ctx }) => {
+            const { outletId } = ctx.posCredentials;
+
+            const orders = await ctx.prisma.order.findMany({
+                where: { outletId, isHold: true },
+                include: { items: true },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            return orders;
+        }),
+
+    // ============================================
+    // ENTERPRISE: CASH DRAWER
+    // ============================================
+
+    cashDrawerAction: posProcedure
+        .input(z.object({
+            type: z.enum(['FLOAT', 'DROP', 'PICKUP', 'PAY_IN', 'PAY_OUT']),
+            amount: z.number(),
+            reason: z.string().optional(),
+            shiftId: z.string().optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { outletId, userId } = ctx.posCredentials;
+
+            const transaction = await ctx.prisma.cashDrawerTransaction.create({
+                data: {
+                    outletId,
+                    shiftId: input.shiftId,
+                    type: input.type,
+                    amount: input.amount,
+                    reason: input.reason,
+                    performedBy: userId
+                }
+            });
+
+            return transaction;
+        }),
 });
+
