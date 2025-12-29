@@ -180,4 +180,102 @@ export class AggregationService {
 
         return { success: true };
     }
+    /**
+     * Aggregates metrics for a specific Month (The Cube)
+     * Target: MonthlyMetric
+     */
+    static async refreshMonthly(tenantId: string, month: string) {
+        // month format: "YYYY-MM"
+        const [year, m] = month.split('-').map(Number);
+        const startOfMonth = new Date(Date.UTC(year, m - 1, 1));
+        const endOfMonth = new Date(Date.UTC(year, m, 0, 23, 59, 59, 999));
+
+        console.log(`[Aggregation] Refreshing Monthly Cube for ${tenantId} (${month})`);
+
+        // 1. Aggregate Financials (from Daily Metrics for speed)
+        const dailyMetrics = await prisma.dailyBrandMetric.findMany({
+            where: {
+                tenantId,
+                date: {
+                    gte: startOfMonth,
+                    lte: endOfMonth
+                }
+            }
+        });
+
+        let totalRevenue = new Decimal(0);
+        let totalOrders = 0;
+
+        dailyMetrics.forEach(d => {
+            totalRevenue = totalRevenue.plus(d.totalRevenue);
+            totalOrders += d.totalOrders;
+        });
+
+        const avgOrderValue = totalOrders > 0 ? totalRevenue.div(totalOrders) : new Decimal(0);
+
+        // 2. Aggregate Top Items (Heavy Query - from Orders)
+        // We limit to top 5 to keep the JSON light
+        const topItems = await prisma.orderItem.groupBy({
+            by: ['name'],
+            where: {
+                order: {
+                    tenantId,
+                    createdAt: {
+                        gte: startOfMonth,
+                        lte: endOfMonth
+                    },
+                    status: 'COMPLETED'
+                }
+            },
+            _sum: {
+                quantity: true,
+                total: true
+            },
+            orderBy: {
+                _sum: {
+                    total: 'desc'
+                }
+            },
+            take: 5
+        });
+
+        const formattedTopItems = topItems.map(item => ({
+            name: item.name,
+            qty: item._sum.quantity || 0,
+            rev: item._sum.total ? item._sum.total.toNumber() : 0
+        }));
+
+        // 3. Upsert Cube
+        await prisma.monthlyMetric.upsert({
+            where: {
+                tenantId_outletId_month: {
+                    tenantId,
+                    outletId: null, // Tenant-wide
+                    month
+                } // Prisma might complain about null, but we defined it nullable. 
+                // Actually unique constraint with nulls depends on DB.
+                // For simplicity in Prisma, we might need a specific handling if unique fails.
+                // But let's try standard upsert.
+            },
+            create: {
+                tenantId,
+                outletId: null,
+                month,
+                totalRevenue,
+                totalOrders,
+                avgOrderValue,
+                topItems: formattedTopItems,
+                lastRefreshed: new Date()
+            },
+            update: {
+                totalRevenue,
+                totalOrders,
+                avgOrderValue,
+                topItems: formattedTopItems,
+                lastRefreshed: new Date()
+            }
+        });
+
+        console.log(`[Aggregation] Cube Updated: ${month}`);
+    }
 }

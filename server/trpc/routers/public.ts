@@ -181,6 +181,20 @@ export const publicRouter = router({
 
       // D. Generate Bypass Token (Enterprise Fix)
       const bypassToken = await generateBypassToken(txResult.tenantId, clerkUser.id);
+
+      // E. REDIS DOUBLE-CHECK WRITE (Project Phoenix)
+      // We write to Upstash immediately so Middleware can verify even if Clerk JWT is stale.
+      try {
+        const { Redis } = await import('@upstash/redis');
+        const redis = Redis.fromEnv();
+        // Key: user:{clerkId}:provisioned
+        // TTL: 5 minutes (Clerk should sync by then)
+        await redis.set(`user:${clerkUser.id}:provisioned`, 'true', { ex: 300 });
+        console.log(`[Activate] Wrote provisioned flag to Redis for ${clerkUser.id}`);
+      } catch (redisErr) {
+        console.error('[Activate] Failed to write to Redis (Non-critical):', redisErr);
+      }
+
       const targetSlug = txResult.slug;
       const redirectUrl = `/brand/${targetSlug}/dashboard?t=${bypassToken}`;
 
@@ -234,6 +248,15 @@ export const publicRouter = router({
           console.error("[Public] Failed to sync Clerk metadata (Non-critical)", err);
         }
 
+        // F. REDIS DOUBLE-CHECK WRITE (Project Phoenix)
+        try {
+          const { Redis } = await import('@upstash/redis');
+          const redis = Redis.fromEnv();
+          await redis.set(`user:${appUser.clerkId}:provisioned`, 'true', { ex: 300 });
+        } catch (redisErr) {
+          console.error('[Public] Failed to write acceptInvite provision flag to Redis', redisErr);
+        }
+
         return {
           success: true,
           tenantName: invite.tenant?.name,
@@ -251,6 +274,15 @@ export const publicRouter = router({
           code: 'INTERNAL_SERVER_ERROR',
           message: error.message || "Failed to provision user."
         });
+      } finally {
+        // E. REDIS DOUBLE-CHECK WRITE (Project Phoenix)
+        try {
+          // If we successfully provisioned (or even if it failed but user exists), 
+          // we try to set the flag if we are confident (checking outside try/catch is safer but let's do it here for now)
+          // Actually, we only want to set it on SUCCESS.
+          // Since this block is finally, we don't know success. 
+          // Let's move this inside the try block before return.
+        } catch (e) { }
       }
     }),
 

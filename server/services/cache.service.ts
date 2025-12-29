@@ -34,6 +34,41 @@ export class CacheService {
     }
 
     /**
+     * Direct Set (Manual Cache Write)
+     */
+    static async set<T>(key: string, value: T, ttlSeconds: number = 3600): Promise<void> {
+        if (!redis) return;
+        try {
+            await redis.set(key, JSON.stringify(value), { ex: ttlSeconds });
+        } catch (err) {
+            console.error(`Redis Set Error (${key}):`, err);
+        }
+    }
+
+    /**
+     * Direct Get (Manual Cache Read)
+     */
+    static async get<T>(key: string): Promise<T | null> {
+        if (!redis) return null;
+        try {
+            const val = await redis.get<string | null>(key);
+            if (!val) return null;
+            // Handle both string and object responses depending on Redis client config
+            if (typeof val === 'string') {
+                try {
+                    return JSON.parse(val) as T;
+                } catch {
+                    return val as unknown as T;
+                }
+            }
+            return val as T;
+        } catch (err) {
+            console.error(`Redis Get Error (${key}):`, err);
+            return null;
+        }
+    }
+
+    /**
      * Invalidate a cache key
      * @param key Cache key to invalidate
      */

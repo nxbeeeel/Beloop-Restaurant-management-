@@ -67,6 +67,7 @@ model Tenant {
   customers         Customer[]
   orders            Order[]
   dailyBrandMetrics DailyBrandMetric[]
+  monthlyMetrics    MonthlyMetric[] // Project Phoenix Phase 3
 
   @@index([slug, subscriptionStatus])
 }
@@ -115,6 +116,7 @@ model Outlet {
   payments                     SupplierPayment[]
   dailyOutletMetrics           DailyOutletMetric[]
   discounts                    Discount[]
+  monthlyMetrics               MonthlyMetric[] // Project Phoenix Phase 3
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -250,6 +252,31 @@ model MonthlySummary {
 
   @@unique([outletId, month])
   @@index([outletId, month])
+  @@index([tenantId, month])
+}
+
+// THE CUBE (Project Phoenix Phase 3)
+// Optimized for instant dashboard loading / specialized analytics
+model MonthlyMetric {
+  id           String   @id @default(cuid())
+  tenantId     String
+  outletId     String?  // Optional: can be null if representing Tenant-wide agg
+  month        String   // YYYY-MM
+  
+  totalRevenue Decimal  @default(0) @db.Decimal(12, 2)
+  totalOrders  Int      @default(0)
+  avgOrderValue Decimal @default(0) @db.Decimal(10, 2)
+  
+  // Top Performers (JSON snapshot)
+  topItems     Json?    // [{ name: "Burger", qty: 100, rev: 500 }]
+  categorySplit Json?   // [{ name: "Food", rev: 1000 }, { name: "Bev", rev: 500 }]
+  
+  lastRefreshed DateTime @default(now())
+
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  outlet       Outlet?  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, outletId, month]) // One metric per outlet per month (or one per tenant per month if outletId is null)
   @@index([tenantId, month])
 }
 

@@ -54,40 +54,33 @@ export default clerkMiddleware(
         if (bypassToken && userId) {
             const verified = await verifyBypassToken(bypassToken);
             if (verified && verified.userId === userId) {
-                console.log(`[Middleware] Valid Bypass Token for ${userId}. Setting persistence cookie and allowing access.`);
-                // Create response to allow access, but attach cookie
+                console.log(`[Middleware] Valid Bypass Token for ${userId}. allowing access.`);
                 const response = NextResponse.next();
                 response.cookies.set('__beloop_bypass', bypassToken, {
                     path: '/',
                     secure: true,
                     sameSite: 'lax',
-                    maxAge: 300 // 5 minutes persistence to guarantee Clerk sync coverage
+                    maxAge: 300
                 });
                 return response;
             }
         }
 
         if (bypassCookie && userId) {
-            // Optimistic check: we trust the cookie for 60s to bridge the gap
-            // Real validation happens on the backend anyway if they try to do anything
-            console.log(`[Middleware] Valid Bypass Cookie for ${userId}. Allowing access.`);
             return NextResponse.next();
         }
 
         // 1. API ROUTES - Handle CORS & Pass Through
         if (isApiRoute(req)) {
-            // CORS Configuration
             const allowedOrigins = [
                 'https://pos.belooprms.app',
                 'https://beloop-pos-managment.vercel.app',
                 'http://localhost:3002',
                 'http://localhost:3000'
             ];
-
             const origin = req.headers.get('origin') || '';
             const isAllowed = allowedOrigins.includes(origin);
 
-            // Handle Preflight OPTIONS
             if (req.method === 'OPTIONS') {
                 return new NextResponse(null, {
                     status: 200,
@@ -100,143 +93,110 @@ export default clerkMiddleware(
                 });
             }
 
-            // For actual requests, we let them proceed but attach CORS headers to the response
             const response = NextResponse.next();
-
             if (isAllowed) {
                 response.headers.set('Access-Control-Allow-Origin', origin);
                 response.headers.set('Access-Control-Allow-Credentials', 'true');
                 response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
                 response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-trpc-source, x-tenant-id, x-outlet-id');
             }
-
             return response;
         }
 
-        // 2. PUBLIC ROUTES (except onboarding) - Allow without auth
+        // 2. PUBLIC ROUTES
         if (isPublicRoute(req)) {
-            // ZERO-CLICK LOGIN: Intercept authenticated users hitting home page
-            if (pathname === '/' && userId) {
+            // If user is logged in and hits home/login, redirect to dashboard if provisioned
+            if (userId && (pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/sign-in'))) {
                 const metadata = (sessionClaims?.metadata || {}) as UserMetadata;
+                if (metadata.is_provisioned) {
+                    const role = metadata.app_role || metadata.role;
+                    const slug = metadata.primary_org_slug || orgSlug || 'dashboard';
 
-                // ✅ ENTERPRISE ROUTING LOGIC (Single Authoritative Source)
-                const onboardingStatus = metadata.onboardingStatus || 'NOT_STARTED';
-                const role = metadata.app_role || metadata.role;
-                const slug = metadata.primary_org_slug || orgSlug;
-
-                console.log(`[Middleware] ${userId} | Status: ${onboardingStatus} | Role: ${role}`);
-
-                // A. ONBOARDING NOT COMPLETE -> Force Onboarding
-                if (onboardingStatus === 'NOT_STARTED' || onboardingStatus === 'IN_PROGRESS') {
-                    console.log(`[Middleware] User ${userId} onboarding incomplete (${onboardingStatus}), redirecting to onboarding`);
-                    return NextResponse.redirect(new URL('/onboarding', req.url));
-                }
-
-                // B. COMPLETED -> Force Dashboard
-                if (onboardingStatus === 'COMPLETED' && role) {
-                    if (role === 'BRAND_ADMIN') {
-                        const targetSlug = slug || 'dashboard';
-                        return NextResponse.redirect(new URL(`/brand/${targetSlug}/dashboard`, req.url));
-                    }
-                    if (role === 'OUTLET_MANAGER') {
-                        return NextResponse.redirect(new URL('/outlet/dashboard', req.url));
-                    }
-                    if (role === 'STAFF') {
-                        return NextResponse.redirect(new URL('/outlet/orders', req.url));
-                    }
+                    if (role === 'BRAND_ADMIN') return NextResponse.redirect(new URL(`/brand/${slug}/dashboard`, req.url));
+                    if (role === 'OUTLET_MANAGER') return NextResponse.redirect(new URL('/outlet/dashboard', req.url));
+                    if (role === 'STAFF') return NextResponse.redirect(new URL('/outlet/orders', req.url));
                 }
             }
             return NextResponse.next();
         }
 
-        // 3. NOT AUTHENTICATED - Send to login
+        // 3. AUTHENTICATION REQUIRED
         if (!userId) {
             return NextResponse.redirect(new URL('/login', req.url));
         }
 
-        // 4. EXTRACT METADATA FROM JWT CLAIMS
+        // 4. METADATA & PROVISIONING CHECK
         const metadata = (sessionClaims?.metadata || {}) as UserMetadata;
+        const isProvisioned = metadata.is_provisioned === true; // Strict check
         const role = metadata.app_role || metadata.role;
         const slug = metadata.primary_org_slug || orgSlug;
-        const onboardingStatus = metadata.onboardingStatus || 'NOT_STARTED';
 
-        // Super Admin override (from environment variable for security)
+        // Super Admin Bypass
         const SUPER_ADMIN_ID = process.env.SUPER_ADMIN_CLERK_ID;
-        const isSuperAdmin = SUPER_ADMIN_ID && userId === SUPER_ADMIN_ID;
-        if (isSuperAdmin) {
-            if (pathname.startsWith('/super/')) {
-                return NextResponse.next();
-            }
+        if (SUPER_ADMIN_ID && userId === SUPER_ADMIN_ID) {
+            if (pathname.startsWith('/super/') || pathname === '/onboarding') return NextResponse.next();
             return NextResponse.redirect(new URL('/super/dashboard', req.url));
         }
 
-        // ============================================================
-        // 5. PRE-CHECK LOOP BREAKER (Critical for Onboarding Loop)
-        // If user is on /onboarding BUT is_provisioned=true → EXIT immediately
-        // ============================================================
+        // A. ONBOARDING PAGE
         if (pathname.startsWith('/onboarding')) {
-            if (onboardingStatus === 'COMPLETED' && role) {
-                // console.log(`[Middleware] Loop Breaker: User ${userId} is provisioned, exiting onboarding`);
-
-                if (role === 'BRAND_ADMIN') {
-                    const targetSlug = slug || 'dashboard';
-                    return NextResponse.redirect(new URL(`/brand/${targetSlug}/dashboard`, req.url));
-                }
-                if (role === 'OUTLET_MANAGER') {
-                    return NextResponse.redirect(new URL('/outlet/dashboard', req.url));
-                }
-                if (role === 'STAFF') {
-                    return NextResponse.redirect(new URL('/outlet/orders', req.url));
-                }
+            // Loop Breaker: If provisioned, get out of here
+            if (isProvisioned) {
+                if (role === 'BRAND_ADMIN') return NextResponse.redirect(new URL(`/brand/${slug || 'dashboard'}/dashboard`, req.url));
+                if (role === 'OUTLET_MANAGER') return NextResponse.redirect(new URL('/outlet/dashboard', req.url));
+                if (role === 'STAFF') return NextResponse.redirect(new URL('/outlet/orders', req.url));
+                return NextResponse.redirect(new URL('/', req.url)); // Fallback
             }
-            // User is on onboarding and NOT provisioned - let them stay
+            // Not provisioned? Stay here.
             return NextResponse.next();
         }
 
-        // ============================================================
-        // 6. DASHBOARD ACCESS CHECK - Verify user belongs on this dashboard
-        // ============================================================
+        // B. PROTECTED APP PAGES
+        // Any other page requires provisioning
+        if (!isProvisioned) {
+            // PROVISIONING DOUBLE-CHECK (Project Phoenix)
+            // If JWT says NO, check Redis before redirecting.
+            // This handles the race condition where Clerk metadata lags behind our DB mutation.
+            let redisProvisioned = false;
+            try {
+                // We use a fetch-based Redis rest check to avoid heavyweight dependencies if possible,
+                // but since we are in Next.js Middleware (Edge), we must use the REST API.
+                const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+                const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-        // Brand Admin on Brand pages - OK if provisioned
-        if (pathname.startsWith('/brand/')) {
-            if (role === 'BRAND_ADMIN' && onboardingStatus === 'COMPLETED') {
-                return NextResponse.next();
+                if (redisUrl && redisToken) {
+                    const res = await fetch(`${redisUrl}/get/user:${userId}:provisioned`, {
+                        headers: { Authorization: `Bearer ${redisToken}` }
+                    });
+                    const data = await res.json();
+                    if (data.result === 'true') {
+                        redisProvisioned = true;
+                        console.log(`[Middleware] Redis OVERRIDE: User ${userId} is provisioned despite stale JWT.`);
+                    }
+                }
+            } catch (err) {
+                console.error('[Middleware] Redis check failed:', err);
             }
-            // Not a Brand Admin or not provisioned - redirect appropriately
-            if (onboardingStatus !== 'COMPLETED') {
+
+            if (!redisProvisioned) {
+                console.log(`[Middleware] User ${userId} not provisioned (JWT=false, Redis=false), redirecting to /onboarding`);
                 return NextResponse.redirect(new URL('/onboarding', req.url));
             }
+            // If redisProvisioned is true, we allow them through!
         }
 
-        // Outlet Manager or Staff on Outlet pages - OK if provisioned
-        if (pathname.startsWith('/outlet/')) {
-            if ((role === 'OUTLET_MANAGER' || role === 'STAFF') && onboardingStatus === 'COMPLETED') {
-                return NextResponse.next();
-            }
-            if (onboardingStatus !== 'COMPLETED') {
-                return NextResponse.redirect(new URL('/onboarding', req.url));
-            }
+        // C. ROLE ROUTING (Basic Guardrails)
+        if (pathname.startsWith('/brand/') && role !== 'BRAND_ADMIN') {
+            return NextResponse.redirect(new URL('/outlet/dashboard', req.url)); // Assume outlet user trying to access brand
+        }
+        if (pathname.startsWith('/outlet/') && role === 'BRAND_ADMIN') {
+            // Optional: Allow brand admins to view outlet pages? Or strict separation?
+            // For now, let's allow it or do nothing.
+            // Usually Brand Admin CAN see outlet pages if they switch context, but URL structure is different.
+            // We'll trust the page logic for deep access control.
         }
 
-        // ============================================================
-        // 7. ROLE-BASED ENTRY REDIRECTS - First time entry to correct dashboard
-        // ============================================================
-        if (onboardingStatus === 'COMPLETED' && role) {
-            if (role === 'BRAND_ADMIN') {
-                const targetSlug = slug || 'dashboard';
-                return NextResponse.redirect(new URL(`/brand/${targetSlug}/dashboard`, req.url));
-            }
-            if (role === 'OUTLET_MANAGER') {
-                return NextResponse.redirect(new URL('/outlet/dashboard', req.url));
-            }
-            if (role === 'STAFF') {
-                return NextResponse.redirect(new URL('/outlet/orders', req.url));
-            }
-        }
-
-        // 8. FALLBACK - User not provisioned, send to onboarding, use minimal logging
-        // console.log(`[Middleware] User ${userId} not provisioned, sending to onboarding`);
-        return NextResponse.redirect(new URL('/onboarding', req.url));
+        return NextResponse.next();
     });
 
 export const config = {

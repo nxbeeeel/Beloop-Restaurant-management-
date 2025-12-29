@@ -101,73 +101,7 @@ export const posRouter = router({
             };
         }),
 
-    /**
-     * Legacy Login Alias (for compatibility)
-     */
-    login: protectedProcedure
-        .input(z.object({
-            outletId: z.string()
-        }))
-        .mutation(async ({ ctx, input }) => {
-            // Forward to authenticate logic
-            // (Re-implementing logic here since we can't easily call sibling procedures in tRPC router definition object)
-            // Ideally we would extract the logic to a service function, but for now duplicate to ensure speed.
 
-            const { outletId } = input;
-            const { user } = ctx;
-
-            if (user.role !== 'SUPER' && user.role !== 'BRAND_ADMIN') {
-                if (user.outletId !== outletId) {
-                    throw new TRPCError({ code: 'FORBIDDEN', message: 'You are not assigned to this outlet' });
-                }
-            }
-
-            if (user.role === 'BRAND_ADMIN') {
-                const outlet = await ctx.prisma.outlet.findUnique({
-                    where: { id: outletId },
-                    select: { tenantId: true }
-                });
-                if (!outlet || outlet.tenantId !== user.tenantId) {
-                    throw new TRPCError({ code: 'FORBIDDEN', message: 'Outlet does not belong to your brand' });
-                }
-            }
-
-            const outlet = await ctx.prisma.outlet.findUnique({
-                where: { id: outletId },
-                select: {
-                    id: true,
-                    tenantId: true,
-                    status: true,
-                    isPosEnabled: true,
-                    name: true,
-                    tenant: { select: { name: true, slug: true } }
-                }
-            });
-
-            if (!outlet) throw new TRPCError({ code: 'NOT_FOUND', message: 'Outlet not found' });
-            if (outlet.status !== 'ACTIVE') throw new TRPCError({ code: 'FORBIDDEN', message: 'Outlet is not active' });
-            if (!outlet.isPosEnabled) throw new TRPCError({ code: 'FORBIDDEN', message: 'POS access is disabled' });
-
-            const token = signPosToken({
-                tenantId: outlet.tenantId,
-                outletId: outlet.id,
-                userId: user.id
-            });
-
-            return {
-                token,
-                outlet: {
-                    id: outlet.id,
-                    name: outlet.name,
-                    tenantName: outlet.tenant.name
-                },
-                user: {
-                    id: user.id,
-                    name: user.name,
-                    role: user.role
-                }
-            };
-        }),
 
     /**
      * Get Settings - Initial config for POS
@@ -202,17 +136,34 @@ export const posRouter = router({
             const { tenantId, outletId } = ctx.posCredentials;
 
             // Fetch Products (Cached for 1 hour)
-            const products = await CacheService.getOrSet(
-                CacheService.keys.fullMenu(outletId),
-                async () => {
-                    return ctx.prisma.product.findMany({
-                        where: { outletId },
-                        include: { supplier: true, category: true },
-                        orderBy: { name: 'asc' }
-                    });
-                },
-                3600 // 1 hour TTL
-            );
+            // Fetch Products (With Negative Cache Guard)
+            // 🚨 NEGATIVE CACHE GUARD: Do not cache empty arrays (DB glitch protection)
+            const cacheKey = CacheService.keys.fullMenu(outletId);
+
+            // 1. Try Cache
+            const cached = await CacheService.get<any[]>(cacheKey);
+            let products = cached;
+
+            if (!products) {
+                // 2. Cache Miss - Query DB
+                const dbProducts = await ctx.prisma.product.findMany({
+                    where: { outletId },
+                    include: { supplier: true, category: true },
+                    orderBy: { name: 'asc' }
+                });
+
+                // 3. Guard & Write
+                if (dbProducts && dbProducts.length > 0) {
+                    // Only cache if we have products
+                    await CacheService.set(cacheKey, dbProducts, 3600); // 1 hour TTL
+                    products = dbProducts;
+                } else {
+                    // Empty array? Return it but DO NOT write to cache (or cache very briefly)
+                    // This allows immediate retry if it was a glitch
+                    console.warn(`[POS] Negative Cache Guard triggered for ${outletId}. DB returned 0 products. Skipping cache write.`);
+                    products = dbProducts || [];
+                }
+            }
 
             // Get outlet info
             const outlet = await ctx.prisma.outlet.findUnique({
@@ -271,6 +222,11 @@ export const posRouter = router({
             })),
             total: z.number(),
             discount: z.number(),
+            payments: z.array(z.object({
+                amount: z.number(),
+                method: z.string(),
+                reference: z.string().optional()
+            })).optional(),
             paymentMethod: z.string(),
             createdAt: z.string(),
             status: z.string(),
@@ -281,12 +237,11 @@ export const posRouter = router({
         .mutation(async ({ ctx, input }) => {
             const { tenantId, outletId, userId } = ctx.posCredentials;
 
-            // Generate idempotency key for deduplication
+            // Generate idempotencyKey
             const idempotencyKey = `${outletId}-${input.id}-${Date.now()}`;
 
             console.log(`[POS Sync] Queueing sale ${idempotencyKey} for outlet ${outletId}`);
 
-            // 🚀 ASYNC: Queue event instead of blocking DB write
             await inngest.send({
                 name: 'pos/sale.created',
                 data: {
@@ -303,7 +258,8 @@ export const posRouter = router({
                         })),
                         total: input.total,
                         discount: input.discount,
-                        paymentMethod: input.paymentMethod,
+                        paymentMethod: input.paymentMethod, // Main method (or 'SPLIT')
+                        payments: input.payments, // Array of split payments
                         customerName: input.customerName,
                         customerPhone: input.customerPhone,
                     },
@@ -544,7 +500,7 @@ export const posRouter = router({
         .input(z.object({
             limit: z.number().default(50),
             offset: z.number().default(0),
-            status: z.enum(['COMPLETED', 'PENDING', 'CANCELLED', 'VOIDED']).optional()
+            status: z.enum(['COMPLETED', 'PENDING', 'VOIDED']).optional()
         }))
         .query(async ({ ctx, input }) => {
             const { outletId } = ctx.posCredentials;
@@ -563,39 +519,7 @@ export const posRouter = router({
             return orders;
         }),
 
-    voidOrder: posProcedure
-        .input(z.object({
-            orderId: z.string(),
-            reason: z.string().optional()
-        }))
-        .mutation(async ({ ctx, input }) => {
-            const { outletId, userId } = ctx.posCredentials;
 
-            const order = await ctx.prisma.order.findUnique({
-                where: { id: input.orderId }
-            });
-
-            if (!order || order.outletId !== outletId) {
-                throw new TRPCError({ code: 'NOT_FOUND', message: 'Order not found' });
-            }
-
-            if (order.status === 'VOIDED' || order.status === 'CANCELLED') {
-                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Order is already voided/cancelled' });
-            }
-
-            // Update status to VOIDED
-            // We cast status to any because Prisma enum might strict check, but typically pure string works if it matches
-            const updated = await ctx.prisma.order.update({
-                where: { id: input.orderId },
-                data: {
-                    status: 'VOIDED' as any,
-                    // notes: input.reason ? `Voided: ${input.reason}` : undefined // If notes field exists
-                }
-            });
-
-            console.log(`[POS] Order ${input.orderId} voided by user ${userId}`);
-            return updated;
-        }),
 
     // ============================================
     // INVENTORY MANAGEMENT (Stock Count / PO)
@@ -880,7 +804,7 @@ export const posRouter = router({
             });
 
             if (!order) throw new TRPCError({ code: 'NOT_FOUND', message: 'Order not found' });
-            if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
+            if (order.status === 'COMPLETED' || order.status === 'VOIDED') {
                 throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Order is already finalized' });
             }
 

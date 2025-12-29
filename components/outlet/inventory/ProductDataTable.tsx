@@ -104,6 +104,19 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
             header: "Stock",
             cell: ({ row }) => {
                 const p = row.original;
+                const isRecipeItem = (p._count?.recipeItems || 0) > 0;
+
+                if (isRecipeItem) {
+                    return (
+                        <div>
+                            <div className="font-bold text-blue-600 text-sm bg-blue-50 px-2 py-1 rounded inline-block">
+                                Recipe Item
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">Managed via Ingredients</div>
+                        </div>
+                    );
+                }
+
                 return (
                     <div>
                         <div className="font-bold text-gray-900 text-lg">
@@ -131,6 +144,8 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
             header: () => <div className="text-right">Quick Adjust</div>,
             cell: ({ row }) => {
                 const p = row.original;
+                const isRecipeItem = (p._count?.recipeItems || 0) > 0;
+
                 return (
                     <div className="flex justify-end gap-1">
                         <Button
@@ -138,7 +153,8 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
                             size="icon"
                             className="h-8 w-8 text-red-600 border-red-100 hover:bg-red-50 hover:text-red-700"
                             onClick={() => handleAdjust(p.id, -1)}
-                            disabled={adjustMutation.isPending}
+                            disabled={adjustMutation.isPending || isRecipeItem}
+                            title={isRecipeItem ? "Adjust ingredients instead" : "Reduce stock"}
                         >
                             <Minus className="w-3 h-3" />
                         </Button>
@@ -147,7 +163,8 @@ export function ProductDataTable({ outletId }: ProductDataTableProps) {
                             size="icon"
                             className="h-8 w-8 text-green-600 border-green-100 hover:bg-green-50 hover:text-green-700"
                             onClick={() => handleAdjust(p.id, 1)}
-                            disabled={adjustMutation.isPending}
+                            disabled={adjustMutation.isPending || isRecipeItem}
+                            title={isRecipeItem ? "Adjust ingredients instead" : "Increase stock"}
                         >
                             <Plus className="w-3 h-3" />
                         </Button>

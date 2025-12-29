@@ -46,6 +46,8 @@ const clerkAppearance = {
   },
 };
 
+import { CommandK } from "@/components/ui/command-k"; // Project Phoenix
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -56,6 +58,7 @@ export default function RootLayout({
       <html lang="en">
         <body className="antialiased">
           <TRPCProvider>
+            <CommandK />
             {children}
             <Toaster position="top-right" richColors />
           </TRPCProvider>

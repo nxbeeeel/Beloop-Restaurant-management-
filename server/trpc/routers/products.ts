@@ -68,6 +68,7 @@ export const productsRouter = router({
         .use(enforceTenant)
         .input(createProductSchema)
         .mutation(async ({ ctx, input }) => {
+            const { inngest } = await import("@/lib/inngest");
             const { applyToAllOutlets, recipe, ...productData } = input;
 
             if (applyToAllOutlets) {
@@ -111,12 +112,18 @@ export const productsRouter = router({
 
 
 
-                // Invalidate for all affected outlets
+                // 🚀 ASYNC INVALIDATION
+                const keysToInvalidate: string[] = [];
                 for (const outlet of outlets) {
-                    await CacheService.invalidate(CacheService.keys.inventoryList(outlet.id));
-                    await CacheService.invalidate(CacheService.keys.fullMenu(outlet.id));
-                    await CacheService.invalidate(CacheService.keys.lowStock(outlet.id));
+                    keysToInvalidate.push(CacheService.keys.inventoryList(outlet.id));
+                    keysToInvalidate.push(CacheService.keys.fullMenu(outlet.id));
+                    keysToInvalidate.push(CacheService.keys.lowStock(outlet.id));
                 }
+
+                await inngest.send({
+                    name: 'cache/invalidate',
+                    data: { keys: keysToInvalidate }
+                });
 
                 return results.find(r => r !== null) || results[0]; // Return one of them
             } else {
@@ -134,7 +141,7 @@ export const productsRouter = router({
                     throw new TRPCError({ code: 'CONFLICT', message: 'SKU already exists in this outlet' });
                 }
 
-                return ctx.prisma.product.create({
+                const result = await ctx.prisma.product.create({
                     data: {
                         ...productData,
                         currentStock: 0,
@@ -148,6 +155,20 @@ export const productsRouter = router({
                         } : undefined
                     }
                 });
+
+                // 🚀 ASYNC INVALIDATION
+                await inngest.send({
+                    name: 'cache/invalidate',
+                    data: {
+                        keys: [
+                            CacheService.keys.inventoryList(input.outletId),
+                            CacheService.keys.fullMenu(input.outletId),
+                            CacheService.keys.lowStock(input.outletId)
+                        ]
+                    }
+                });
+
+                return result;
             }
         }),
 
@@ -155,10 +176,11 @@ export const productsRouter = router({
         .use(enforceTenant)
         .input(updateProductSchema)
         .mutation(async ({ ctx, input }) => {
+            const { inngest } = await import("@/lib/inngest");
             const { applyToAllOutlets, id, recipe, ...updateData } = input;
 
             if (applyToAllOutlets) {
-                // 1. Get the SKU of the product being updated
+                // ... (Existing logic same)
                 const currentProduct = await ctx.prisma.product.findUnique({
                     where: { id },
                     select: { sku: true }
@@ -191,7 +213,6 @@ export const productsRouter = router({
 
                 // Update recipes if provided
                 if (recipe) {
-                    // Find all product IDs to update recipes for
                     const products = await ctx.prisma.product.findMany({
                         where: {
                             sku: currentProduct.sku,
@@ -214,6 +235,19 @@ export const productsRouter = router({
                         }
                     }
                 }
+
+                // 🚀 ASYNC INVALIDATION
+                const keysToInvalidate: string[] = [];
+                for (const outlet of outlets) {
+                    keysToInvalidate.push(CacheService.keys.inventoryList(outlet.id));
+                    keysToInvalidate.push(CacheService.keys.fullMenu(outlet.id));
+                }
+
+                // Fire and forget (awaiting send is fast)
+                await inngest.send({
+                    name: 'cache/invalidate',
+                    data: { keys: keysToInvalidate }
+                });
 
                 return { success: true };
             } else {
@@ -240,6 +274,18 @@ export const productsRouter = router({
                     }
                 }
 
+                // 🚀 ASYNC INVALIDATION
+                await inngest.send({
+                    name: 'cache/invalidate',
+                    data: {
+                        keys: [
+                            CacheService.keys.inventoryList(result.outletId),
+                            CacheService.keys.fullMenu(result.outletId),
+                            CacheService.keys.menuItem(result.id)
+                        ]
+                    }
+                });
+
                 return result;
             }
         }),
@@ -253,10 +299,18 @@ export const productsRouter = router({
 
             await ctx.prisma.product.delete({ where: { id: input } });
 
-            // Invalidate Caches
-            await CacheService.invalidate(CacheService.keys.inventoryList(product.outletId));
-            await CacheService.invalidate(CacheService.keys.fullMenu(product.outletId));
-            await CacheService.invalidate(CacheService.keys.menuItem(product.id));
+            // 🚀 ASYNC INVALIDATION
+            const { inngest } = await import("@/lib/inngest");
+            await inngest.send({
+                name: 'cache/invalidate',
+                data: {
+                    keys: [
+                        CacheService.keys.inventoryList(product.outletId),
+                        CacheService.keys.fullMenu(product.outletId),
+                        CacheService.keys.menuItem(product.id)
+                    ]
+                }
+            });
 
             return { success: true };
         }),

@@ -273,6 +273,7 @@ function BrandInviteContent() {
                                         {/* eslint-disable-next-line */}
                                         <div
                                             className="h-11 w-11 rounded-full border-2 border-white/10 shadow-lg cursor-pointer overflow-hidden relative"
+                                            // eslint-disable-next-line react-dom/no-unsafe-inline-style
                                             style={colorPreviewStyle}
                                         >
                                             <input
