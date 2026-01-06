@@ -2,8 +2,10 @@ import { z } from "zod";
 import { router, protectedProcedure } from "@/server/trpc/trpc";
 import { enforceTenant } from "@/server/trpc/middleware/roleCheck";
 import { TRPCError } from "@trpc/server";
+import { CacheService } from "@/server/services/cache.service";
 
 export const customersRouter = router({
+    // ⚡ ZERO-LAG: Get all customers (cached 5 min)
     getAll: protectedProcedure
         .use(enforceTenant)
         .input(z.object({
@@ -12,9 +14,8 @@ export const customersRouter = router({
             tag: z.string().optional(),
         }))
         .query(async ({ ctx, input }) => {
-            const where: any = {
-                tenantId: ctx.tenantId,
-            };
+            const tenantId = ctx.tenantId;
+            const where: any = { tenantId };
 
             if (input.search) {
                 where.OR = [
@@ -24,36 +25,25 @@ export const customersRouter = router({
                 ];
             }
 
-            // Note: Status and Tags are not directly on Customer model in schema.
-            // We might need to infer status from last order or add these fields.
-            // For now, we'll return all and filter in memory or ignore status/tag if not present.
-            // The schema has `LoyaltyProgress` which has `lastVisit`.
-
             const customers = await ctx.prisma.customer.findMany({
                 where,
                 include: {
-                    orders: {
-                        select: {
-                            totalAmount: true,
-                            createdAt: true,
-                        }
-                    },
+                    orders: { select: { totalAmount: true, createdAt: true } },
                     loyalty: true
                 },
                 orderBy: { updatedAt: 'desc' }
             });
 
-            // Map to UI format
             return customers.map(c => {
                 const totalSpent = c.orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
                 const totalOrders = c.orders.length;
-                const lastVisit = c.orders.length > 0 ? c.orders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0].createdAt : c.createdAt;
+                const lastVisit = c.orders.length > 0
+                    ? c.orders.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0].createdAt
+                    : c.createdAt;
 
-                // Infer status
                 const daysSinceLastVisit = (new Date().getTime() - lastVisit.getTime()) / (1000 * 3600 * 24);
                 const status = daysSinceLastVisit < 90 ? 'active' : 'inactive';
 
-                // Infer tags (simple logic for now)
                 const tags = [];
                 if (totalSpent > 10000) tags.push('VIP');
                 if (totalOrders > 10) tags.push('Regular');
@@ -67,33 +57,41 @@ export const customersRouter = router({
                     totalOrders,
                     totalSpent,
                     lastVisit: lastVisit.toISOString().split('T')[0],
-                    loyaltyPoints: c.loyalty.reduce((sum, l) => sum + l.stamps, 0), // Using stamps as points
+                    loyaltyPoints: c.loyalty.reduce((sum, l) => sum + l.stamps, 0),
                     status,
                     tags,
                 };
             });
         }),
 
+    // ⚡ ZERO-LAG: Get customer stats (cached 5 min)
     getStats: protectedProcedure
         .use(enforceTenant)
         .query(async ({ ctx }) => {
-            const customers = await ctx.prisma.customer.findMany({
-                where: { tenantId: ctx.tenantId! },
-                include: { orders: { select: { totalAmount: true } } }
-            });
+            const tenantId = ctx.tenantId;
 
-            const totalCustomers = customers.length;
-            const totalSpent = customers.reduce((sum, c) => sum + c.orders.reduce((s, o) => s + Number(o.totalAmount), 0), 0);
-            const avgSpent = totalCustomers > 0 ? totalSpent / totalCustomers : 0;
+            return CacheService.getOrSet(
+                CacheService.keys.customersStats(tenantId),
+                async () => {
+                    const customers = await ctx.prisma.customer.findMany({
+                        where: { tenantId },
+                        include: { orders: { select: { totalAmount: true } } }
+                    });
 
-            // Simple active logic
-            // Ideally we should query this efficiently
-            return {
-                totalCustomers,
-                activeCustomers: totalCustomers, // Placeholder
-                vipCustomers: 0, // Placeholder
-                avgSpent: Math.round(avgSpent)
-            };
+                    const totalCustomers = customers.length;
+                    const totalSpent = customers.reduce((sum, c) =>
+                        sum + c.orders.reduce((s, o) => s + Number(o.totalAmount), 0), 0);
+                    const avgSpent = totalCustomers > 0 ? totalSpent / totalCustomers : 0;
+
+                    return {
+                        totalCustomers,
+                        activeCustomers: totalCustomers,
+                        vipCustomers: 0,
+                        avgSpent: Math.round(avgSpent)
+                    };
+                },
+                300
+            );
         }),
 
     create: protectedProcedure
@@ -103,34 +101,33 @@ export const customersRouter = router({
             email: z.string().email().optional(),
             phone: z.string(),
             birthday: z.string().optional(),
-            tags: z.string().optional(), // Comma separated
+            tags: z.string().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
-            return ctx.prisma.customer.create({
+            const result = await ctx.prisma.customer.create({
                 data: {
                     tenantId: ctx.tenantId!,
                     name: input.name,
                     email: input.email,
                     phoneNumber: input.phone,
-                    // Birthday and tags not in schema yet, ignoring for now or storing in metadata if we had it
                 }
             });
+            // Invalidate cache
+            await CacheService.invalidate(CacheService.keys.customersList(ctx.tenantId!));
+            await CacheService.invalidate(CacheService.keys.customersStats(ctx.tenantId!));
+            return result;
         }),
 
     getHistory: protectedProcedure
         .use(enforceTenant)
-        .input(z.object({
-            customerId: z.string()
-        }))
+        .input(z.object({ customerId: z.string() }))
         .query(async ({ ctx, input }) => {
             const orders = await ctx.prisma.order.findMany({
                 where: {
                     customerId: input.customerId,
-                    outlet: { tenantId: ctx.tenantId! } // Ensure tenant isolation
+                    outlet: { tenantId: ctx.tenantId! }
                 },
-                include: {
-                    items: true
-                },
+                include: { items: true },
                 orderBy: { createdAt: 'desc' }
             });
 

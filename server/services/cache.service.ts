@@ -21,6 +21,22 @@ export class CacheService {
         fullMenu: (outletId: string) => `outlet:${outletId}:menu:full`,
         lowStock: (outletId: string) => `outlet:${outletId}:stock:low`,
         menuItem: (productId: string) => `product:${productId}:details`,
+        // Suppliers
+        suppliersList: (tenantId: string) => `tenant:${tenantId}:suppliers`,
+        // Customers
+        customersList: (tenantId: string) => `tenant:${tenantId}:customers`,
+        customersStats: (tenantId: string) => `tenant:${tenantId}:customers:stats`,
+        // Procurement
+        purchaseOrders: (outletId: string) => `outlet:${outletId}:purchase-orders`,
+        // Expenses
+        expensesList: (outletId: string, month: string) => `outlet:${outletId}:expenses:${month}`,
+        // Daily Closures
+        dailyClosures: (outletId: string, month: string) => `outlet:${outletId}:closures:${month}`,
+        // Super Admin
+        allTenants: () => `super:tenants:all`,
+        allOutlets: () => `super:outlets:all`,
+        superMetrics: () => `super:metrics`,
+        tenantDetails: (tenantId: string) => `super:tenant:${tenantId}`,
     };
 
     /**

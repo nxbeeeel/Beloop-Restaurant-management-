@@ -3,24 +3,30 @@ import { router, requireSuper } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { MailService } from '@/server/services/mail.service';
 import { ProvisioningService } from '@/server/services/provisioning.service';
+import { CacheService } from '@/server/services/cache.service';
 import crypto from 'crypto';
 
 export const superRouter = router({
-    // List all tenants
+    // ⚡ ZERO-LAG: List all tenants (cached 5 min)
     listTenants: requireSuper.query(async ({ ctx }) => {
-        const tenants = await ctx.prisma.tenant.findMany({
-            include: {
-                _count: {
-                    select: {
-                        outlets: true,
-                        users: true,
+        return CacheService.getOrSet(
+            CacheService.keys.allTenants(),
+            async () => {
+                const tenants = await ctx.prisma.tenant.findMany({
+                    include: {
+                        _count: {
+                            select: {
+                                outlets: true,
+                                users: true,
+                            },
+                        },
                     },
-                },
+                    orderBy: { createdAt: 'desc' },
+                });
+                return tenants;
             },
-            orderBy: { createdAt: 'desc' },
-        });
-
-        return tenants;
+            300 // 5 minutes
+        );
     }),
 
     // Get tenant details
