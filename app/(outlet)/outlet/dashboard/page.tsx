@@ -7,6 +7,7 @@ import { TrendingUp, TrendingDown, IndianRupee, Package, AlertTriangle, Shopping
 import { useOutlet } from "@/hooks/use-outlet";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { SkeletonDashboard } from "@/components/ui/skeleton";
 
 export default function DashboardPage() {
     const { outletId, isLoading: userLoading, user } = useOutlet();
@@ -49,20 +50,7 @@ export default function DashboardPage() {
 
     // Skeleton Loader Component
     if (loading) {
-        return (
-            <div className="space-y-8 pb-10 max-w-7xl mx-auto animate-pulse">
-                <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
-                    ))}
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="h-64 bg-gray-200 rounded-lg"></div>
-                    <div className="h-64 bg-gray-200 rounded-lg"></div>
-                </div>
-            </div>
-        );
+        return <SkeletonDashboard />;
     }
 
     return (

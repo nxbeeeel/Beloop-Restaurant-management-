@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Plus, Loader2, UtensilsCrossed, MoreHorizontal, Pencil, Trash2, Image as ImageIcon, X, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { SkeletonRow } from "@/components/ui/skeleton";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -624,11 +625,9 @@ export default function MenuPage() {
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {isLoading ? (
-                                <tr>
-                                    <td colSpan={6} className="p-12 text-center">
-                                        <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-                                    </td>
-                                </tr>
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <SkeletonRow key={i} columns={6} />
+                                ))
                             ) : filteredProducts?.map((product: any) => (
                                 <tr key={product.id} className="hover:bg-gray-50/80 transition-colors group">
                                     <td className="p-4">

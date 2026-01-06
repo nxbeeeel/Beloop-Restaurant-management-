@@ -7,6 +7,7 @@ import { useState } from "react";
 import { StockMovementModal } from "@/components/outlet/inventory/StockMovementModal";
 import { UnifiedStockTable } from "@/components/outlet/inventory/UnifiedStockTable";
 import { IngredientModal } from "@/components/outlet/inventory/IngredientModal";
+import { SkeletonInventory } from "@/components/ui/skeleton";
 
 export default function InventoryPage() {
     const { data: user, isLoading } = trpc.dashboard.getUser.useQuery();
@@ -21,11 +22,7 @@ export default function InventoryPage() {
 
     // Loading state - must be after all hooks
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="animate-spin w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full"></div>
-            </div>
-        );
+        return <SkeletonInventory />;
     }
 
     // No outlet assigned - must be after all hooks

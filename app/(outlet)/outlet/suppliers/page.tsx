@@ -18,6 +18,7 @@ import { Plus, Search, Phone, Mail, Edit, Trash2, Truck, Save, Download, IndianR
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { exportToCsv, formatCurrency, formatDate } from "@/lib/export";
+import { SkeletonTable } from "@/components/ui/skeleton";
 
 export default function SupplierManagerPage() {
     const [search, setSearch] = useState("");
@@ -261,7 +262,7 @@ export default function SupplierManagerPage() {
 
             {/* Suppliers Table */}
             {isLoading ? (
-                <div className="text-center py-12 text-gray-500">Loading suppliers...</div>
+                <SkeletonTable />
             ) : filteredSuppliers?.length === 0 ? (
                 <Card className="border-dashed bg-gray-50/50">
                     <CardContent className="flex flex-col items-center justify-center py-12 text-center">
