@@ -55,10 +55,49 @@ export function Sidebar({ user, outlet }: SidebarProps) {
     const isStaff = user?.role === "STAFF";
     const isManager = user?.role === "OUTLET_MANAGER" || user?.role === "BRAND_ADMIN" || user?.role === "SUPER";
 
-    // Prefetch data on hover for instant navigation
+    // ⚡ ZERO-LAG: Aggressive prefetching on hover
+    // Prefetches data for ALL routes so pages load instantly
     const handlePrefetch = (href: string) => {
-        if (href === '/outlet/dashboard' && outlet?.id) {
-            void utils.dashboard.getOutletStats.prefetch({ outletId: outlet.id });
+        if (!outlet?.id) return;
+        const outletId = outlet.id;
+        const tenantId = user?.tenantId;
+
+        switch (href) {
+            case '/outlet/dashboard':
+                void utils.dashboard.getOutletStats.prefetch({ outletId });
+                break;
+            case '/outlet/inventory':
+                void utils.inventory.list.prefetch({ outletId });
+                void utils.inventory.getLowStock.prefetch({ outletId });
+                break;
+            case '/outlet/suppliers':
+                void utils.suppliers.list.prefetch();
+                break;
+            case '/outlet/customers':
+                void utils.customers.getAll.prefetch({});
+                void utils.customers.getStats.prefetch();
+                break;
+            case '/outlet/purchase-orders':
+                void utils.procurement.listOrders.prefetch({ outletId });
+                break;
+            case '/outlet/supplier-payments':
+                void utils.suppliers.list.prefetch();
+                break;
+            case '/outlet/accounts':
+                // Prefetch daily closures for current month
+                void utils.dailyClosure.list.prefetch({ outletId });
+                void utils.expenses.list.prefetch({ outletId, startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1), endDate: new Date() });
+                break;
+            case '/outlet/menu':
+                void utils.products.getAll.prefetch({ outletId });
+                break;
+            case '/outlet/stock-verification':
+                void utils.inventory.getLowStock.prefetch({ outletId });
+                break;
+            // Sales entry uses previous day's data
+            case '/outlet/sales/entry':
+                void utils.sales.getDaily.prefetch({ outletId, date: new Date() });
+                break;
         }
     };
 
