@@ -35,32 +35,112 @@ export default function SupplierManagerPage() {
 
     const { data: suppliers, isLoading } = trpc.suppliers.list.useQuery();
 
+    // ⚡ OPTIMISTIC CREATE: Shows new supplier immediately
     const createMutation = trpc.suppliers.create.useMutation({
+        onMutate: async (newSupplier) => {
+            // Cancel outgoing queries
+            await utils.suppliers.list.cancel();
+
+            // Snapshot current state for rollback
+            const previousSuppliers = utils.suppliers.list.getData();
+
+            // Optimistically add the new supplier
+            utils.suppliers.list.setData(undefined, (old) => {
+                if (!old) return old;
+                return [
+                    {
+                        id: `temp-${Date.now()}`,
+                        ...newSupplier,
+                        balance: 0,
+                        lastPayment: null,
+                        _count: { products: 0, ingredients: 0 },
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                        tenantId: '',
+                        address: null,
+                    } as typeof old[0],
+                    ...old
+                ];
+            });
+
+            return { previousSuppliers };
+        },
         onSuccess: () => {
             toast.success("Supplier created successfully");
             setIsCreateOpen(false);
             resetForm();
-            utils.suppliers.list.invalidate();
         },
-        onError: (e) => toast.error(e.message)
+        onError: (e, _newSupplier, context) => {
+            // Rollback on error
+            if (context?.previousSuppliers) {
+                utils.suppliers.list.setData(undefined, context.previousSuppliers);
+            }
+            toast.error(e.message);
+        },
+        onSettled: () => {
+            // Always refetch to ensure consistency
+            utils.suppliers.list.invalidate();
+        }
     });
 
+    // ⚡ OPTIMISTIC UPDATE: Shows changes immediately
     const updateMutation = trpc.suppliers.update.useMutation({
+        onMutate: async (updatedSupplier) => {
+            await utils.suppliers.list.cancel();
+            const previousSuppliers = utils.suppliers.list.getData();
+
+            utils.suppliers.list.setData(undefined, (old) => {
+                if (!old) return old;
+                return old.map(s =>
+                    s.id === updatedSupplier.id
+                        ? { ...s, ...updatedSupplier, updatedAt: new Date() }
+                        : s
+                );
+            });
+
+            return { previousSuppliers };
+        },
         onSuccess: () => {
             toast.success("Supplier updated successfully");
             setEditingSupplier(null);
             resetForm();
-            utils.suppliers.list.invalidate();
         },
-        onError: (e) => toast.error(e.message)
+        onError: (e, _updatedSupplier, context) => {
+            if (context?.previousSuppliers) {
+                utils.suppliers.list.setData(undefined, context.previousSuppliers);
+            }
+            toast.error(e.message);
+        },
+        onSettled: () => {
+            utils.suppliers.list.invalidate();
+        }
     });
 
+    // ⚡ OPTIMISTIC DELETE: Removes supplier immediately
     const deleteMutation = trpc.suppliers.delete.useMutation({
+        onMutate: async (supplierId) => {
+            await utils.suppliers.list.cancel();
+            const previousSuppliers = utils.suppliers.list.getData();
+
+            utils.suppliers.list.setData(undefined, (old) => {
+                if (!old) return old;
+                return old.filter(s => s.id !== supplierId);
+            });
+
+            return { previousSuppliers };
+        },
         onSuccess: () => {
             toast.success("Supplier deleted");
-            utils.suppliers.list.invalidate();
         },
-        onError: (e) => toast.error(e.message)
+        onError: (e, _supplierId, context) => {
+            if (context?.previousSuppliers) {
+                utils.suppliers.list.setData(undefined, context.previousSuppliers);
+            }
+            toast.error(e.message);
+        },
+        onSettled: () => {
+            utils.suppliers.list.invalidate();
+        }
     });
 
     const resetForm = () => {

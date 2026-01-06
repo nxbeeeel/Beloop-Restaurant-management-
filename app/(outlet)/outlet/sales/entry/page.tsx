@@ -57,17 +57,92 @@ export default function DailySalesPage() {
     const utils = trpc.useUtils();
 
     const createSale = trpc.sales.create.useMutation({
+        onMutate: async (newSale) => {
+            // Cancel outgoing refetches
+            await utils.sales.getDaily.cancel();
+
+            // Snapshot previous value
+            const previousSale = utils.sales.getDaily.getData({ outletId: outletId || "", date: new Date(date) });
+
+            // Optimistically update
+            utils.sales.getDaily.setData(
+                { outletId: outletId || "", date: new Date(date) },
+                (old) => {
+                    return {
+                        id: old?.id || "temp-id",
+                        outletId: outletId || "",
+                        date: new Date(date),
+                        cashSale: newSale.cashSale,
+                        bankSale: newSale.bankSale,
+                        swiggy: newSale.swiggy,
+                        zomato: newSale.zomato,
+                        cashInHand: newSale.cashInHand,
+                        cashInBank: newSale.cashInBank,
+                        cashWithdrawal: newSale.cashWithdrawal,
+                        openingCash: old?.openingCash || 0,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                        swiggyPayout: newSale.swiggyPayout,
+                        zomatoPayout: newSale.zomatoPayout,
+                    };
+                }
+            );
+
+            return { previousSale };
+        },
         onSuccess: () => {
             toast.success("Daily sales & closing saved successfully!");
-            utils.sales.list.invalidate();
-            utils.sales.getDaily.invalidate();
             handleClearAll();
         },
-        onError: (e) => toast.error(e.message)
+        onError: (e, _newSale, context) => {
+            if (context?.previousSale) {
+                utils.sales.getDaily.setData(
+                    { outletId: outletId || "", date: new Date(date) },
+                    context.previousSale
+                );
+            }
+            toast.error(e.message);
+        },
+        onSettled: () => {
+            utils.sales.list.invalidate();
+            utils.sales.getDaily.invalidate();
+        }
     });
 
     const createExpense = trpc.expenses.create.useMutation({
+        onMutate: async (newExpense) => {
+            await utils.expenses.list.cancel();
+            const previousExpenses = utils.expenses.list.getData();
+
+            utils.expenses.list.setData(
+                { outletId: outletId || "", startDate: new Date(date), endDate: new Date(date) },
+                (old) => {
+                    if (!old) return [];
+                    return [
+                        {
+                            id: `temp-${Date.now()}`,
+                            ...newExpense,
+                            date: new Date(newExpense.date),
+                            createdAt: new Date(),
+                            updatedAt: new Date(),
+                        } as any,
+                        ...old
+                    ];
+                }
+            );
+
+            return { previousExpenses };
+        },
         onSuccess: () => {
+            // Toast handled by loop or generic success
+        },
+        onError: (e, _newExpense, context) => {
+            if (context?.previousExpenses) {
+                utils.expenses.list.setData(undefined, context.previousExpenses);
+            }
+            toast.error(`Expense failed: ${e.message}`);
+        },
+        onSettled: () => {
             utils.expenses.list.invalidate();
         }
     });

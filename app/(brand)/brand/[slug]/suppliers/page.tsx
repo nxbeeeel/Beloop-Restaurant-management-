@@ -28,30 +28,74 @@ export default function SuppliersPage() {
     const utils = trpc.useContext();
     const { data: suppliers, isLoading } = trpc.suppliers.list.useQuery();
 
+    // ⚡ OPTIMISTIC CREATE
     const createMutation = trpc.suppliers.create.useMutation({
+        onMutate: async (newSupplier) => {
+            await utils.suppliers.list.cancel();
+            const previous = utils.suppliers.list.getData();
+            utils.suppliers.list.setData(undefined, (old) => {
+                if (!old) return old;
+                return [{
+                    id: `temp-${Date.now()}`,
+                    ...newSupplier,
+                    balance: 0,
+                    lastPayment: null,
+                    _count: { products: 0, ingredients: 0 },
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    tenantId: '',
+                    address: null,
+                } as typeof old[0], ...old];
+            });
+            return { previous };
+        },
         onSuccess: () => {
             toast.success("Supplier created successfully");
             setIsCreateOpen(false);
-            utils.suppliers.list.invalidate();
         },
-        onError: (err) => toast.error(err.message),
+        onError: (err, _, ctx) => {
+            if (ctx?.previous) utils.suppliers.list.setData(undefined, ctx.previous);
+            toast.error(err.message);
+        },
+        onSettled: () => utils.suppliers.list.invalidate(),
     });
 
+    // ⚡ OPTIMISTIC UPDATE
     const updateMutation = trpc.suppliers.update.useMutation({
+        onMutate: async (updated) => {
+            await utils.suppliers.list.cancel();
+            const previous = utils.suppliers.list.getData();
+            utils.suppliers.list.setData(undefined, (old) => {
+                if (!old) return old;
+                return old.map(s => s.id === updated.id ? { ...s, ...updated } : s);
+            });
+            return { previous };
+        },
         onSuccess: () => {
             toast.success("Supplier updated successfully");
             setEditingSupplier(null);
-            utils.suppliers.list.invalidate();
         },
-        onError: (err) => toast.error(err.message),
+        onError: (err, _, ctx) => {
+            if (ctx?.previous) utils.suppliers.list.setData(undefined, ctx.previous);
+            toast.error(err.message);
+        },
+        onSettled: () => utils.suppliers.list.invalidate(),
     });
 
+    // ⚡ OPTIMISTIC DELETE
     const deleteMutation = trpc.suppliers.delete.useMutation({
-        onSuccess: () => {
-            toast.success("Supplier deleted successfully");
-            utils.suppliers.list.invalidate();
+        onMutate: async (id) => {
+            await utils.suppliers.list.cancel();
+            const previous = utils.suppliers.list.getData();
+            utils.suppliers.list.setData(undefined, (old) => old?.filter(s => s.id !== id));
+            return { previous };
         },
-        onError: (err) => toast.error(err.message),
+        onSuccess: () => toast.success("Supplier deleted successfully"),
+        onError: (err, _, ctx) => {
+            if (ctx?.previous) utils.suppliers.list.setData(undefined, ctx.previous);
+            toast.error(err.message);
+        },
+        onSettled: () => utils.suppliers.list.invalidate(),
     });
 
     const filteredSuppliers = suppliers?.filter(s =>

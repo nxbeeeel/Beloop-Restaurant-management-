@@ -72,41 +72,147 @@ export default function MenuPage() {
     const { data: suppliers } = trpc.suppliers.list.useQuery();
 
     // Mutations
+    // Mutations
     const createMutation = trpc.products.create.useMutation({
+        onMutate: async (newProduct) => {
+            await utils.products.list.cancel();
+            const previousProducts = utils.products.list.getData({ outletId });
+
+            utils.products.list.setData({ outletId }, (old) => {
+                if (!old) return [];
+                return [
+                    {
+                        id: `temp-${Date.now()}`,
+                        ...newProduct,
+                        price: newProduct.price || 0,
+                        currentStock: 0,
+                        categoryId: newProduct.categoryId || null,
+                        category: categories?.find(c => c.id === newProduct.categoryId) || null,
+                        supplier: null,
+                        recipeItems: [],
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    } as any,
+                    ...old
+                ];
+            });
+
+            return { previousProducts };
+        },
         onSuccess: () => {
-            utils.products.list.invalidate();
             setIsAddOpen(false);
             resetForm();
             toast.success("Item added to menu");
         },
-        onError: (err) => toast.error(err.message)
+        onError: (err, _newProduct, context) => {
+            if (context?.previousProducts) {
+                utils.products.list.setData({ outletId }, context.previousProducts);
+            }
+            toast.error(err.message);
+        },
+        onSettled: () => {
+            utils.products.list.invalidate();
+        }
     });
 
     const updateMutation = trpc.products.update.useMutation({
+        onMutate: async (updatedProduct) => {
+            await utils.products.list.cancel();
+            const previousProducts = utils.products.list.getData({ outletId });
+
+            utils.products.list.setData({ outletId }, (old) => {
+                if (!old) return old;
+                return old.map(p => {
+                    if (p.id === updatedProduct.id) {
+                        return {
+                            ...p,
+                            ...updatedProduct,
+                            category: categories?.find(c => c.id === updatedProduct.categoryId) || p.category,
+                            updatedAt: new Date()
+                        };
+                    }
+                    return p;
+                });
+            });
+
+            return { previousProducts };
+        },
         onSuccess: () => {
-            utils.products.list.invalidate();
             setEditingProduct(null);
             resetForm();
             toast.success("Menu item updated");
         },
-        onError: (err) => toast.error(err.message)
+        onError: (err, _updatedProduct, context) => {
+            if (context?.previousProducts) {
+                utils.products.list.setData({ outletId }, context.previousProducts);
+            }
+            toast.error(err.message);
+        },
+        onSettled: () => {
+            utils.products.list.invalidate();
+        }
     });
 
     const createCategoryMutation = trpc.categories.create.useMutation({
+        onMutate: async (newCategory) => {
+            await utils.categories.list.cancel();
+            const previousCategories = utils.categories.list.getData({ outletId });
+
+            utils.categories.list.setData({ outletId }, (old) => {
+                if (!old) return [];
+                return [
+                    {
+                        id: `temp-${Date.now()}`,
+                        name: newCategory.name,
+                        outletId,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    ...old
+                ];
+            });
+
+            return { previousCategories };
+        },
         onSuccess: () => {
-            utils.categories.list.invalidate();
             setNewCategoryName("");
             toast.success("Category created");
         },
-        onError: (err) => toast.error(err.message)
+        onError: (err, _newCategory, context) => {
+            if (context?.previousCategories) {
+                utils.categories.list.setData({ outletId }, context.previousCategories);
+            }
+            toast.error(err.message);
+        },
+        onSettled: () => {
+            utils.categories.list.invalidate();
+        }
     });
 
     const deleteCategoryMutation = trpc.categories.delete.useMutation({
+        onMutate: async (categoryId) => {
+            await utils.categories.list.cancel();
+            const previousCategories = utils.categories.list.getData({ outletId });
+
+            utils.categories.list.setData({ outletId }, (old) => {
+                if (!old) return old;
+                return old.filter(c => c.id !== categoryId);
+            });
+
+            return { previousCategories };
+        },
         onSuccess: () => {
-            utils.categories.list.invalidate();
             toast.success("Category deleted");
         },
-        onError: (err) => toast.error(err.message)
+        onError: (err, _categoryId, context) => {
+            if (context?.previousCategories) {
+                utils.categories.list.setData({ outletId }, context.previousCategories);
+            }
+            toast.error(err.message);
+        },
+        onSettled: () => {
+            utils.categories.list.invalidate();
+        }
     });
 
     const resetForm = () => {
