@@ -68,10 +68,9 @@ export default function DailySalesPage() {
             utils.sales.getDaily.setData(
                 { outletId: outletId || "", date: new Date(date) },
                 (old) => {
+                    if (!old) return old;
                     return {
-                        id: old?.id || "temp-id",
-                        outletId: outletId || "",
-                        date: new Date(date),
+                        ...old,
                         cashSale: newSale.cashSale,
                         bankSale: newSale.bankSale,
                         swiggy: newSale.swiggy,
@@ -79,12 +78,10 @@ export default function DailySalesPage() {
                         cashInHand: newSale.cashInHand,
                         cashInBank: newSale.cashInBank,
                         cashWithdrawal: newSale.cashWithdrawal,
-                        openingCash: old?.openingCash || 0,
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
                         swiggyPayout: newSale.swiggyPayout,
                         zomatoPayout: newSale.zomatoPayout,
-                    };
+                        updatedAt: new Date(),
+                    } as typeof old;
                 }
             );
 
