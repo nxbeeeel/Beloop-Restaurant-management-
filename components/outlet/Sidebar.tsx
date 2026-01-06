@@ -4,30 +4,46 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
     LayoutDashboard,
-    ShoppingBag,
     Package,
-    BarChart3,
     Settings,
     LogOut,
     Menu,
     Users,
-    FileText,
     Store,
     Truck,
     Receipt,
     UserCircle,
     ShoppingCart,
     IndianRupee,
-    ClipboardCheck
+    ClipboardCheck,
+    FileText,
+    Wallet,
+    Upload,
+    CreditCard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useClerk } from "@clerk/nextjs";
 import { trpc } from "@/lib/trpc";
+import { Badge } from "@/components/ui/badge";
 
 interface SidebarProps {
     user: any;
     outlet: any;
+}
+
+interface NavItem {
+    name: string;
+    href: string;
+    icon: any;
+    external?: boolean;
+    staffAccess?: boolean; // true = staff can access, false = manager only
+}
+
+interface NavSection {
+    title: string;
+    items: NavItem[];
+    staffAccess?: boolean; // If false, entire section hidden from staff
 }
 
 export function Sidebar({ user, outlet }: SidebarProps) {
@@ -35,60 +51,92 @@ export function Sidebar({ user, outlet }: SidebarProps) {
     const { signOut } = useClerk();
     const utils = trpc.useUtils();
 
-    const isActive = (path: string) => pathname === path;
+    const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
+    const isStaff = user?.role === "STAFF";
+    const isManager = user?.role === "OUTLET_MANAGER" || user?.role === "BRAND_ADMIN" || user?.role === "SUPER";
 
     // Prefetch data on hover for instant navigation
     const handlePrefetch = (href: string) => {
-        // Only prefetch dashboard stats - most impactful for perceived performance
         if (href === '/outlet/dashboard' && outlet?.id) {
             void utils.dashboard.getOutletStats.prefetch({ outletId: outlet.id });
         }
     };
 
-    const menuItems = [
+    // ERP-style navigation structure
+    const menuItems: NavSection[] = [
         {
-            title: "Overview",
+            title: "Daily Operations",
             items: [
-                { name: "Dashboard", href: "/outlet/dashboard", icon: LayoutDashboard },
+                { name: "Sales Entry", href: "/outlet/sales/entry", icon: FileText, staffAccess: true },
+                { name: "Stock Verification", href: "/outlet/stock-verification", icon: ClipboardCheck, staffAccess: true },
+                { name: "Daily Closing", href: "/outlet/close-daily", icon: Receipt, staffAccess: true },
             ]
         },
         {
-            title: "Management",
+            title: "Procurement",
             items: [
-                { name: "Menu", href: "/outlet/menu", icon: Menu },
-                { name: "Inventory", href: "/outlet/inventory", icon: Package },
-                { name: "Suppliers", href: "/outlet/suppliers", icon: Truck },
-                { name: "Customers", href: "/outlet/customers", icon: Users },
-            ]
+                { name: "Purchase Orders", href: "/outlet/purchase-orders", icon: ShoppingCart, staffAccess: true }, // Staff can receive
+                { name: "Supplier Payments", href: "/outlet/supplier-payments", icon: CreditCard, staffAccess: false },
+                { name: "Suppliers", href: "/outlet/suppliers", icon: Truck, staffAccess: false },
+            ],
+            staffAccess: true // Section visible but some items hidden
         },
         {
-            title: "Operations",
+            title: "Inventory",
             items: [
-                { name: "Open POS", href: "https://pos.belooprms.app", icon: ShoppingCart, external: true },
-                { name: "Sales Entry", href: "/outlet/sales/entry", icon: ShoppingBag },
-                { name: "Expenses", href: "/outlet/entries", icon: Receipt },
-                { name: "Purchase Orders", href: "/outlet/purchase-orders", icon: Truck },
-                { name: "Supplier Payments", href: "/outlet/payments", icon: IndianRupee },
-                { name: "Stock Verification", href: "/outlet/stock-verification", icon: ClipboardCheck },
-            ]
+                { name: "Stock Levels", href: "/outlet/inventory", icon: Package, staffAccess: false },
+                { name: "Menu Items", href: "/outlet/menu", icon: Menu, staffAccess: false },
+            ],
+            staffAccess: false
         },
         {
-            title: "Analytics",
+            title: "Accounts",
             items: [
-                { name: "Reports", href: "/outlet/reports", icon: BarChart3 },
-            ]
+                { name: "Cash Flow", href: "/outlet/accounts", icon: Wallet, staffAccess: false },
+                { name: "Expenses", href: "/outlet/expenses", icon: IndianRupee, staffAccess: false },
+                { name: "Payouts", href: "/outlet/payouts", icon: Upload, staffAccess: false },
+            ],
+            staffAccess: false
+        },
+        {
+            title: "Insights",
+            items: [
+                { name: "Dashboard", href: "/outlet/dashboard", icon: LayoutDashboard, staffAccess: false },
+                { name: "Customers", href: "/outlet/customers", icon: Users, staffAccess: false },
+            ],
+            staffAccess: false
         },
     ];
 
-    // Add Manager/System items if role allows
-    if (user?.role === "OUTLET_MANAGER" || user?.role === "BRAND_ADMIN" || user?.role === "SUPER") {
+    // Add Settings for managers only
+    if (isManager) {
         menuItems.push({
-            title: "System",
+            title: "Settings",
             items: [
-                { name: "Settings", href: "/outlet/settings", icon: Settings },
-            ]
+                { name: "Outlet Settings", href: "/outlet/settings", icon: Settings, staffAccess: false },
+            ],
+            staffAccess: false
         });
     }
+
+    // Filter menu items based on role
+    const filteredMenuItems = menuItems
+        .filter(section => {
+            // If manager, show all sections
+            if (isManager) return true;
+            // If staff, only show sections with staffAccess or mixed access
+            return section.staffAccess !== false;
+        })
+        .map(section => ({
+            ...section,
+            items: section.items.filter(item => {
+                // If manager, show all items
+                if (isManager) return true;
+                // If staff, only show items with staffAccess: true
+                return item.staffAccess === true;
+            })
+        }))
+        .filter(section => section.items.length > 0); // Remove empty sections
 
     return (
         <aside className="w-64 bg-white border-r border-gray-100 flex flex-col fixed h-full z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
@@ -102,7 +150,9 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                         <h1 className="text-xl font-bold text-gray-900 tracking-tight">
                             Beloop<span className="text-primary">.</span>
                         </h1>
-                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Restaurant Management</p>
+                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+                            {isStaff ? 'Staff Portal' : 'Outlet Manager'}
+                        </p>
                     </div>
                 </div>
                 {outlet && (
@@ -113,15 +163,15 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                 )}
             </div>
 
-            {/* Navigation with Prefetch */}
+            {/* Navigation with Role-Based Filtering */}
             <div className="flex-1 overflow-y-auto py-6 px-4 space-y-8">
-                {menuItems.map((section) => (
+                {filteredMenuItems.map((section) => (
                     <div key={section.title}>
                         <h3 className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                             {section.title}
                         </h3>
                         <div className="space-y-1">
-                            {section.items.map((item: any) => (
+                            {section.items.map((item) => (
                                 item.external ? (
                                     <a
                                         key={item.href}
@@ -163,10 +213,12 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-                        <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-                        <p className="text-[10px] text-primary font-semibold uppercase tracking-wider mt-0.5">
-                            {user?.role?.replace('_', ' ')}
-                        </p>
+                        <Badge variant="secondary" className={cn(
+                            "text-[10px] px-1.5 py-0",
+                            isStaff ? "bg-blue-100 text-blue-700" : "bg-primary/10 text-primary"
+                        )}>
+                            {isStaff ? 'Staff' : 'Manager'}
+                        </Badge>
                     </div>
                 </div>
                 <Link href="/outlet/profile">
@@ -175,7 +227,7 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                         className="w-full justify-start text-gray-600 hover:text-gray-900 hover:bg-gray-100 h-9 mb-1"
                     >
                         <UserCircle className="w-4 h-4 mr-2" />
-                        Profile & Settings
+                        Profile
                     </Button>
                 </Link>
                 <Button

@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useOutlet } from "@/hooks/use-outlet";
-import { Calendar, Save, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, Save, ChevronLeft, ChevronRight, Lock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function DailySalesPage() {
     const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -27,7 +28,12 @@ export default function DailySalesPage() {
     const [waterBottle, setWaterBottle] = useState("");
     const [miscExpense, setMiscExpense] = useState("");
 
-    const { outletId, isLoading: userLoading } = useOutlet();
+    const { outletId, isLoading: userLoading, user } = useOutlet();
+
+    // Role-based access
+    const isStaff = user?.role === "STAFF";
+    const isManager = user?.role === "OUTLET_MANAGER" || user?.role === "BRAND_ADMIN" || user?.role === "SUPER";
+    const today = new Date().toISOString().split("T")[0];
 
     // Fetch yesterday's data for cash balance
     const yesterday = new Date(date);
@@ -204,31 +210,59 @@ export default function DailySalesPage() {
             <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm ring-1 ring-gray-100">
                 <CardContent className="pt-6">
                     <form onSubmit={handleSubmit} className="space-y-5">
-                        {/* Date Selector with Navigation */}
+                        {/* Date Selector with Navigation - Managers Only */}
                         <div className="space-y-2">
-                            <Label htmlFor="date" className="text-base font-semibold">Date</Label>
-                            <div className="flex gap-2">
-                                <Button type="button" onClick={handlePreviousDay} variant="outline" className="h-12 w-12">
-                                    <ChevronLeft className="h-5 w-5" />
-                                </Button>
-                                <div className="flex-1 relative">
-                                    <Input
-                                        id="date"
-                                        type="date"
-                                        value={date}
-                                        onChange={(e) => setDate(e.target.value)}
-                                        required
-                                        className="h-12 text-base pl-10"
-                                    />
-                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-                                </div>
-                                <Button type="button" onClick={handleNextDay} variant="outline" className="h-12 w-12">
-                                    <ChevronRight className="h-5 w-5" />
-                                </Button>
-                                <Button type="button" onClick={handleToday} variant="secondary" className="h-12 px-4 text-sm font-bold">
-                                    Today
-                                </Button>
+                            <div className="flex items-center gap-2">
+                                <Label htmlFor="date" className="text-base font-semibold">Date</Label>
+                                {isStaff && (
+                                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs">
+                                        <Lock className="h-3 w-3 mr-1" />
+                                        Today Only
+                                    </Badge>
+                                )}
                             </div>
+                            {isStaff ? (
+                                // Staff: Locked to today
+                                <div className="flex items-center gap-2">
+                                    <div className="flex-1 relative">
+                                        <Input
+                                            id="date"
+                                            type="date"
+                                            value={today}
+                                            disabled
+                                            className="h-12 text-base pl-10 bg-gray-50"
+                                        />
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+                                    </div>
+                                    <div className="text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded-lg">
+                                        {new Date(today).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                                    </div>
+                                </div>
+                            ) : (
+                                // Manager: Full date navigation
+                                <div className="flex gap-2">
+                                    <Button type="button" onClick={handlePreviousDay} variant="outline" className="h-12 w-12">
+                                        <ChevronLeft className="h-5 w-5" />
+                                    </Button>
+                                    <div className="flex-1 relative">
+                                        <Input
+                                            id="date"
+                                            type="date"
+                                            value={date}
+                                            onChange={(e) => setDate(e.target.value)}
+                                            required
+                                            className="h-12 text-base pl-10"
+                                        />
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+                                    </div>
+                                    <Button type="button" onClick={handleNextDay} variant="outline" className="h-12 w-12">
+                                        <ChevronRight className="h-5 w-5" />
+                                    </Button>
+                                    <Button type="button" onClick={handleToday} variant="secondary" className="h-12 px-4 text-sm font-bold">
+                                        Today
+                                    </Button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Sales Inputs Grid */}

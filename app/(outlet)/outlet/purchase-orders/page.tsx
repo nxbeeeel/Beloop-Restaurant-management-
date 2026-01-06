@@ -5,12 +5,14 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Truck, Package, Calendar } from "lucide-react";
+import { Plus, Truck, Package, Calendar, Lock } from "lucide-react";
 import Link from "next/link";
 
 export default function PurchaseOrdersPage() {
     const { data: user } = trpc.dashboard.getUser.useQuery();
     const outletId = user?.outletId || "";
+    const isStaff = user?.role === "STAFF";
+    const isManager = user?.role === "OUTLET_MANAGER" || user?.role === "BRAND_ADMIN" || user?.role === "SUPER";
 
     const { data: orders, isLoading } = trpc.procurement.listOrders.useQuery(
         { outletId },
@@ -22,14 +24,18 @@ export default function PurchaseOrdersPage() {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 tracking-tight">Purchase Orders</h1>
-                    <p className="text-gray-500 text-sm lg:text-base">Manage supplier orders and deliveries</p>
+                    <p className="text-gray-500 text-sm lg:text-base">
+                        {isStaff ? "Receive supplier orders" : "Manage supplier orders and deliveries"}
+                    </p>
                 </div>
-                <Link href="/outlet/purchase-orders/create">
-                    <Button className="bg-primary">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create Order
-                    </Button>
-                </Link>
+                {isManager && (
+                    <Link href="/outlet/purchase-orders/create">
+                        <Button className="bg-primary">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Create Order
+                        </Button>
+                    </Link>
+                )}
             </div>
 
             {isLoading ? (
