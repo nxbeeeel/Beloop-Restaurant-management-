@@ -1,20 +1,23 @@
 "use client";
 
 import { trpc } from "@/lib/trpc";
-import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { StockMovementModal } from "@/components/outlet/inventory/StockMovementModal";
 import { UnifiedStockTable } from "@/components/outlet/inventory/UnifiedStockTable";
+import { IngredientModal } from "@/components/outlet/inventory/IngredientModal";
 
 export default function InventoryPage() {
     const { data: user, isLoading } = trpc.dashboard.getUser.useQuery();
     const outletId = user?.outletId || "";
 
-    const [modalConfig, setModalConfig] = useState<{ isOpen: boolean; type: 'IN' | 'OUT' }>({
+    const [stockModalConfig, setStockModalConfig] = useState<{ isOpen: boolean; type: 'IN' | 'OUT' }>({
         isOpen: false,
         type: 'IN'
     });
+
+    const [ingredientModalOpen, setIngredientModalOpen] = useState(false);
 
     // Loading state - must be after all hooks
     if (isLoading) {
@@ -42,18 +45,24 @@ export default function InventoryPage() {
                     <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 tracking-tight">Inventory Management</h1>
                     <p className="text-gray-500 text-sm lg:text-base">Track stock levels for products and ingredients.</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
+                    <Button
+                        className="bg-primary hover:bg-primary/90 text-white"
+                        onClick={() => setIngredientModalOpen(true)}
+                    >
+                        <Plus className="w-4 h-4 mr-2" /> Add Ingredient
+                    </Button>
                     <Button
                         variant="outline"
                         className="text-gray-600 hover:text-green-600 hover:bg-green-50 border-gray-200"
-                        onClick={() => setModalConfig({ isOpen: true, type: 'IN' })}
+                        onClick={() => setStockModalConfig({ isOpen: true, type: 'IN' })}
                     >
                         <ArrowDownRight className="w-4 h-4 mr-2" /> Stock In
                     </Button>
                     <Button
                         variant="outline"
                         className="text-gray-600 hover:text-red-600 hover:bg-red-50 border-gray-200"
-                        onClick={() => setModalConfig({ isOpen: true, type: 'OUT' })}
+                        onClick={() => setStockModalConfig({ isOpen: true, type: 'OUT' })}
                     >
                         <ArrowUpRight className="w-4 h-4 mr-2" /> Stock Out
                     </Button>
@@ -64,11 +73,19 @@ export default function InventoryPage() {
                 <UnifiedStockTable outletId={outletId} />
             </div>
 
+            {/* Stock Movement Modal */}
             <StockMovementModal
-                isOpen={modalConfig.isOpen}
-                onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
+                isOpen={stockModalConfig.isOpen}
+                onClose={() => setStockModalConfig(prev => ({ ...prev, isOpen: false }))}
                 outletId={outletId}
-                type={modalConfig.type}
+                type={stockModalConfig.type}
+            />
+
+            {/* Add Ingredient Modal */}
+            <IngredientModal
+                isOpen={ingredientModalOpen}
+                onClose={() => setIngredientModalOpen(false)}
+                outletId={outletId}
             />
         </div>
     );
