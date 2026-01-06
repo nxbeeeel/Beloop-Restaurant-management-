@@ -40,7 +40,7 @@ export default function SuppliersPage() {
                     ...newSupplier,
                     balance: 0,
                     lastPayment: null,
-                    _count: { products: 0, ingredients: 0 },
+                    _count: { products: 0, purchaseOrders: 0, ingredients: 0 },
                     createdAt: new Date(),
                     updatedAt: new Date(),
                     tenantId: '',
