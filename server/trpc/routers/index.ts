@@ -27,3 +27,4 @@ export * from './brandApplication';
 export * from './billing';
 export * from './public';
 export * from './velocity';
+export * from './security';

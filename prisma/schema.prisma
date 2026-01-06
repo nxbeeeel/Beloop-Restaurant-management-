@@ -122,8 +122,8 @@ model Outlet {
   journalEntries               JournalEntry[]
   velocityRegisters            VelocityRegister[]
   velocityWallets              VelocityWallet[]
-  transfersFrom                StockTransfer[]     @relation("TransfersFrom")
-  transfersTo                  StockTransfer[]     @relation("TransfersTo")
+  transfersFrom                StockTransfer[]              @relation("TransfersFrom")
+  transfersTo                  StockTransfer[]              @relation("TransfersTo")
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -156,6 +156,7 @@ model User {
   TicketComment      TicketComment[]
   stockVerifications StockVerification[]
   purchaseOrders     PurchaseOrder[]     @relation("CreatedBy")
+  userPIN            UserPIN? // V2: PIN security
 
   @@index([tenantId, role])
   @@index([outletId])
@@ -591,7 +592,10 @@ model Supplier {
   name           String
   whatsappNumber String?
   email          String?
+  address        String?
   paymentTerms   String?
+  balance        Decimal           @default(0) @db.Decimal(12, 2) // Outstanding balance (positive = we owe them)
+  lastPayment    DateTime?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   products       Product[]
@@ -599,6 +603,7 @@ model Supplier {
   purchaseOrders PurchaseOrder[]
   payments       SupplierPayment[]
   tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ledgerEntries  CreditorLedger[] // V2: Full ledger history
 
   @@index([tenantId])
 }
@@ -971,6 +976,9 @@ model Order {
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
+  // V2: Order edit history
+  editHistory OrderEditHistory[]
+
   @@index([outletId, status, createdAt(sort: Desc)])
   @@index([outletId, isOpen])
   @@index([outletId, tableNumber])
@@ -1245,28 +1253,28 @@ enum CashDrawerType {
 // ==========================================
 
 model VelocityRegister {
-  id           String         @id @default(cuid())
+  id           String                 @id @default(cuid())
   outletId     String
-  date         DateTime       @db.Date
-  openingCash  Decimal        @db.Decimal(12, 2)
-  closingCash  Decimal?       @db.Decimal(12, 2)
-  actualCash   Decimal?       @db.Decimal(12, 2)
-  variance     Decimal?       @db.Decimal(12, 2)
+  date         DateTime               @db.Date
+  openingCash  Decimal                @db.Decimal(12, 2)
+  closingCash  Decimal?               @db.Decimal(12, 2)
+  actualCash   Decimal?               @db.Decimal(12, 2)
+  variance     Decimal?               @db.Decimal(12, 2)
   varianceNote String?
   status       VelocityRegisterStatus @default(OPEN)
   openedBy     String
   closedBy     String?
 
   // Sales breakdown (entered during closing)
-  cashSales    Decimal        @default(0) @db.Decimal(12, 2)
-  upiSales     Decimal        @default(0) @db.Decimal(12, 2)
-  zomatoSales  Decimal        @default(0) @db.Decimal(12, 2)
-  swiggySales  Decimal        @default(0) @db.Decimal(12, 2)
+  cashSales   Decimal @default(0) @db.Decimal(12, 2)
+  upiSales    Decimal @default(0) @db.Decimal(12, 2)
+  zomatoSales Decimal @default(0) @db.Decimal(12, 2)
+  swiggySales Decimal @default(0) @db.Decimal(12, 2)
 
-  openedAt     DateTime       @default(now())
-  closedAt     DateTime?
+  openedAt DateTime  @default(now())
+  closedAt DateTime?
 
-  outlet       Outlet         @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  outlet       Outlet                @relation(fields: [outletId], references: [id], onDelete: Cascade)
   transactions VelocityTransaction[]
 
   @@unique([outletId, date])
@@ -1288,13 +1296,13 @@ model VelocityTransaction {
   categoryId    String?
   description   String?
   proofImageUrl String?
-  orderId       String?             // Required for porter expenses
-  customerName  String?             // Required for porter expenses
+  orderId       String? // Required for porter expenses
+  customerName  String? // Required for porter expenses
   createdBy     String
   createdAt     DateTime            @default(now())
 
-  register      VelocityRegister    @relation(fields: [registerId], references: [id], onDelete: Cascade)
-  category      VelocityCategory?   @relation(fields: [categoryId], references: [id])
+  register VelocityRegister  @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  category VelocityCategory? @relation(fields: [categoryId], references: [id])
 
   @@index([registerId, type])
   @@index([createdAt])
@@ -1315,12 +1323,12 @@ enum VelocityPaymentMode {
 }
 
 model VelocityCategory {
-  id           String   @id @default(cuid())
-  outletId     String
-  name         String   // Oil, Porter, Sugar, etc.
-  requiresRef  Boolean  @default(false) // True for Porter - requires Order ID / Customer Name
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  outletId    String
+  name        String // Oil, Porter, Sugar, etc.
+  requiresRef Boolean  @default(false) // True for Porter - requires Order ID / Customer Name
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
 
   transactions VelocityTransaction[]
 
@@ -1333,24 +1341,24 @@ model VelocityCategory {
 // ==========================================
 
 enum VelocityWalletType {
-  REGISTER       // Shop Counter Cash Register
-  MANAGER_SAFE   // Manager's Holding Account (Petty Cash)
+  REGISTER // Shop Counter Cash Register
+  MANAGER_SAFE // Manager's Holding Account (Petty Cash)
 }
 
 model VelocityWallet {
-  id          String             @id @default(cuid())
-  outletId    String
-  type        VelocityWalletType
-  name        String             // "Shop Register", "Manager Safe"
-  managerId   String?            // User ID of manager who owns the safe
-  managerPin  String?            // 4-digit PIN for authorization (hashed)
-  isActive    Boolean            @default(true)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id         String             @id @default(cuid())
+  outletId   String
+  type       VelocityWalletType
+  name       String // "Shop Register", "Manager Safe"
+  managerId  String? // User ID of manager who owns the safe
+  managerPin String? // 4-digit PIN for authorization (hashed)
+  isActive   Boolean            @default(true)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
 
-  outlet           Outlet               @relation(fields: [outletId], references: [id], onDelete: Cascade)
-  incomingTransfers VelocityTransfer[]  @relation("DestinationWallet")
-  outgoingTransfers VelocityTransfer[]  @relation("SourceWallet")
+  outlet            Outlet             @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  incomingTransfers VelocityTransfer[] @relation("DestinationWallet")
+  outgoingTransfers VelocityTransfer[] @relation("SourceWallet")
 
   @@unique([outletId, type])
   @@index([outletId])
@@ -1362,9 +1370,9 @@ model VelocityTransfer {
   sourceWalletId      String
   destinationWalletId String
   amount              Decimal  @db.Decimal(12, 2)
-  reason              String?  // "Cash Drop", "Replenishment", etc.
-  authorizedBy        String   // Manager's user ID who entered PIN
-  initiatedBy         String   // Staff's user ID who initiated
+  reason              String? // "Cash Drop", "Replenishment", etc.
+  authorizedBy        String // Manager's user ID who entered PIN
+  initiatedBy         String // Staff's user ID who initiated
   createdAt           DateTime @default(now())
 
   sourceWallet      VelocityWallet @relation("SourceWallet", fields: [sourceWalletId], references: [id], onDelete: Cascade)
@@ -1385,9 +1393,9 @@ model StockTransfer {
   fromOutletId String
   toOutletId   String
   status       TransferStatus @default(REQUESTED)
-  requestedBy  String         // User who requested
-  approvedBy   String?        // Manager who approved
-  rejectedBy   String?        // Manager who rejected
+  requestedBy  String // User who requested
+  approvedBy   String? // Manager who approved
+  rejectedBy   String? // Manager who rejected
   rejectReason String?
   shippedAt    DateTime?
   receivedAt   DateTime?
@@ -1407,7 +1415,7 @@ model StockTransfer {
 }
 
 model StockTransferItem {
-  id           String  @id @default(cuid())
+  id           String @id @default(cuid())
   transferId   String
   productId    String
   productName  String
@@ -1423,10 +1431,342 @@ model StockTransferItem {
 }
 
 enum TransferStatus {
-  REQUESTED  // Waiting for source outlet approval
-  APPROVED   // Source approved, ready to ship
-  SHIPPED    // In transit
-  RECEIVED   // Destination confirmed receipt
-  REJECTED   // Source declined
-  CANCELLED  // Requestor cancelled
+  REQUESTED // Waiting for source outlet approval
+  APPROVED // Source approved, ready to ship
+  SHIPPED // In transit
+  RECEIVED // Destination confirmed receipt
+  REJECTED // Source declined
+  CANCELLED // Requestor cancelled
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BELOOP V2: PIN SECURITY SYSTEM
+// ═══════════════════════════════════════════════════════════════
+
+model UserPIN {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  pinHash        String // bcrypt hashed 4-digit PIN
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  lastUsedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PINActionLog {
+  id            String   @id @default(cuid())
+  outletId      String
+  userId        String
+  userName      String
+  action        String // "EDIT_ORDER", "VOID_ORDER", "WITHDRAWAL", "STOCK_ADJUSTMENT"
+  actionType    String // "ORDER", "CASH", "STOCK"
+  targetId      String?
+  targetDetails Json?
+  previousValue Json?
+  newValue      Json?
+  reason        String?
+  status        String // "SUCCESS", "FAILED", "DENIED"
+  createdAt     DateTime @default(now())
+
+  @@index([outletId, createdAt])
+  @@index([action, createdAt])
+  @@index([userId])
+}
+
+model ManagerNotification {
+  id           String   @id @default(cuid())
+  outletId     String
+  managerId    String
+  type         String // "PIN_ACTION", "VARIANCE", "VOID_ORDER", "CASH_WITHDRAWAL"
+  priority     String   @default("NORMAL") // "LOW", "NORMAL", "HIGH", "CRITICAL"
+  title        String
+  message      String
+  actionBy     String?
+  actionByName String?
+  amount       Decimal? @db.Decimal(12, 2)
+  isRead       Boolean  @default(false)
+  sentVia      String[] // ["IN_APP", "WHATSAPP", "EMAIL"]
+  metadata     Json? // Additional context data
+  createdAt    DateTime @default(now())
+
+  @@index([managerId, isRead])
+  @@index([outletId, createdAt])
+}
+
+model SecuritySettings {
+  id                         String   @id @default(cuid())
+  outletId                   String   @unique
+  editOrderRequiresPIN       Boolean  @default(true)
+  voidOrderRequiresPIN       Boolean  @default(true)
+  withdrawalRequiresPIN      Boolean  @default(true)
+  priceOverrideRequiresPIN   Boolean  @default(true)
+  stockAdjustmentRequiresPIN Boolean  @default(true)
+  refundRequiresPIN          Boolean  @default(true)
+  modifyClosingRequiresPIN   Boolean  @default(true)
+  supplierPaymentRequiresPIN Boolean  @default(true)
+  manualDiscountRequiresPIN  Boolean  @default(true)
+  manualDiscountThreshold    Decimal  @default(10) @db.Decimal(5, 2) // % above which PIN is required
+  notifyOnEdit               Boolean  @default(true)
+  notifyOnVoid               Boolean  @default(true)
+  notifyOnWithdrawal         Boolean  @default(true)
+  notifyOnVariance           Boolean  @default(true)
+  varianceThreshold          Decimal  @default(10) @db.Decimal(12, 2) // Amount above which notification is sent
+  notificationMethods        String[] @default(["IN_APP", "WHATSAPP"])
+  managerUserIds             String[]
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([outletId])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BELOOP V2: DAILY REGISTER & CASH MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+
+model DailyRegister {
+  id       String   @id @default(cuid())
+  outletId String
+  date     DateTime @db.Date
+  status   String   @default("OPEN") // "OPEN", "CLOSED"
+
+  // Opening
+  expectedOpening Decimal  @db.Decimal(12, 2)
+  actualOpening   Decimal  @db.Decimal(12, 2)
+  openingVariance Decimal  @default(0) @db.Decimal(10, 2)
+  openingNote     String?
+  openedBy        String
+  openedByName    String?
+  openedAt        DateTime
+
+  // Running Totals (updated in real-time)
+  totalCashIn  Decimal @default(0) @db.Decimal(12, 2)
+  totalCashOut Decimal @default(0) @db.Decimal(12, 2)
+  totalUPI     Decimal @default(0) @db.Decimal(12, 2)
+  totalCard    Decimal @default(0) @db.Decimal(12, 2)
+
+  // Closing
+  systemCash      Decimal?  @db.Decimal(12, 2)
+  physicalCash    Decimal?  @db.Decimal(12, 2)
+  closingVariance Decimal?  @db.Decimal(10, 2)
+  varianceReason  String?
+  denominations   Json? // { "2000": 5, "500": 10, ... }
+  closedBy        String?
+  closedByName    String?
+  closedAt        DateTime?
+  pinVerified     Boolean   @default(false) // True if variance > threshold
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions RegisterTransaction[]
+  withdrawals  CashWithdrawal[]
+
+  @@unique([outletId, date])
+  @@index([outletId, status])
+  @@index([outletId, date])
+}
+
+model RegisterTransaction {
+  id            String   @id @default(cuid())
+  registerId    String
+  outletId      String
+  type          String // "SALE", "EXPENSE", "WITHDRAWAL", "PAYOUT", "MANUAL"
+  category      String? // Expense category or sale source
+  amount        Decimal  @db.Decimal(12, 2)
+  isInflow      Boolean
+  paymentMode   String // "CASH", "UPI", "CARD", "ONLINE"
+  description   String
+  referenceId   String? // Order ID, Expense ID, etc.
+  referenceType String? // "ORDER", "EXPENSE", "WITHDRAWAL"
+  vendorName    String?
+  proofImageUrl String?
+  handedTo      String?
+  purpose       String?
+  createdBy     String
+  createdByName String
+  pinVerified   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  register DailyRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
+
+  @@index([registerId])
+  @@index([outletId, createdAt])
+  @@index([type, createdAt])
+}
+
+model CashWithdrawal {
+  id               String   @id @default(cuid())
+  outletId         String
+  registerId       String
+  amount           Decimal  @db.Decimal(12, 2)
+  purpose          String // "BANK_DEPOSIT", "OWNER_WITHDRAWAL", "EMERGENCY", "PETTY_CASH"
+  handedTo         String
+  handedToName     String?
+  notes            String?
+  authorizedBy     String
+  authorizedByName String
+  pinVerified      Boolean  @default(true)
+  notificationSent Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  register DailyRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
+
+  @@index([outletId, createdAt])
+  @@index([registerId])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BELOOP V2: ORDER EDIT HISTORY & AUDIT
+// ═══════════════════════════════════════════════════════════════
+
+model OrderEditHistory {
+  id              String   @id @default(cuid())
+  orderId         String
+  outletId        String
+  editType        String // "ITEMS_MODIFIED", "QUANTITY_CHANGED", "PRICE_OVERRIDE", "VOIDED", "REFUNDED"
+  previousData    Json
+  newData         Json
+  previousTotal   Decimal  @db.Decimal(12, 2)
+  newTotal        Decimal  @db.Decimal(12, 2)
+  difference      Decimal  @db.Decimal(12, 2)
+  reason          String
+  editedBy        String
+  editedByName    String
+  pinVerified     Boolean  @default(true)
+  managerNotified Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([outletId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BELOOP V2: EXPENSE CATEGORIES & ENTRIES WITH PROOF
+// ═══════════════════════════════════════════════════════════════
+
+model ExpenseCategoryV2 {
+  id            String   @id @default(cuid())
+  outletId      String
+  name          String
+  code          String
+  icon          String? // Emoji or icon name
+  color         String? // Hex color for UI
+  budgetMonthly Decimal? @db.Decimal(12, 2)
+  requiresProof Boolean  @default(true)
+  requiresRef   Boolean  @default(false) // For porter expenses - requires Order ID
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  expenses ExpenseEntryV2[]
+
+  @@unique([outletId, code])
+  @@index([outletId, isActive])
+}
+
+model ExpenseEntryV2 {
+  id            String   @id @default(cuid())
+  outletId      String
+  categoryId    String
+  amount        Decimal  @db.Decimal(12, 2)
+  description   String
+  vendorName    String?
+  paymentMethod String // "CASH", "UPI", "CARD", "BANK"
+  proofImageUrl String?
+  proofMissing  Boolean  @default(false)
+  referenceType String? // "ORDER", "CUSTOMER", "OTHER"
+  referenceId   String? // Order ID
+  referenceName String? // Customer name
+  createdBy     String
+  createdByName String
+  pinVerified   Boolean  @default(false)
+  date          DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  category ExpenseCategoryV2 @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([outletId, date])
+  @@index([categoryId])
+  @@index([outletId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BELOOP V2: CREDITOR LEDGER (Supplier Accounts)
+// ═══════════════════════════════════════════════════════════════
+
+model CreditorLedger {
+  id            String   @id @default(cuid())
+  outletId      String
+  supplierId    String
+  date          DateTime
+  particulars   String // "Purchase - Rice, Oil" or "Payment - Cash"
+  referenceType String? // "PURCHASE_ORDER", "PAYMENT", "CREDIT_NOTE"
+  referenceId   String? // PO ID, Payment ID
+  debit         Decimal  @default(0) @db.Decimal(12, 2) // Money paid to supplier
+  credit        Decimal  @default(0) @db.Decimal(12, 2) // Amount owed to supplier
+  balance       Decimal  @db.Decimal(12, 2) // Running balance
+  paymentMethod String? // "CASH", "UPI", "BANK", "CHEQUE"
+  paidBy        String? // User ID
+  paidByName    String?
+  pinVerified   Boolean  @default(false)
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, date])
+  @@index([outletId, date])
+  @@index([supplierId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BELOOP V2: PRE-AGGREGATED DAILY SALES REGISTER
+// ═══════════════════════════════════════════════════════════════
+
+model DailySalesRegisterV2 {
+  id       String   @id @default(cuid())
+  outletId String
+  date     DateTime @db.Date
+
+  // Sales by payment method
+  cashSales   Decimal @default(0) @db.Decimal(12, 2)
+  cardSales   Decimal @default(0) @db.Decimal(12, 2)
+  upiSales    Decimal @default(0) @db.Decimal(12, 2)
+  zomatoSales Decimal @default(0) @db.Decimal(12, 2)
+  swiggySales Decimal @default(0) @db.Decimal(12, 2)
+  otherOnline Decimal @default(0) @db.Decimal(12, 2)
+  totalSales  Decimal @default(0) @db.Decimal(12, 2)
+
+  // Order metrics
+  orderCount Int     @default(0)
+  avgTicket  Decimal @default(0) @db.Decimal(10, 2)
+
+  // Voided/Edited orders
+  voidedOrders Int     @default(0)
+  voidedAmount Decimal @default(0) @db.Decimal(12, 2)
+  editedOrders Int     @default(0)
+
+  // Expense summary
+  totalExpenses Decimal @default(0) @db.Decimal(12, 2)
+
+  // Cash reconciliation
+  openingCash Decimal @default(0) @db.Decimal(12, 2)
+  closingCash Decimal @default(0) @db.Decimal(12, 2)
+  variance    Decimal @default(0) @db.Decimal(12, 2)
+
+  notes       String?
+  lastUpdated DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([outletId, date])
+  @@index([outletId, date])
 }
