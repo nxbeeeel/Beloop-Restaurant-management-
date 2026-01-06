@@ -31,7 +31,7 @@ import { publicRouter } from "./public";
 import { brandAnalyticsRouter } from "./brandAnalytics";
 import { auditRouter } from "./audit";
 import { brandRouter } from "./brand";
-import { velocityRouter } from "./velocity";
+// velocityRouter deleted - SMOOCHO module removed
 
 export const appRouter = router({
     health: publicProcedure.query(() => ({ status: "ok" })),
@@ -67,7 +67,7 @@ export const appRouter = router({
     brandAnalytics: brandAnalyticsRouter,
     audit: auditRouter,
     brand: brandRouter,
-    velocity: velocityRouter,
+    // velocity: deleted
 });
 
 export type AppRouter = typeof appRouter;
