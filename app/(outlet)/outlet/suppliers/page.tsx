@@ -6,9 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Search, Phone, Mail, Edit, Trash2, Truck, Save } from "lucide-react";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Plus, Search, Phone, Mail, Edit, Trash2, Truck, Save, Download, IndianRupee } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { exportToCsv, formatCurrency, formatDate } from "@/lib/export";
 
 export default function SupplierManagerPage() {
     const [search, setSearch] = useState("");
@@ -91,30 +100,73 @@ export default function SupplierManagerPage() {
         }
     };
 
+    const handleExport = () => {
+        if (!suppliers?.length) {
+            toast.error("No suppliers to export");
+            return;
+        }
+        exportToCsv(suppliers, [
+            { header: "Name", accessor: "name" },
+            { header: "Phone", accessor: "whatsappNumber" },
+            { header: "Email", accessor: "email" },
+            { header: "Payment Terms", accessor: "paymentTerms" },
+            { header: "Balance (₹)", accessor: (r) => r.balance.toFixed(2) },
+            { header: "Last Payment (₹)", accessor: (r) => r.lastPayment?.amount?.toFixed(2) || "-" },
+            { header: "Last Payment Date", accessor: (r) => r.lastPayment ? formatDate(r.lastPayment.date) : "-" },
+            { header: "Products", accessor: (r) => r._count.products },
+            { header: "Ingredients", accessor: (r) => r._count.ingredients },
+        ], "suppliers");
+        toast.success("Exported to CSV");
+    };
+
     const filteredSuppliers = suppliers?.filter(s =>
         s.name.toLowerCase().includes(search.toLowerCase()) ||
         s.email?.toLowerCase().includes(search.toLowerCase())
     );
+
+    // Calculate totals
+    const totalBalance = suppliers?.reduce((sum, s) => sum + (s.balance || 0), 0) || 0;
 
     return (
         <div className="space-y-6 pb-20 md:pb-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Supplier Management</h1>
-                    <p className="text-gray-500 text-sm md:text-base">Manage your vendors and contact details</p>
+                    <p className="text-gray-500 text-sm md:text-base">Manage your vendors and track balances</p>
                 </div>
-                <Button
-                    onClick={() => {
-                        setEditingSupplier(null);
-                        resetForm();
-                        setIsCreateOpen(true);
-                    }}
-                    className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
-                >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Supplier
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleExport}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Export
+                    </Button>
+                    <Button
+                        onClick={() => {
+                            setEditingSupplier(null);
+                            resetForm();
+                            setIsCreateOpen(true);
+                        }}
+                        className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Supplier
+                    </Button>
+                </div>
             </div>
+
+            {/* Summary Card */}
+            {totalBalance > 0 && (
+                <Card className="bg-orange-50 border-orange-200">
+                    <CardContent className="p-4 flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                            <IndianRupee className="h-5 w-5 text-orange-600" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-orange-600 font-medium">Total Pending to Suppliers</p>
+                            <p className="text-2xl font-bold text-orange-700">{formatCurrency(totalBalance)}</p>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Search */}
             <div className="relative">
@@ -127,7 +179,7 @@ export default function SupplierManagerPage() {
                 />
             </div>
 
-            {/* Suppliers Grid */}
+            {/* Suppliers Table */}
             {isLoading ? (
                 <div className="text-center py-12 text-gray-500">Loading suppliers...</div>
             ) : filteredSuppliers?.length === 0 ? (
@@ -139,57 +191,99 @@ export default function SupplierManagerPage() {
                     </CardContent>
                 </Card>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredSuppliers?.map((supplier) => (
-                        <Card key={supplier.id} className="hover:shadow-md transition-shadow group">
-                            <CardContent className="p-5">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">
-                                            {supplier.name.charAt(0)}
+                <Card>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Supplier</TableHead>
+                                <TableHead>Contact</TableHead>
+                                <TableHead className="text-right">Balance</TableHead>
+                                <TableHead>Last Payment</TableHead>
+                                <TableHead className="text-center">Items</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredSuppliers?.map((supplier) => (
+                                <TableRow key={supplier.id}>
+                                    <TableCell>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-sm">
+                                                {supplier.name.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-gray-900">{supplier.name}</p>
+                                                {supplier.paymentTerms && (
+                                                    <Badge variant="secondary" className="text-xs mt-0.5">
+                                                        {supplier.paymentTerms}
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h3 className="font-semibold text-gray-900">{supplier.name}</h3>
-                                            {supplier.paymentTerms && (
-                                                <Badge variant="secondary" className="text-xs mt-1">
-                                                    {supplier.paymentTerms}
-                                                </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="space-y-1 text-sm">
+                                            {supplier.whatsappNumber && (
+                                                <div className="flex items-center gap-1.5 text-gray-600">
+                                                    <Phone className="h-3 w-3" />
+                                                    {supplier.whatsappNumber}
+                                                </div>
+                                            )}
+                                            {supplier.email && (
+                                                <div className="flex items-center gap-1.5 text-gray-500">
+                                                    <Mail className="h-3 w-3" />
+                                                    {supplier.email}
+                                                </div>
                                             )}
                                         </div>
-
-                                    </div>
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(supplier)}>
-                                            <Edit className="h-4 w-4 text-gray-500" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-red-600" onClick={() => {
-                                            if (confirm('Are you sure you want to delete this supplier?')) {
-                                                deleteMutation.mutate(supplier.id);
-                                            }
-                                        }}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2 text-sm text-gray-600">
-                                    {supplier.whatsappNumber && (
-                                        <div className="flex items-center gap-2">
-                                            <Phone className="h-4 w-4 text-gray-400" />
-                                            <span>{supplier.whatsappNumber}</span>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {supplier.balance > 0 ? (
+                                            <span className="font-semibold text-orange-600">
+                                                {formatCurrency(supplier.balance)}
+                                            </span>
+                                        ) : (
+                                            <span className="text-green-600">Paid</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        {supplier.lastPayment ? (
+                                            <div className="text-sm">
+                                                <p className="font-medium text-gray-700">
+                                                    {formatCurrency(supplier.lastPayment.amount)}
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    {formatDate(supplier.lastPayment.date)} • {supplier.lastPayment.method}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-400 text-sm">No payments</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <div className="text-sm text-gray-600">
+                                            {supplier._count.products + supplier._count.ingredients}
                                         </div>
-                                    )}
-                                    {supplier.email && (
-                                        <div className="flex items-center gap-2">
-                                            <Mail className="h-4 w-4 text-gray-400" />
-                                            <span>{supplier.email}</span>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex gap-1 justify-end">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(supplier)}>
+                                                <Edit className="h-4 w-4 text-gray-500" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-red-600" onClick={() => {
+                                                if (confirm('Are you sure you want to delete this supplier?')) {
+                                                    deleteMutation.mutate(supplier.id);
+                                                }
+                                            }}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
                                         </div>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </Card>
             )}
 
             {/* Create/Edit Dialog */}

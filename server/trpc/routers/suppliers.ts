@@ -7,15 +7,59 @@ export const suppliersRouter = router({
     list: protectedProcedure
         .use(enforceTenant)
         .query(async ({ ctx }) => {
-            // User is already validated by enforceTenant to have tenantId
-            return ctx.prisma.supplier.findMany({
+            // Fetch suppliers with payments and purchase orders for balance calculation
+            const suppliers = await ctx.prisma.supplier.findMany({
                 where: { tenantId: ctx.user.tenantId! },
                 orderBy: { name: 'asc' },
                 include: {
                     _count: {
-                        select: { products: true, purchaseOrders: true }
+                        select: { products: true, purchaseOrders: true, ingredients: true }
+                    },
+                    payments: {
+                        orderBy: { date: 'desc' },
+                        take: 1,
+                        select: {
+                            id: true,
+                            amount: true,
+                            date: true,
+                            method: true
+                        }
+                    },
+                    purchaseOrders: {
+                        where: { status: 'RECEIVED' },
+                        select: {
+                            totalAmount: true
+                        }
                     }
                 }
+            });
+
+            // Calculate balance for each supplier
+            return suppliers.map(supplier => {
+                const totalOrders = supplier.purchaseOrders.reduce(
+                    (sum, po) => sum + Number(po.totalAmount), 0
+                );
+                const totalPayments = supplier.payments.reduce(
+                    (sum, p) => sum + Number(p.amount), 0
+                );
+                const balance = totalOrders - totalPayments;
+                const lastPayment = supplier.payments[0] || null;
+
+                return {
+                    id: supplier.id,
+                    name: supplier.name,
+                    whatsappNumber: supplier.whatsappNumber,
+                    email: supplier.email,
+                    paymentTerms: supplier.paymentTerms,
+                    createdAt: supplier.createdAt,
+                    _count: supplier._count,
+                    balance,
+                    lastPayment: lastPayment ? {
+                        amount: Number(lastPayment.amount),
+                        date: lastPayment.date,
+                        method: lastPayment.method
+                    } : null
+                };
             });
         }),
 
