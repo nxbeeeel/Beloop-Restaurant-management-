@@ -18,7 +18,6 @@ const nextConfig = {
     },
     experimental: {
         optimizePackageImports: ['lucide-react', 'date-fns', 'recharts', '@radix-ui/react-icons', '@radix-ui/react-avatar', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
-        instrumentationHook: true, // Enable environment validation on startup
     },
     images: {
         remotePatterns: [
