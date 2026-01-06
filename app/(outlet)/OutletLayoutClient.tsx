@@ -97,6 +97,7 @@ export default function OutletLayoutClient({
                         <NavItem href="/outlet/dashboard" icon={LayoutDashboard} label="Dashboard" />
                         <NavItem href="/outlet/accounts" icon={Wallet} label="Accounts" colorClass="text-emerald-600" />
                         <NavItem href="/outlet/sales" icon={FileText} label="Sales History" />
+                        <NavItem href="/outlet/customers" icon={Users} label="Customers" colorClass="text-blue-600" />
 
                         <SectionLabel label="Team & Settings" />
 
