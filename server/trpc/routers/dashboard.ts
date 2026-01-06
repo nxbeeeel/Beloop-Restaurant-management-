@@ -40,7 +40,9 @@ export const dashboardRouter = router({
                 recentSales,
                 topItems,
                 lowStockProductsCount,
-                lowStockIngredientsCount
+                lowStockIngredientsCount,
+                pendingSupplierPayments,
+                todaySales
             ] = await Promise.all([
                 // Monthly summary
                 ctx.prisma.monthlySummary.findUnique({
@@ -102,23 +104,71 @@ export const dashboardRouter = router({
                     FROM "Ingredient"
                     WHERE "outletId" = ${input.outletId}
                     AND "stock" <= "minStock"
-                `
+                `,
+
+                // Pending supplier payments (suppliers with balance > 0)
+                ctx.prisma.supplier.findMany({
+                    where: {
+                        outletId: input.outletId,
+                        balance: { gt: 0 }
+                    },
+                    select: {
+                        id: true,
+                        name: true,
+                        balance: true
+                    },
+                    orderBy: { balance: 'desc' },
+                    take: 5
+                }),
+
+                // Today's sales total
+                ctx.prisma.sale.aggregate({
+                    where: {
+                        outletId: input.outletId,
+                        date: new Date(new Date().toISOString().split('T')[0]),
+                        deletedAt: null
+                    },
+                    _sum: {
+                        totalSale: true
+                    }
+                })
             ]);
 
             const lowStockProducts = Number(lowStockProductsCount[0]?.count || 0);
             const lowStockIngredients = Number(lowStockIngredientsCount[0]?.count || 0);
 
+            // Calculate total pending to suppliers
+            const totalPendingToSuppliers = pendingSupplierPayments.reduce(
+                (sum, s) => sum + Number(s.balance), 0
+            );
+
+            // Today's sales
+            const todaySalesTotal = Number(todaySales._sum.totalSale || 0);
+
+            // Low sales warning (if today's sales < 20% of avg daily and after 2pm)
+            const avgDailySales = Number(summary?.totalSales || 0) / Math.max(1, summary?.daysWithSales || 1);
+            const isLowSales = todaySalesTotal < avgDailySales * 0.2 && new Date().getHours() > 14;
+
             return {
                 summary,
                 recentSales,
-                topItems: topItems.map((item: any) => ({
+                topItems: topItems.map((item: { name: string; _sum: { quantity: number | null; total: number | null } }) => ({
                     name: item.name,
                     quantity: item._sum.quantity || 0,
                     revenue: item._sum.total || 0
                 })),
                 alerts: {
                     lowStockProducts,
-                    lowStockIngredients
+                    lowStockIngredients,
+                    totalPendingToSuppliers,
+                    pendingSupplierPayments: pendingSupplierPayments.map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        balance: Number(s.balance)
+                    })),
+                    todaySales: todaySalesTotal,
+                    isLowSales,
+                    avgDailySales
                 }
             };
         }),

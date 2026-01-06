@@ -32,7 +32,15 @@ export default function DashboardPage() {
 
     const summary = stats?.summary;
     const topItems = stats?.topItems || [];
-    const alerts = stats?.alerts || { lowStockProducts: 0, lowStockIngredients: 0 };
+    const alerts = stats?.alerts || {
+        lowStockProducts: 0,
+        lowStockIngredients: 0,
+        totalPendingToSuppliers: 0,
+        pendingSupplierPayments: [],
+        todaySales: 0,
+        isLowSales: false,
+        avgDailySales: 0
+    };
     const recentSales = stats?.recentSales || [];
 
     const formatCurrency = (amount: any) => {
@@ -231,6 +239,39 @@ export default function DashboardPage() {
                                     <Link href="/outlet/inventory?tab=ingredients">Order Ingredients</Link>
                                 </Button>
                             </div>
+
+                            {/* Pending Supplier Payments */}
+                            {alerts.totalPendingToSuppliers > 0 && (
+                                <div className="p-4 bg-orange-50 rounded-lg border border-orange-100">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="font-medium text-orange-800">Supplier Dues</span>
+                                        <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                                            {formatCurrency(alerts.totalPendingToSuppliers)}
+                                        </Badge>
+                                    </div>
+                                    <p className="text-xs text-orange-700 mb-3">
+                                        {alerts.pendingSupplierPayments?.length || 0} suppliers with pending payments.
+                                    </p>
+                                    <Button variant="outline" size="sm" className="w-full border-orange-200 text-orange-800 hover:bg-orange-100" asChild>
+                                        <Link href="/outlet/suppliers">View Suppliers</Link>
+                                    </Button>
+                                </div>
+                            )}
+
+                            {/* Low Sales Warning */}
+                            {alerts.isLowSales && (
+                                <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="font-medium text-purple-800">⚠️ Low Sales Today</span>
+                                    </div>
+                                    <p className="text-xs text-purple-700 mb-1">
+                                        Today: {formatCurrency(alerts.todaySales)}
+                                    </p>
+                                    <p className="text-xs text-purple-500">
+                                        Avg daily: {formatCurrency(alerts.avgDailySales)}
+                                    </p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
