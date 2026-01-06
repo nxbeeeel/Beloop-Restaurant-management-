@@ -46,6 +46,12 @@ export default function VelocityLayout({
                                     Bills
                                 </Link>
                                 <Link
+                                    href="/velocity/accounts"
+                                    className="rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+                                >
+                                    Accounts
+                                </Link>
+                                <Link
                                     href="/velocity/dashboard"
                                     className="rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
                                 >

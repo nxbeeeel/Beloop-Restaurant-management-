@@ -62,6 +62,29 @@ export const velocityRouter = router({
         }),
 
     /**
+     * Get historical registers for ledger/accounts view
+     */
+    getRegisters: protectedProcedure
+        .use(enforceTenant)
+        .input(z.object({
+            outletId: z.string(),
+            limit: z.number().optional().default(30)
+        }))
+        .query(async ({ ctx, input }) => {
+            return ctx.prisma.velocityRegister.findMany({
+                where: { outletId: input.outletId },
+                orderBy: { date: "desc" },
+                take: input.limit,
+                include: {
+                    transactions: {
+                        include: { category: true },
+                        orderBy: { createdAt: "asc" }
+                    }
+                }
+            });
+        }),
+
+    /**
      * Open today's register with opening cash count
      */
     openRegister: protectedProcedure
