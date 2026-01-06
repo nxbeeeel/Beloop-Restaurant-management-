@@ -119,6 +119,8 @@ model Outlet {
   monthlyMetrics               MonthlyMetric[] // Project Phoenix Phase 3
   financialAccounts            FinancialAccount[]
   journalEntries               JournalEntry[]
+  velocityRegisters            VelocityRegister[]
+  velocityWallets              VelocityWallet[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -1223,4 +1225,140 @@ enum CashDrawerType {
   PICKUP // Manager takes cash
   PAY_IN // Add cash (tips, change)
   PAY_OUT // Petty cash expense
+}
+
+// ==========================================
+// SMOOCHO VELOCITY: MINI-ERP MODULE
+// Project Codename: "Velocity"
+// ==========================================
+
+model VelocityRegister {
+  id           String         @id @default(cuid())
+  outletId     String
+  date         DateTime       @db.Date
+  openingCash  Decimal        @db.Decimal(12, 2)
+  closingCash  Decimal?       @db.Decimal(12, 2)
+  actualCash   Decimal?       @db.Decimal(12, 2)
+  variance     Decimal?       @db.Decimal(12, 2)
+  varianceNote String?
+  status       VelocityRegisterStatus @default(OPEN)
+  openedBy     String
+  closedBy     String?
+
+  // Sales breakdown (entered during closing)
+  cashSales    Decimal        @default(0) @db.Decimal(12, 2)
+  upiSales     Decimal        @default(0) @db.Decimal(12, 2)
+  zomatoSales  Decimal        @default(0) @db.Decimal(12, 2)
+  swiggySales  Decimal        @default(0) @db.Decimal(12, 2)
+
+  openedAt     DateTime       @default(now())
+  closedAt     DateTime?
+
+  outlet       Outlet         @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  transactions VelocityTransaction[]
+
+  @@unique([outletId, date])
+  @@index([outletId, status])
+  @@index([outletId, date])
+}
+
+enum VelocityRegisterStatus {
+  OPEN
+  CLOSED
+}
+
+model VelocityTransaction {
+  id            String              @id @default(cuid())
+  registerId    String
+  amount        Decimal             @db.Decimal(12, 2)
+  type          VelocityTxnType
+  paymentMode   VelocityPaymentMode
+  categoryId    String?
+  description   String?
+  proofImageUrl String?
+  orderId       String?             // Required for porter expenses
+  customerName  String?             // Required for porter expenses
+  createdBy     String
+  createdAt     DateTime            @default(now())
+
+  register      VelocityRegister    @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  category      VelocityCategory?   @relation(fields: [categoryId], references: [id])
+
+  @@index([registerId, type])
+  @@index([createdAt])
+}
+
+enum VelocityTxnType {
+  SALE
+  EXPENSE
+  TRANSFER
+  WITHDRAWAL
+}
+
+enum VelocityPaymentMode {
+  CASH
+  UPI
+  BANK
+  CREDIT
+}
+
+model VelocityCategory {
+  id           String   @id @default(cuid())
+  outletId     String
+  name         String   // Oil, Porter, Sugar, etc.
+  requiresRef  Boolean  @default(false) // True for Porter - requires Order ID / Customer Name
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  transactions VelocityTransaction[]
+
+  @@unique([outletId, name])
+  @@index([outletId])
+}
+
+// ==========================================
+// SMOOCHO VELOCITY: WALLET SYSTEM (Cash Drop)
+// ==========================================
+
+enum VelocityWalletType {
+  REGISTER       // Shop Counter Cash Register
+  MANAGER_SAFE   // Manager's Holding Account (Petty Cash)
+}
+
+model VelocityWallet {
+  id          String             @id @default(cuid())
+  outletId    String
+  type        VelocityWalletType
+  name        String             // "Shop Register", "Manager Safe"
+  managerId   String?            // User ID of manager who owns the safe
+  managerPin  String?            // 4-digit PIN for authorization (hashed)
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  outlet           Outlet               @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  incomingTransfers VelocityTransfer[]  @relation("DestinationWallet")
+  outgoingTransfers VelocityTransfer[]  @relation("SourceWallet")
+
+  @@unique([outletId, type])
+  @@index([outletId])
+}
+
+model VelocityTransfer {
+  id                  String   @id @default(cuid())
+  outletId            String
+  sourceWalletId      String
+  destinationWalletId String
+  amount              Decimal  @db.Decimal(12, 2)
+  reason              String?  // "Cash Drop", "Replenishment", etc.
+  authorizedBy        String   // Manager's user ID who entered PIN
+  initiatedBy         String   // Staff's user ID who initiated
+  createdAt           DateTime @default(now())
+
+  sourceWallet      VelocityWallet @relation("SourceWallet", fields: [sourceWalletId], references: [id], onDelete: Cascade)
+  destinationWallet VelocityWallet @relation("DestinationWallet", fields: [destinationWalletId], references: [id], onDelete: Cascade)
+
+  @@index([outletId, createdAt])
+  @@index([sourceWalletId])
+  @@index([destinationWalletId])
 }

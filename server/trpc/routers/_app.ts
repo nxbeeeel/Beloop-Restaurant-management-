@@ -31,6 +31,7 @@ import { publicRouter } from "./public";
 import { brandAnalyticsRouter } from "./brandAnalytics";
 import { auditRouter } from "./audit";
 import { brandRouter } from "./brand";
+import { velocityRouter } from "./velocity";
 
 export const appRouter = router({
     health: publicProcedure.query(() => ({ status: "ok" })),
@@ -66,6 +67,8 @@ export const appRouter = router({
     brandAnalytics: brandAnalyticsRouter,
     audit: auditRouter,
     brand: brandRouter,
+    velocity: velocityRouter,
 });
 
 export type AppRouter = typeof appRouter;
+
