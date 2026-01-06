@@ -105,15 +105,30 @@ export const dailyClosureRouter = router({
     // ---------- LIST ----------
     list: protectedProcedure
         .use(enforceTenant)
-        .input(z.object({ outletId: z.string(), startDate: z.string().optional(), endDate: z.string().optional() }))
+        .input(z.object({
+            outletId: z.string(),
+            startDate: z.string().optional(),
+            endDate: z.string().optional(),
+            month: z.string().optional(), // Format: "YYYY-MM"
+        }))
         .query(async ({ ctx, input }) => {
-            const { outletId, startDate, endDate } = input;
+            const { outletId, startDate, endDate, month } = input;
             if (ctx.role !== "SUPER" && ctx.role !== "BRAND_ADMIN" && ctx.outletId !== outletId) {
                 throw new TRPCError({ code: "FORBIDDEN" });
             }
 
             const where: any = { outletId };
-            if (startDate || endDate) {
+
+            // If month is provided, convert to startDate/endDate
+            if (month) {
+                const [year, monthNum] = month.split('-').map(Number);
+                const monthStart = new Date(year, monthNum - 1, 1);
+                const monthEnd = new Date(year, monthNum, 0, 23, 59, 59);
+                where.date = {
+                    gte: monthStart,
+                    lte: monthEnd,
+                };
+            } else if (startDate || endDate) {
                 where.date = {};
                 if (startDate) where.date.gte = new Date(startDate);
                 if (endDate) where.date.lte = new Date(endDate);

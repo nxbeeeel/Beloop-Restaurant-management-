@@ -40,16 +40,27 @@ export const expensesRouter = router({
                 startDate: z.date().optional(),
                 endDate: z.date().optional(),
                 category: z.string().optional(),
+                month: z.string().optional(), // Format: "YYYY-MM"
             })
         )
         .query(async ({ ctx, input }) => {
+            let startDate = input.startDate;
+            let endDate = input.endDate;
+
+            // If month is provided, convert to startDate/endDate
+            if (input.month) {
+                const [year, monthNum] = input.month.split('-').map(Number);
+                startDate = new Date(year, monthNum - 1, 1);
+                endDate = new Date(year, monthNum, 0, 23, 59, 59);
+            }
+
             return await ctx.prisma.expense.findMany({
                 where: {
                     outletId: input.outletId,
                     deletedAt: null,
                     date: {
-                        gte: input.startDate,
-                        lte: input.endDate
+                        gte: startDate,
+                        lte: endDate
                     },
                     category: input.category as any
                 },
