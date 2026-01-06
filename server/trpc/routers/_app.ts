@@ -15,11 +15,9 @@ import { ledgerRouter } from "./ledger";
 import { outletsRouter } from "./outlets";
 import { analyticsRouter } from "./analytics";
 import { tenantRouter } from "./tenant";
-import { superRouter } from "./super";
-import { superModularRouter } from "./super/index"; // NEW: Modular structure
+import { superModularRouter } from "./super/index";
 import { superAnalyticsRouter } from "./superAnalytics";
-import { paymentRouter } from "./payment";
-import { paymentsRouter } from "./payments";
+import { paymentsRouter } from "./payments"; // Supplier Payments
 import { supportRouter } from "./support";
 import { posRouter } from "./pos";
 import { categoriesRouter } from "./categories";
@@ -27,12 +25,10 @@ import { customersRouter } from "./customers";
 import { ingredientsRouter } from "./ingredients";
 import { stockVerificationRouter } from "./stockVerification";
 import { brandApplicationRouter } from "./brandApplication";
-import { billingRouter } from "./billing";
 import { publicRouter } from "./public";
 import { brandAnalyticsRouter } from "./brandAnalytics";
 import { auditRouter } from "./audit";
 import { brandRouter } from "./brand";
-// velocityRouter deleted - SMOOCHO module removed
 
 export const appRouter = router({
     health: publicProcedure.query(() => ({ status: "ok" })),
@@ -52,26 +48,20 @@ export const appRouter = router({
     analytics: analyticsRouter,
     tenant: tenantRouter,
     outlets: outletsRouter,
-    super: superRouter,              // Keep for backward compatibility
-    superAdmin: superModularRouter,  // NEW: Modular structure (super.tenants, super.users, etc.)
+    superAdmin: superModularRouter, // Modular Super Admin Router
     superAnalytics: superAnalyticsRouter,
-    payment: paymentRouter,
     support: supportRouter,
     pos: posRouter,
     categories: categoriesRouter,
     customers: customersRouter,
     ingredients: ingredientsRouter,
     stockVerification: stockVerificationRouter,
-    payments: paymentsRouter,
+    payments: paymentsRouter, // Supplier Payments (not platform billing)
     brandApplication: brandApplicationRouter,
-    billing: billingRouter,
     public: publicRouter,
     brandAnalytics: brandAnalyticsRouter,
     audit: auditRouter,
     brand: brandRouter,
-    // velocity: deleted
 });
 
 export type AppRouter = typeof appRouter;
-
-

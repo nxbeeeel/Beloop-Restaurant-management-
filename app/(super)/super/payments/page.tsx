@@ -20,18 +20,18 @@ export default function PaymentsPage() {
     const [notes, setNotes] = useState<string>("");
 
     const utils = trpc.useContext();
-    const { data: payments, isLoading: isLoadingPayments } = trpc.super.listPayments.useQuery();
-    const { data: billingOverview, isLoading: isLoadingBilling } = trpc.billing.getBillingOverview.useQuery();
+    const { data: payments, isLoading: isLoadingPayments } = trpc.superAdmin.billing.listPayments.useQuery();
+    const { data: billingOverview, isLoading: isLoadingBilling } = trpc.superAdmin.billing.getBillingOverview.useQuery();
 
-    const recordPaymentMutation = trpc.super.recordPayment.useMutation({
+    const recordPaymentMutation = trpc.superAdmin.billing.recordPayment.useMutation({
         onSuccess: () => {
             toast.success("Payment recorded successfully");
             setIsAddPaymentOpen(false);
             setAmount("");
             setNotes("");
             setSelectedTenantId("");
-            utils.super.listPayments.invalidate();
-            utils.billing.getBillingOverview.invalidate();
+            utils.superAdmin.billing.listPayments.invalidate();
+            utils.superAdmin.billing.getBillingOverview.invalidate();
         },
         onError: (error) => {
             toast.error(error.message);

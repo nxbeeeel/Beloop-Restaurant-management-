@@ -36,7 +36,7 @@ export default function AuditLogPage() {
     const [actionFilter, setActionFilter] = useState<string>('ALL');
     const [tableFilter, setTableFilter] = useState<string>('ALL');
 
-    const { data, isLoading, refetch, isRefetching } = trpc.super.getAuditLogs.useQuery({
+    const { data, isLoading, refetch, isRefetching } = trpc.superAdmin.system.getAuditLogs.useQuery({
         limit: 50,
         action: actionFilter === 'ALL' ? undefined : actionFilter,
         tableName: tableFilter === 'ALL' ? undefined : tableFilter,

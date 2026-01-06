@@ -19,7 +19,7 @@ export default function UserManagementPage() {
     const [roleFilter, setRoleFilter] = useState<string>('ALL');
     const [isInviteOpen, setIsInviteOpen] = useState(false);
 
-    const { data: users, isLoading } = trpc.super.listAllUsers.useQuery({
+    const { data: users, isLoading } = trpc.superAdmin.users.list.useQuery({
         search: search,
         role: roleFilter === 'ALL' ? undefined : (roleFilter as any)
     });

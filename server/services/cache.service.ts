@@ -1,4 +1,5 @@
 import { cacheGetOrSet, redis } from '@/lib/redis';
+import { getWithSWR as libGetWithSWR, invalidateBatch as libInvalidateBatch } from '@/lib/cache';
 
 /**
  * CacheService Wrapper
@@ -95,5 +96,40 @@ export class CacheService {
         } catch (err) {
             console.error(`Redis Delete Error (${key}):`, err);
         }
+    }
+
+    /**
+     * 🚀 Stale-While-Revalidate (SWR) Pattern
+     * Returns cached data INSTANTLY, refreshes in background.
+     * This is the KEY to zero-lag user experience.
+     * 
+     * @param key Cache key
+     * @param fetcher Async function to fetch fresh data
+     * @param ttlSeconds TTL for cache (default 300 = 5 min)
+     */
+    static async getWithSWR<T>(key: string, fetcher: () => Promise<T>, ttlSeconds: number = 300): Promise<T> {
+        return libGetWithSWR(key, fetcher, ttlSeconds);
+    }
+
+    /**
+     * Batch invalidation - clear multiple keys at once
+     * More efficient than calling invalidate() in a loop
+     */
+    static async invalidateBatch(keys: string[]): Promise<void> {
+        return libInvalidateBatch(keys);
+    }
+
+    /**
+     * Invalidate all caches for an outlet (dashboard, inventory, etc.)
+     */
+    static async invalidateOutlet(outletId: string): Promise<void> {
+        const keys = [
+            this.keys.dashboardStats(outletId),
+            this.keys.inventoryList(outletId),
+            this.keys.fullMenu(outletId),
+            this.keys.lowStock(outletId),
+            this.keys.purchaseOrders(outletId),
+        ];
+        await this.invalidateBatch(keys);
     }
 }

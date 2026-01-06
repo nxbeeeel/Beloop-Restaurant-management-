@@ -6,6 +6,42 @@ import { z } from 'zod';
 import { router, requireSuper } from '../../trpc';
 
 export const billingRouter = router({
+    // Get billing overview for all active tenants
+    getBillingOverview: requireSuper.query(async ({ ctx }) => {
+        const tenants = await ctx.prisma.tenant.findMany({
+            where: { status: 'ACTIVE' },
+            include: {
+                _count: { select: { outlets: true } },
+                payments: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 1
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        return tenants.map(t => {
+            const outletCount = t._count.outlets;
+            const monthlyFee = outletCount * t.pricePerOutlet;
+            const isOverdue = t.nextBillingDate ? new Date() > t.nextBillingDate : false;
+            const daysOverdue = t.nextBillingDate
+                ? Math.ceil((new Date().getTime() - t.nextBillingDate.getTime()) / (1000 * 3600 * 24))
+                : 0;
+
+            return {
+                id: t.id,
+                name: t.name,
+                outletCount,
+                pricePerOutlet: t.pricePerOutlet,
+                monthlyFee,
+                nextBillingDate: t.nextBillingDate,
+                isOverdue,
+                daysOverdue: isOverdue ? daysOverdue : 0,
+                lastPayment: t.payments[0] || null
+            };
+        });
+    }),
+
     // List all payments
     listPayments: requireSuper.query(async ({ ctx }) => {
         const payments = await ctx.prisma.payment.findMany({

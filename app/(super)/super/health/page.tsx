@@ -6,7 +6,7 @@ import { Loader2, Activity, Database, Zap, Server, Users, Building2, ShoppingCar
 import { format } from 'date-fns';
 
 export default function SystemHealthPage() {
-    const { data, isLoading } = trpc.super.getSystemHealth.useQuery(undefined, {
+    const { data, isLoading } = trpc.superAdmin.system.getHealth.useQuery(undefined, {
         refetchInterval: 30000,
     });
 

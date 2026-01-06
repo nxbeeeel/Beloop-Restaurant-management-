@@ -19,7 +19,7 @@ import { Users, Store, CreditCard, Calendar } from 'lucide-react';
 import { UserActionMenu } from '@/components/admin/UserActionMenu';
 
 export default function TenantDetailsPage({ params }: { params: { id: string } }) {
-    const { data: tenant, isLoading } = trpc.super.getTenantDetails.useQuery({
+    const { data: tenant, isLoading } = trpc.superAdmin.tenants.getDetails.useQuery({
         tenantId: params.id,
     });
 

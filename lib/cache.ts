@@ -107,6 +107,67 @@ export async function getOrSet<T>(
 }
 
 /**
+ * Stale-While-Revalidate (SWR) Pattern
+ * Returns cached data IMMEDIATELY (even if stale), then refreshes in background.
+ * This is the KEY to zero-lag user experience.
+ * 
+ * Usage:
+ *   const data = await getWithSWR('dashboard:123', fetchDashboard, 300);
+ *   // Returns instantly if cached, refreshes async
+ */
+export async function getWithSWR<T>(
+    key: string,
+    fetcher: () => Promise<T>,
+    ttlSeconds: number = CacheTTL.SHORT
+): Promise<T> {
+    // Try cache first
+    const cached = await cacheGet<T>(key);
+
+    if (cached !== null) {
+        // Return stale data immediately, refresh in background (fire-and-forget)
+        refreshInBackground(key, fetcher, ttlSeconds);
+        return cached;
+    }
+
+    // No cache - must wait for fresh data
+    const data = await fetcher();
+    cacheSet(key, data, ttlSeconds).catch(() => { });
+    return data;
+}
+
+/**
+ * Background refresh helper - does not block the response
+ */
+async function refreshInBackground<T>(
+    key: string,
+    fetcher: () => Promise<T>,
+    ttlSeconds: number
+): Promise<void> {
+    // Use setImmediate-like pattern to not block
+    setTimeout(async () => {
+        try {
+            const freshData = await fetcher();
+            await cacheSet(key, freshData, ttlSeconds);
+        } catch (error) {
+            console.error(`[Cache] Background refresh failed for ${key}:`, error);
+        }
+    }, 0);
+}
+
+/**
+ * Batch invalidation - invalidate multiple keys at once
+ */
+export async function invalidateBatch(keys: string[]): Promise<void> {
+    if (!isRedisConfigured() || keys.length === 0) return;
+
+    try {
+        await redis.del(...keys);
+    } catch (error) {
+        console.error('[Cache] Batch invalidate error:', error);
+    }
+}
+
+/**
  * Invalidate a single cache key
  */
 export async function invalidate(key: string): Promise<void> {

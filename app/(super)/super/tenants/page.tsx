@@ -30,19 +30,19 @@ export default function TenantManagementPage() {
     const [inviteContactName, setInviteContactName] = useState('');
 
     const utils = trpc.useContext();
-    const { data: tenants, isLoading } = trpc.super.listTenants.useQuery();
+    const { data: tenants, isLoading } = trpc.superAdmin.tenants.list.useQuery();
 
     const [invitedData, setInvitedData] = useState<{ tenant: any, invite: any } | null>(null);
     const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
     // Optimistic Delete Mutation
-    const deleteTenantMutation = trpc.super.deleteTenant.useMutation({
+    const deleteTenantMutation = trpc.superAdmin.tenants.delete.useMutation({
         onMutate: async ({ tenantId }) => {
-            await utils.super.listTenants.cancel();
-            const previousTenants = utils.super.listTenants.getData();
+            await utils.superAdmin.tenants.list.cancel();
+            const previousTenants = utils.superAdmin.tenants.list.getData();
 
             // Optimistically update to remove the item
-            utils.super.listTenants.setData(undefined, (old) => {
+            utils.superAdmin.tenants.list.setData(undefined, (old) => {
                 if (!old) return [];
                 return old.filter((t: any) => t.id !== tenantId);
             });
@@ -51,25 +51,25 @@ export default function TenantManagementPage() {
         },
         onError: (err, newTodo, context) => {
             toast.error(err.message);
-            utils.super.listTenants.setData(undefined, context?.previousTenants);
+            utils.superAdmin.tenants.list.setData(undefined, context?.previousTenants);
         },
         onSuccess: () => {
             toast.success('Tenant deleted');
         },
         onSettled: () => {
-            utils.super.listTenants.invalidate();
+            utils.superAdmin.tenants.list.invalidate();
         }
     });
 
-    const updateStatusMutation = trpc.super.updateTenantStatus.useMutation({
+    const updateStatusMutation = trpc.superAdmin.tenants.updateStatus.useMutation({
         onSuccess: () => {
             toast.success('Status updated');
-            utils.super.listTenants.invalidate();
+            utils.superAdmin.tenants.list.invalidate();
         },
         onError: (err) => toast.error(err.message)
     });
 
-    const inviteBrandMutation = trpc.super.inviteBrand.useMutation({
+    const inviteBrandMutation = trpc.superAdmin.tenants.invite.useMutation({
         onSuccess: (data: any) => {
             toast.success('Brand invited successfully');
             setIsInviteOpen(false);
@@ -78,7 +78,7 @@ export default function TenantManagementPage() {
             setInviteContactName('');
             setInvitedData(data);
             setShowSuccessDialog(true);
-            utils.super.listTenants.invalidate();
+            utils.superAdmin.tenants.list.invalidate();
         },
         onError: (err) => toast.error(err.message)
     });
