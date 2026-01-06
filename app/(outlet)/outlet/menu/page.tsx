@@ -130,7 +130,7 @@ export default function MenuPage() {
                             ...updatedProduct,
                             category: categories?.find(c => c.id === updatedProduct.categoryId) || p.category,
                             updatedAt: new Date()
-                        };
+                        } as typeof p;
                     }
                     return p;
                 });
