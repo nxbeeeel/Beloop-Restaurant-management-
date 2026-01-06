@@ -16,6 +16,7 @@ import { outletsRouter } from "./outlets";
 import { analyticsRouter } from "./analytics";
 import { tenantRouter } from "./tenant";
 import { superRouter } from "./super";
+import { superModularRouter } from "./super/index"; // NEW: Modular structure
 import { superAnalyticsRouter } from "./superAnalytics";
 import { paymentRouter } from "./payment";
 import { paymentsRouter } from "./payments";
@@ -51,7 +52,8 @@ export const appRouter = router({
     analytics: analyticsRouter,
     tenant: tenantRouter,
     outlets: outletsRouter,
-    super: superRouter,
+    super: superRouter,              // Keep for backward compatibility
+    superAdmin: superModularRouter,  // NEW: Modular structure (super.tenants, super.users, etc.)
     superAnalytics: superAnalyticsRouter,
     payment: paymentRouter,
     support: supportRouter,
@@ -71,4 +73,5 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
+
 
