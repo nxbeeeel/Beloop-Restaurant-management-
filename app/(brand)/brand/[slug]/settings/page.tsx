@@ -196,7 +196,7 @@ export default function BrandSettingsPage() {
                                 {/* Preview */}
                                 <div className="border rounded-lg p-4 bg-muted/30">
                                     <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Preview</Label>
-                                    {/* eslint-disable-next-line */}
+                                    {/* eslint-disable-next-line react-dom/no-unsafe-inline-style */}
                                     <div
                                         className="flex items-center gap-4 p-4 bg-white rounded border shadow-sm w-fit min-w-[300px]"
                                         style={{ '--preview-color': primaryColor } as React.CSSProperties}

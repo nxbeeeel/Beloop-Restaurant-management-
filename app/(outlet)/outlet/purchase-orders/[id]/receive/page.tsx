@@ -166,9 +166,10 @@ export default function ReceiveOrderPage() {
                                 ref={fileInputRef}
                                 type="file"
                                 accept="image/*"
-                                capture="environment"
                                 onChange={handleFileChange}
                                 className="hidden"
+                                aria-label="Upload bill or invoice image"
+                                title="Upload bill or invoice image"
                             />
 
                             {billPreview ? (
