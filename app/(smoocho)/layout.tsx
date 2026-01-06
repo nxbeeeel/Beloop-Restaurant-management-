@@ -1,7 +1,7 @@
 import "@/app/globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
-import { TRPCProvider } from "@/components/TRPCProvider";
+import { TRPCProvider } from "@/components/ui/TRPCProvider";
 import Link from "next/link";
 
 export const metadata = {
