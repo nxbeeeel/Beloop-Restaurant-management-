@@ -519,3 +519,60 @@ export const processStockMove = inngest.createFunction(
     }
 );
 
+/**
+ * Finalize Order - Post-order async processing
+ * Handles ledger entries and metrics updates after synchronous order creation
+ */
+export const finalizeOrder = inngest.createFunction(
+    { id: "order-finalize", retries: 3 },
+    { event: "order/finalize" },
+    async ({ event, step }) => {
+        const { prisma } = await import("@/lib/prisma");
+        const data = event.data as {
+            orderId: string;
+            outletId: string;
+            tenantId: string;
+            totalAmount: number;
+            items: Array<{ productId: string; quantity: number; name: string }>;
+        };
+
+        console.log(`[FinalizeOrder] Processing order ${data.orderId}`);
+
+        // Step 1: Post Ledger Entry (Revenue)
+        await step.run("post-ledger-entry", async () => {
+            try {
+                const { LedgerService } = await import("@/server/services/ledger.service");
+
+                await LedgerService.postEntry(prisma, {
+                    outletId: data.outletId,
+                    description: `POS Sale #${data.orderId.slice(-6)}`,
+                    referenceId: data.orderId,
+                    referenceType: 'SALE',
+                    lines: [
+                        { accountName: "Cash on Hand", debit: data.totalAmount, credit: 0 },
+                        { accountName: "Sales Revenue", debit: 0, credit: data.totalAmount }
+                    ]
+                });
+
+                console.log(`[FinalizeOrder] Ledger entry posted for order ${data.orderId}`);
+            } catch (error) {
+                console.error(`[FinalizeOrder] Ledger entry failed:`, error);
+                // Non-critical - don't fail the entire job
+            }
+        });
+
+        // Step 2: Update Daily Metrics
+        await step.run("update-metrics", async () => {
+            try {
+                const { AggregationService } = await import("@/server/services/aggregation.service");
+                await AggregationService.refreshToday(data.tenantId);
+                console.log(`[FinalizeOrder] Metrics updated for tenant ${data.tenantId}`);
+            } catch (error) {
+                console.error(`[FinalizeOrder] Metrics update failed:`, error);
+            }
+        });
+
+        return { success: true, orderId: data.orderId };
+    }
+);
+

@@ -68,6 +68,7 @@ model Tenant {
   orders            Order[]
   dailyBrandMetrics DailyBrandMetric[]
   monthlyMetrics    MonthlyMetric[] // Project Phoenix Phase 3
+  stockTransfers    StockTransfer[]
 
   @@index([slug, subscriptionStatus])
 }
@@ -121,6 +122,8 @@ model Outlet {
   journalEntries               JournalEntry[]
   velocityRegisters            VelocityRegister[]
   velocityWallets              VelocityWallet[]
+  transfersFrom                StockTransfer[]     @relation("TransfersFrom")
+  transfersTo                  StockTransfer[]     @relation("TransfersTo")
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -347,12 +350,16 @@ model Product {
   orderItems             OrderItem[]
   recipeItems            RecipeItem[]
   stockVerificationItems StockVerificationItem[]
+  transferItems          StockTransferItem[]
 
   @@unique([outletId, sku])
   @@index([outletId])
   @@index([supplierId])
   @@index([categoryId])
   @@index([outletId, version])
+  @@index([name])
+  @@index([outletId, categoryId])
+  @@index([outletId, deletedAt])
 }
 
 model StockMove {
@@ -964,11 +971,14 @@ model Order {
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
-  @@index([outletId, status, createdAt])
+  @@index([outletId, status, createdAt(sort: Desc)])
   @@index([outletId, isOpen])
   @@index([outletId, tableNumber])
   @@index([customerId])
-  @@index([tenantId, createdAt])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([kitchenStatus, createdAt])
+  @@index([paymentStatus])
+  @@index([outletId, createdAt(sort: Desc)])
 }
 
 model OrderPayment {
@@ -1075,6 +1085,8 @@ model OrderItem {
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
+  @@index([productId])
+  @@index([name])
 }
 
 enum OrderStatus {
@@ -1361,4 +1373,60 @@ model VelocityTransfer {
   @@index([outletId, createdAt])
   @@index([sourceWalletId])
   @@index([destinationWalletId])
+}
+
+// ==========================================
+// MULTI-OUTLET STOCK TRANSFERS
+// ==========================================
+
+model StockTransfer {
+  id           String         @id @default(cuid())
+  tenantId     String
+  fromOutletId String
+  toOutletId   String
+  status       TransferStatus @default(REQUESTED)
+  requestedBy  String         // User who requested
+  approvedBy   String?        // Manager who approved
+  rejectedBy   String?        // Manager who rejected
+  rejectReason String?
+  shippedAt    DateTime?
+  receivedAt   DateTime?
+  receivedBy   String?
+  notes        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fromOutlet Outlet              @relation("TransfersFrom", fields: [fromOutletId], references: [id], onDelete: Cascade)
+  toOutlet   Outlet              @relation("TransfersTo", fields: [toOutletId], references: [id], onDelete: Cascade)
+  items      StockTransferItem[]
+
+  @@index([tenantId, status])
+  @@index([fromOutletId])
+  @@index([toOutletId])
+}
+
+model StockTransferItem {
+  id           String  @id @default(cuid())
+  transferId   String
+  productId    String
+  productName  String
+  qtyRequested Float
+  qtyApproved  Float?
+  qtyReceived  Float?
+
+  transfer StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product  Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([transferId])
+  @@index([productId])
+}
+
+enum TransferStatus {
+  REQUESTED  // Waiting for source outlet approval
+  APPROVED   // Source approved, ready to ship
+  SHIPPED    // In transit
+  RECEIVED   // Destination confirmed receipt
+  REJECTED   // Source declined
+  CANCELLED  // Requestor cancelled
 }

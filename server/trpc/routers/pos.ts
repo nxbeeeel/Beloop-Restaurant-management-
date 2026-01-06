@@ -5,6 +5,7 @@ import { InventoryService } from "@/server/services/inventory.service";
 import { CacheService } from "@/server/services/cache.service";
 import { inngest } from "@/lib/inngest";
 import { signPosToken } from "@/lib/pos-auth";
+import { getAuthRateLimiter, checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * POS Router - Secure Endpoints for Point-of-Sale Application
@@ -28,6 +29,14 @@ export const posRouter = router({
         .mutation(async ({ ctx, input }) => {
             const { outletId } = input;
             const { user } = ctx;
+
+            // 0. Rate Limiting - Prevent brute force attacks
+            const clientIp = getClientIp(ctx.headers);
+            await checkRateLimit(
+                getAuthRateLimiter(),
+                `ip:${clientIp}`,
+                'POS Authentication'
+            );
 
             // 1. Verify Access
             // Staff/Manager must be assigned to this outlet
@@ -274,6 +283,329 @@ export const posRouter = router({
                 idempotencyKey,
                 message: 'Sale queued for processing'
             };
+        }),
+
+    // ============================================
+    // CREATE ORDER (Synchronous with Saga Pattern)
+    // ============================================
+    /**
+     * Create Order with Immediate Stock Reservation
+     * Uses optimistic locking and saga compensations for rollback
+     */
+    createOrder: posProcedure
+        .input(z.object({
+            items: z.array(z.object({
+                productId: z.string(),
+                quantity: z.number().positive(),
+                price: z.number(),
+                expectedVersion: z.number(), // Optimistic locking
+            })),
+            paymentMethod: z.enum(['CASH', 'CARD', 'UPI', 'SPLIT']),
+            payments: z.array(z.object({
+                method: z.string(),
+                amount: z.number(),
+            })).optional(),
+            customerId: z.string().optional(),
+            discountCode: z.string().optional(),
+            idempotencyKey: z.string(), // Prevent duplicates
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { tenantId, outletId, userId } = ctx.posCredentials;
+
+            // ============================================
+            // STEP 1: IDEMPOTENCY CHECK
+            // ============================================
+            const existing = await ctx.prisma.order.findUnique({
+                where: { idempotencyKey: input.idempotencyKey }
+            });
+
+            if (existing) {
+                return { order: existing, status: 'DUPLICATE_PREVENTED' };
+            }
+
+            // ============================================
+            // STEP 2: TRANSACTION WITH SAGA PATTERN
+            // ============================================
+            return await ctx.prisma.$transaction(async (tx) => {
+                const compensations: (() => Promise<void>)[] = [];
+
+                try {
+                    // ----------------------------------------
+                    // 2.1: RESERVE STOCK (Optimistic Locking)
+                    // ----------------------------------------
+                    const reservations = await Promise.all(
+                        input.items.map(async (item) => {
+                            const product = await tx.product.findUnique({
+                                where: { id: item.productId },
+                                include: {
+                                    recipeItems: { include: { ingredient: true } }
+                                }
+                            });
+
+                            if (!product) {
+                                throw new TRPCError({
+                                    code: 'NOT_FOUND',
+                                    message: `Product ${item.productId} not found`
+                                });
+                            }
+
+                            // Version check for concurrent edits
+                            if (product.version !== item.expectedVersion) {
+                                throw new TRPCError({
+                                    code: 'CONFLICT',
+                                    message: `Product ${product.name} was modified. Please refresh.`
+                                });
+                            }
+
+                            const hasRecipe = product.recipeItems.length > 0;
+
+                            // Stock check
+                            if (hasRecipe) {
+                                // Check ingredient availability
+                                for (const recipeItem of product.recipeItems) {
+                                    const available = recipeItem.ingredient.stock;
+                                    const required = recipeItem.quantity * item.quantity;
+
+                                    if (available < required) {
+                                        throw new TRPCError({
+                                            code: 'BAD_REQUEST',
+                                            message: `Insufficient ${recipeItem.ingredient.name}`
+                                        });
+                                    }
+                                }
+
+                                // Deduct ingredients
+                                for (const recipeItem of product.recipeItems) {
+                                    const deductQty = recipeItem.quantity * item.quantity;
+
+                                    await tx.ingredient.update({
+                                        where: { id: recipeItem.ingredientId },
+                                        data: {
+                                            stock: { decrement: deductQty },
+                                        }
+                                    });
+
+                                    // Add compensation for rollback
+                                    const ingredientId = recipeItem.ingredientId;
+                                    compensations.push(async () => {
+                                        await tx.ingredient.update({
+                                            where: { id: ingredientId },
+                                            data: { stock: { increment: deductQty } }
+                                        });
+                                    });
+
+                                    // Log stock move
+                                    await tx.stockMove.create({
+                                        data: {
+                                            outletId,
+                                            ingredientId: recipeItem.ingredientId,
+                                            qty: deductQty,
+                                            type: 'SALE',
+                                            date: new Date(),
+                                            notes: `Order item: ${item.quantity}x ${product.name}`
+                                        }
+                                    });
+                                }
+                            } else {
+                                // Direct product stock check
+                                if (product.currentStock < item.quantity) {
+                                    throw new TRPCError({
+                                        code: 'BAD_REQUEST',
+                                        message: `Only ${product.currentStock} units of ${product.name} available`
+                                    });
+                                }
+
+                                // Deduct product stock
+                                await tx.product.update({
+                                    where: {
+                                        id: item.productId,
+                                        version: item.expectedVersion
+                                    },
+                                    data: {
+                                        currentStock: { decrement: item.quantity },
+                                        version: { increment: 1 }
+                                    }
+                                });
+
+                                // Add compensation
+                                const productId = item.productId;
+                                const qty = item.quantity;
+                                compensations.push(async () => {
+                                    await tx.product.update({
+                                        where: { id: productId },
+                                        data: { currentStock: { increment: qty } }
+                                    });
+                                });
+
+                                // Log stock move
+                                await tx.stockMove.create({
+                                    data: {
+                                        outletId,
+                                        productId: item.productId,
+                                        qty: item.quantity,
+                                        type: 'SALE',
+                                        date: new Date(),
+                                        notes: `POS Sale`
+                                    }
+                                });
+                            }
+
+                            return { productId: item.productId, quantity: item.quantity, name: product.name };
+                        })
+                    );
+
+                    // ----------------------------------------
+                    // 2.2: VALIDATE DISCOUNT
+                    // ----------------------------------------
+                    let discountAmount = 0;
+                    if (input.discountCode) {
+                        const discount = await tx.discount.findFirst({
+                            where: {
+                                code: input.discountCode,
+                                outletId,
+                                isActive: true
+                            }
+                        });
+
+                        if (!discount) {
+                            throw new TRPCError({
+                                code: 'BAD_REQUEST',
+                                message: 'Invalid or inactive discount code'
+                            });
+                        }
+
+                        const subtotal = input.items.reduce((sum, item) =>
+                            sum + (item.price * item.quantity), 0
+                        );
+
+                        if (subtotal < Number(discount.minOrderVal || 0)) {
+                            throw new TRPCError({
+                                code: 'BAD_REQUEST',
+                                message: `Minimum order value is ${discount.minOrderVal}`
+                            });
+                        }
+
+                        if (discount.type === 'PERCENTAGE') {
+                            discountAmount = Math.min(
+                                subtotal * (Number(discount.value) / 100),
+                                Number(discount.maxDiscount ?? Infinity)
+                            );
+                        } else {
+                            discountAmount = Number(discount.value);
+                        }
+
+                        // Increment usage
+                        await tx.discount.update({
+                            where: { id: discount.id },
+                            data: { usedCount: { increment: 1 } }
+                        });
+                    }
+
+                    // ----------------------------------------
+                    // 2.3: CREATE ORDER
+                    // ----------------------------------------
+                    const subtotal = input.items.reduce((sum, item) =>
+                        sum + (item.price * item.quantity), 0
+                    );
+                    const totalAmount = subtotal - discountAmount;
+
+                    const order = await tx.order.create({
+                        data: {
+                            outletId,
+                            tenantId,
+                            customerId: input.customerId,
+                            status: 'COMPLETED',
+                            kitchenStatus: 'NEW',
+                            paymentMethod: input.paymentMethod,
+                            discount: discountAmount,
+                            tax: 0,
+                            totalAmount,
+                            idempotencyKey: input.idempotencyKey,
+                            items: {
+                                create: input.items.map(item => ({
+                                    productId: item.productId,
+                                    quantity: item.quantity,
+                                    price: item.price,
+                                    total: item.price * item.quantity
+                                }))
+                            },
+                            payments: input.payments?.length ? {
+                                create: input.payments.map(p => ({
+                                    method: p.method,
+                                    amount: p.amount
+                                }))
+                            } : undefined
+                        },
+                        include: {
+                            items: { include: { product: true } },
+                            payments: true
+                        }
+                    });
+
+                    // ----------------------------------------
+                    // 2.4: UPDATE LOYALTY
+                    // ----------------------------------------
+                    if (input.customerId) {
+                        const loyaltyRule = await tx.loyaltyRule.findFirst({
+                            where: { outletId }
+                        });
+
+                        if (loyaltyRule && totalAmount >= Number(loyaltyRule.minSpendPerVisit || 0)) {
+                            await tx.loyaltyProgress.upsert({
+                                where: { customerId: input.customerId },
+                                create: {
+                                    customerId: input.customerId,
+                                    outletId,
+                                    stamps: 1,
+                                    totalSpend: totalAmount
+                                },
+                                update: {
+                                    stamps: { increment: 1 },
+                                    totalSpend: { increment: totalAmount }
+                                }
+                            });
+                        }
+                    }
+
+                    // ----------------------------------------
+                    // 2.5: QUEUE ASYNC FINALIZATION
+                    // ----------------------------------------
+                    await inngest.send({
+                        name: 'order/finalize',
+                        data: {
+                            orderId: order.id,
+                            outletId: order.outletId,
+                            tenantId: order.tenantId,
+                            totalAmount: Number(order.totalAmount),
+                            items: reservations
+                        }
+                    });
+
+                    // ----------------------------------------
+                    // 2.6: INVALIDATE CACHE
+                    // ----------------------------------------
+                    await CacheService.invalidate(CacheService.keys.fullMenu(outletId));
+
+                    return { order, status: 'SUCCESS' };
+
+                } catch (error) {
+                    // ----------------------------------------
+                    // ROLLBACK: Execute Compensations
+                    // ----------------------------------------
+                    console.error('[CreateOrder] Rolling back compensations:', compensations.length);
+                    for (const compensate of compensations) {
+                        try {
+                            await compensate();
+                        } catch (compError) {
+                            console.error('[CreateOrder] Compensation failed:', compError);
+                        }
+                    }
+                    throw error;
+                }
+            }, {
+                maxWait: 5000,
+                timeout: 10000
+            });
         }),
 
     /**

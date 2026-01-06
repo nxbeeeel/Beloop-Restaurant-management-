@@ -1,12 +1,13 @@
 import { Redis } from '@upstash/redis';
+import { getRequiredEnv } from '@/lib/env-validation';
 
 const globalForRedis = global as unknown as { redis: Redis | undefined };
 
 export const redis =
     globalForRedis.redis ||
     new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL || 'https://sharing-monarch-42412.upstash.io',
-        token: process.env.UPSTASH_REDIS_REST_TOKEN || 'AaWsAAIncDJhZjI2MmNjNzk5NDM0MWEzYjBkODRmYTQyYzViNWFhY3AyNDI0MTI',
+        url: getRequiredEnv('UPSTASH_REDIS_REST_URL'),
+        token: getRequiredEnv('UPSTASH_REDIS_REST_TOKEN'),
     });
 
 if (process.env.NODE_ENV !== "production") globalForRedis.redis = redis;

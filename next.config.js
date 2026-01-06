@@ -13,15 +13,12 @@ const nextConfig = {
     reactStrictMode: true,
     transpilePackages: ['lucide-react'],
     typescript: {
-        // !! WARN !!
-        // Dangerously allow production builds to successfully complete even if
-        // your project has type errors.
-        // !! WARN !!
-        ignoreBuildErrors: true,
+        // Type errors must be fixed before production build
+        ignoreBuildErrors: false,
     },
     experimental: {
         optimizePackageImports: ['lucide-react', 'date-fns', 'recharts', '@radix-ui/react-icons', '@radix-ui/react-avatar', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
-        // serverActions: true, // Enabled by default in Next 14
+        instrumentationHook: true, // Enable environment validation on startup
     },
     images: {
         remotePatterns: [

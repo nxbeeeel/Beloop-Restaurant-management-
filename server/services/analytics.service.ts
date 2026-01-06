@@ -100,49 +100,66 @@ export class AnalyticsService {
 
     static async getTenantHealth(prisma: PrismaClient) {
         return CacheService.getOrSet('super:tenant:health', async () => {
+            const startDate = subDays(new Date(), 30);
+
+            // Fetch all tenants with counts
             const tenants = await prisma.tenant.findMany({
-                include: {
+                select: {
+                    id: true,
+                    name: true,
+                    createdAt: true,
                     _count: {
                         select: {
                             outlets: true,
                             users: true,
                         },
                     },
-                    outlets: {
-                        include: {
-                            sales: {
-                                where: {
-                                    createdAt: {
-                                        gte: subDays(new Date(), 30),
-                                    },
-                                },
-                                select: {
-                                    totalSale: true,
-                                    createdAt: true,
-                                },
-                                orderBy: {
-                                    createdAt: 'desc',
-                                },
-                                take: 1,
-                            },
-                        },
-                    },
                 },
             });
 
-            return tenants.map(tenant => {
-                // Aggregate sales from all outlets
-                let monthlyRevenue = 0;
-                let lastActivity = tenant.createdAt;
+            // Aggregate revenue per tenant using database aggregation (1 query instead of N*M)
+            const revenueData = await prisma.sale.groupBy({
+                by: ['tenantId'],
+                where: {
+                    createdAt: {
+                        gte: startDate,
+                    },
+                    tenantId: {
+                        not: null,
+                    },
+                },
+                _sum: {
+                    totalSale: true,
+                },
+            });
 
-                tenant.outlets.forEach(outlet => {
-                    outlet.sales.forEach(sale => {
-                        monthlyRevenue += Number(sale.totalSale || 0);
-                        if (new Date(sale.createdAt) > new Date(lastActivity)) {
-                            lastActivity = sale.createdAt;
-                        }
-                    });
-                });
+            // Get last activity per tenant (1 query instead of N*M)
+            const lastActivityData = await prisma.sale.groupBy({
+                by: ['tenantId'],
+                where: {
+                    createdAt: {
+                        gte: startDate,
+                    },
+                    tenantId: {
+                        not: null,
+                    },
+                },
+                _max: {
+                    createdAt: true,
+                },
+            });
+
+            // Create lookup maps for O(1) access
+            const revenueMap = new Map(
+                revenueData.map(r => [r.tenantId, Number(r._sum.totalSale || 0)])
+            );
+            const activityMap = new Map(
+                lastActivityData.map(a => [a.tenantId, a._max.createdAt])
+            );
+
+            return tenants.map(tenant => {
+                const monthlyRevenue = revenueMap.get(tenant.id) || 0;
+                const lastActivity = activityMap.get(tenant.id) || tenant.createdAt;
 
                 const daysSinceActivity = Math.floor(
                     (new Date().getTime() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24)
@@ -259,41 +276,47 @@ export class AnalyticsService {
 
     static async getTopTenants(prisma: PrismaClient, metric: 'revenue' | 'users' | 'growth' = 'revenue', limit: number = 10) {
         return CacheService.getOrSet(`super:top:tenants:${metric}`, async () => {
+            const startDate = subDays(new Date(), 30);
+
+            // Fetch all tenants with counts
             const tenants = await prisma.tenant.findMany({
-                include: {
+                select: {
+                    id: true,
+                    name: true,
                     _count: {
                         select: { users: true, outlets: true },
-                    },
-                    outlets: {
-                        include: {
-                            sales: {
-                                where: {
-                                    createdAt: {
-                                        gte: subDays(new Date(), 30),
-                                    },
-                                },
-                                select: {
-                                    totalSale: true,
-                                },
-                            },
-                        },
                     },
                 },
             });
 
-            const tenantsWithMetrics = tenants.map(tenant => {
-                const revenue = tenant.outlets.reduce((total, outlet) => {
-                    return total + outlet.sales.reduce((sum, sale) => sum + Number(sale.totalSale || 0), 0);
-                }, 0);
-
-                return {
-                    id: tenant.id,
-                    name: tenant.name,
-                    revenue,
-                    users: tenant._count.users,
-                    outlets: tenant._count.outlets,
-                };
+            // Aggregate revenue per tenant using database aggregation
+            const revenueData = await prisma.sale.groupBy({
+                by: ['tenantId'],
+                where: {
+                    createdAt: {
+                        gte: startDate,
+                    },
+                    tenantId: {
+                        not: null,
+                    },
+                },
+                _sum: {
+                    totalSale: true,
+                },
             });
+
+            // Create revenue lookup map
+            const revenueMap = new Map(
+                revenueData.map(r => [r.tenantId, Number(r._sum.totalSale || 0)])
+            );
+
+            const tenantsWithMetrics = tenants.map(tenant => ({
+                id: tenant.id,
+                name: tenant.name,
+                revenue: revenueMap.get(tenant.id) || 0,
+                users: tenant._count.users,
+                outlets: tenant._count.outlets,
+            }));
 
             // Sort based on metric
             const sorted = tenantsWithMetrics.sort((a, b) => {

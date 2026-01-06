@@ -18,9 +18,29 @@ const t = initTRPC.context<Context>().create({
 });
 
 export const router = t.router;
-export const publicProcedure = t.procedure;
 export const middleware = t.middleware;
 export const createCallerFactory = t.createCallerFactory;
+
+/**
+ * Request Timeout Middleware
+ * Prevents long-running requests from blocking resources
+ */
+const timeoutMiddleware = t.middleware(async ({ path, next }) => {
+    const timeout = 10000; // 10 seconds default
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+            reject(new TRPCError({
+                code: 'TIMEOUT',
+                message: `Request to ${path} timed out after ${timeout}ms`
+            }));
+        }, timeout);
+    });
+
+    return Promise.race([next(), timeoutPromise]);
+});
+
+export const publicProcedure = t.procedure.use(timeoutMiddleware);
 
 // Auth middleware
 const isAuthed = t.middleware(({ ctx, next }) => {

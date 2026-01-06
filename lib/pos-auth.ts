@@ -1,19 +1,16 @@
 import { SignJWT, jwtVerify } from 'jose';
+import { getRequiredEnv } from './env-validation';
 
 /**
  * POS Authentication Service
- * 
+ *
  * Uses standard JWT (JOSE) for secure, stateless authentication.
  * Replaces custom HMAC implementation to ensure robust encoding/decoding.
  */
 
-// Use fallback if env var is missing to prevent runtime crashes (and 401s)
-const POS_SECRET_VAL = process.env.POS_API_SECRET || 'beloop_fallback_secret_2025_secure_jwt_key';
+// Fail fast if POS_API_SECRET is not set - no fallback for security
+const POS_SECRET_VAL = getRequiredEnv('POS_API_SECRET');
 const POS_SECRET = new TextEncoder().encode(POS_SECRET_VAL);
-
-if (!process.env.POS_API_SECRET) {
-    console.warn('[SECURITY WARNING] POS_API_SECRET not set. Using fallback secret. Please set this variable in Vercel.');
-}
 
 export interface PosCredentials {
     tenantId: string;

@@ -29,6 +29,7 @@ import { publicRouter } from "./public";
 import { brandAnalyticsRouter } from "./brandAnalytics";
 import { auditRouter } from "./audit";
 import { brandRouter } from "./brand";
+import { transfersRouter } from "./transfers";
 
 export const appRouter = router({
     health: publicProcedure.query(() => ({ status: "ok" })),
@@ -62,6 +63,7 @@ export const appRouter = router({
     brandAnalytics: brandAnalyticsRouter,
     audit: auditRouter,
     brand: brandRouter,
+    transfers: transfersRouter, // Multi-outlet stock transfers
 });
 
 export type AppRouter = typeof appRouter;

@@ -39,9 +39,8 @@ export const createContext = async (opts: CreateContextOptions) => {
         // even if application logic has bugs
         if (user?.tenantId) {
             try {
-                await prisma.$executeRawUnsafe(
-                    `SET LOCAL app.current_tenant_id = '${user.tenantId}'`
-                );
+                // Use parameterized query to prevent SQL injection
+                await prisma.$executeRaw`SET LOCAL app.current_tenant_id = ${user.tenantId}`;
             } catch (error) {
                 console.error('Failed to set RLS session variable:', error);
                 // Continue execution - RLS policies will handle unauthorized access
