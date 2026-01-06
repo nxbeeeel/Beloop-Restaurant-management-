@@ -108,11 +108,12 @@ export default function DailySalesPage() {
 
     const createExpense = trpc.expenses.create.useMutation({
         onMutate: async (newExpense) => {
+            const queryKey = { outletId: outletId || "", startDate: new Date(date), endDate: new Date(date) };
             await utils.expenses.list.cancel();
-            const previousExpenses = utils.expenses.list.getData();
+            const previousExpenses = utils.expenses.list.getData(queryKey);
 
             utils.expenses.list.setData(
-                { outletId: outletId || "", startDate: new Date(date), endDate: new Date(date) },
+                queryKey,
                 (old) => {
                     if (!old) return [];
                     return [
@@ -128,14 +129,14 @@ export default function DailySalesPage() {
                 }
             );
 
-            return { previousExpenses };
+            return { previousExpenses, queryKey };
         },
         onSuccess: () => {
             // Toast handled by loop or generic success
         },
         onError: (e, _newExpense, context) => {
-            if (context?.previousExpenses) {
-                utils.expenses.list.setData(undefined, context.previousExpenses);
+            if (context?.previousExpenses && context?.queryKey) {
+                utils.expenses.list.setData(context.queryKey, context.previousExpenses);
             }
             toast.error(`Expense failed: ${e.message}`);
         },
