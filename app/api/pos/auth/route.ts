@@ -41,6 +41,14 @@ export async function OPTIONS(req: Request) {
 }
 
 export async function POST(req: Request) {
+    const origin = req.headers.get('origin') || '';
+    const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+
+    const corsHeaders = {
+        'Access-Control-Allow-Origin': allowedOrigin,
+        'Access-Control-Allow-Credentials': 'true',
+    };
+
     try {
         // 1. Try cookie-based auth first (same-origin)
         let { userId } = await auth();
@@ -65,7 +73,7 @@ export async function POST(req: Request) {
         if (!userId) {
             return NextResponse.json(
                 { error: 'Unauthorized', message: 'Not authenticated with Clerk' },
-                { status: 401 }
+                { status: 401, headers: corsHeaders }
             );
         }
 
@@ -76,7 +84,7 @@ export async function POST(req: Request) {
         if (!outletId) {
             return NextResponse.json(
                 { error: 'Bad Request', message: 'outletId is required' },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             );
         }
 
@@ -97,7 +105,7 @@ export async function POST(req: Request) {
         if (!user) {
             return NextResponse.json(
                 { error: 'Forbidden', message: 'User not found in system' },
-                { status: 403 }
+                { status: 403, headers: corsHeaders }
             );
         }
 
@@ -109,7 +117,7 @@ export async function POST(req: Request) {
                 console.warn(`[POS Auth] User ${userId} attempted access to outlet ${outletId} but assigned to ${user.outletId}`);
                 return NextResponse.json(
                     { error: 'Forbidden', message: 'You do not have access to this outlet' },
-                    { status: 403 }
+                    { status: 403, headers: corsHeaders }
                 );
             }
         }
@@ -129,7 +137,7 @@ export async function POST(req: Request) {
         if (!outlet) {
             return NextResponse.json(
                 { error: 'Not Found', message: 'Outlet not found' },
-                { status: 404 }
+                { status: 404, headers: corsHeaders }
             );
         }
 
@@ -137,21 +145,21 @@ export async function POST(req: Request) {
         if (user.role === 'BRAND_ADMIN' && outlet.tenantId !== user.tenantId) {
             return NextResponse.json(
                 { error: 'Forbidden', message: 'Outlet does not belong to your brand' },
-                { status: 403 }
+                { status: 403, headers: corsHeaders }
             );
         }
 
         if (!outlet.isPosEnabled) {
             return NextResponse.json(
                 { error: 'Forbidden', message: 'POS is not enabled for this outlet' },
-                { status: 403 }
+                { status: 403, headers: corsHeaders }
             );
         }
 
         if (outlet.status !== 'ACTIVE') {
             return NextResponse.json(
                 { error: 'Forbidden', message: 'Outlet is not active' },
-                { status: 403 }
+                { status: 403, headers: corsHeaders }
             );
         }
 
@@ -181,13 +189,13 @@ export async function POST(req: Request) {
                 role: user.role,
             },
             expiresIn: '24h',
-        });
+        }, { headers: corsHeaders });
 
     } catch (error) {
         console.error('[POS Auth] Error:', error);
         return NextResponse.json(
             { error: 'Internal Server Error', message: 'Failed to authenticate' },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         );
     }
 }
