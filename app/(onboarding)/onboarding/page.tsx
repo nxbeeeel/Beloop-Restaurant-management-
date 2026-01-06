@@ -124,7 +124,7 @@ export default function OnboardingPage() {
                         // ✅ ENTERPRISE FIX: Only redirect if onboarding is strictly COMPLETED
                         if (metadata.onboardingStatus === 'COMPLETED') {
                             console.log('[Onboarding] Status is COMPLETED, redirecting to dashboard');
-                            await router.push('/'); // Use Next router for speed
+                            window.location.href = '/';
                             return;
                         }
                         console.log(`[Onboarding] Status: ${metadata.onboardingStatus}. Staying on page.`);
