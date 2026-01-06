@@ -81,7 +81,7 @@ export default function DailySalesPage() {
                         swiggyPayout: newSale.swiggyPayout,
                         zomatoPayout: newSale.zomatoPayout,
                         updatedAt: new Date(),
-                    } as typeof old;
+                    } as unknown as typeof old;
                 }
             );
 
