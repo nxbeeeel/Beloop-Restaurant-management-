@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, X, LogOut, LayoutDashboard, FileText, ShoppingCart, DollarSign, Package, Users, ClipboardList, Truck, Settings } from "lucide-react";
+import { Menu, X, LogOut, LayoutDashboard, FileText, ShoppingCart, DollarSign, Package, Users, ClipboardList, Truck, Settings, Wallet } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useClerk } from "@clerk/nextjs";
@@ -95,6 +95,7 @@ export default function OutletLayoutClient({
 
                         <SectionLabel label="Insights" />
                         <NavItem href="/outlet/dashboard" icon={LayoutDashboard} label="Dashboard" />
+                        <NavItem href="/outlet/accounts" icon={Wallet} label="Accounts" colorClass="text-emerald-600" />
                         <NavItem href="/outlet/sales" icon={FileText} label="Sales History" />
 
                         <SectionLabel label="Team & Settings" />
