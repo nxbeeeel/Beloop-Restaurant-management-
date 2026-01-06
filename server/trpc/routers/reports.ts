@@ -249,4 +249,55 @@ export const reportsRouter = router({
                 }))
                 .sort((a, b) => b.amount - a.amount);
         }),
+
+    getMonthlySummary: protectedProcedure
+        .use(enforceTenant)
+        .input(z.object({
+            outletId: z.string(),
+            month: z.string(), // Format: "YYYY-MM"
+        }))
+        .query(async ({ ctx, input }) => {
+            if (!input.outletId) {
+                return { totalSales: 0, totalExpenses: 0 };
+            }
+
+            // Parse month to get date range
+            const [year, month] = input.month.split('-').map(Number);
+            const startDate = new Date(year, month - 1, 1);
+            const endDate = new Date(year, month, 0, 23, 59, 59); // Last day of month
+
+            // Get total sales from Sale table
+            const sales = await ctx.prisma.sale.aggregate({
+                where: {
+                    outletId: input.outletId,
+                    date: {
+                        gte: startDate,
+                        lte: endDate,
+                    },
+                    deletedAt: null,
+                },
+                _sum: {
+                    totalSale: true,
+                },
+            });
+
+            // Get total expenses
+            const expenses = await ctx.prisma.expense.aggregate({
+                where: {
+                    outletId: input.outletId,
+                    date: {
+                        gte: startDate,
+                        lte: endDate,
+                    },
+                },
+                _sum: {
+                    amount: true,
+                },
+            });
+
+            return {
+                totalSales: Number(sales._sum.totalSale || 0),
+                totalExpenses: Number(expenses._sum.amount || 0),
+            };
+        }),
 });
