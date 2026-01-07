@@ -250,7 +250,7 @@ export class AggregationService {
             where: {
                 tenantId_outletId_month: {
                     tenantId,
-                    outletId: null, // Tenant-wide
+                    outletId: "", // Tenant-wide (empty string as sentinel)
                     month
                 } // Prisma might complain about null, but we defined it nullable. 
                 // Actually unique constraint with nulls depends on DB.
@@ -259,7 +259,7 @@ export class AggregationService {
             },
             create: {
                 tenantId,
-                outletId: null,
+                outletId: "",
                 month,
                 totalRevenue,
                 totalOrders,
