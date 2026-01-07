@@ -32,6 +32,8 @@ import { brandRouter } from "./brand";
 import { transfersRouter } from "./transfers";
 import { securityRouter } from "./security";
 import { dailyRegisterRouter } from "./dailyRegister";
+import { creditorLedgerRouter } from "./creditorLedger";
+import { expensesV2Router } from "./expensesV2";
 
 export const appRouter = router({
     health: publicProcedure.query(() => ({ status: "ok" })),
@@ -68,6 +70,8 @@ export const appRouter = router({
     transfers: transfersRouter, // Multi-outlet stock transfers
     security: securityRouter, // V2: PIN security & notifications
     dailyRegister: dailyRegisterRouter, // V2: Cash management (replaces Velocity)
+    creditorLedger: creditorLedgerRouter, // V2: Supplier accounts & instant ledger
+    expensesV2: expensesV2Router, // V2: Expense tracking with categories & proof
 });
 
 export type AppRouter = typeof appRouter;

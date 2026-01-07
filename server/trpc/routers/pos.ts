@@ -278,51 +278,58 @@ export const posRouter = router({
     // ============================================
 
     /**
-     * Get Products - Pull product catalog with caching
+     * Get Products - Pull product catalog with SWR caching
+     *
+     * 🚀 V2: Uses Stale-While-Revalidate for instant response
+     * Returns cached data immediately, refreshes in background
      */
     getProducts: posProcedure
         .query(async ({ ctx }) => {
-            const { tenantId, outletId } = ctx.posCredentials;
+            const { outletId } = ctx.posCredentials;
 
-            // Fetch Products (Cached for 1 hour)
-            // Fetch Products (With Negative Cache Guard)
-            // 🚨 NEGATIVE CACHE GUARD: Do not cache empty arrays (DB glitch protection)
-            const cacheKey = CacheService.keys.fullMenu(outletId);
+            // 🚀 V2: Use SWR pattern for instant response
+            const products = await CacheService.getWithSWR(
+                CacheService.keys.fullMenu(outletId),
+                async () => {
+                    const dbProducts = await ctx.prisma.product.findMany({
+                        where: { outletId, deletedAt: null },
+                        include: {
+                            supplier: { select: { id: true, name: true } },
+                            category: { select: { id: true, name: true } }
+                        },
+                        orderBy: [
+                            { category: { name: 'asc' } },
+                            { name: 'asc' }
+                        ]
+                    });
 
-            // 1. Try Cache
-            const cached = await CacheService.get<any[]>(cacheKey);
-            let products = cached;
+                    // 🚨 NEGATIVE CACHE GUARD: Don't cache empty results
+                    if (!dbProducts || dbProducts.length === 0) {
+                        console.warn(`[POS] Negative Cache Guard: DB returned 0 products for ${outletId}`);
+                        // Return empty but don't cache - throw to skip caching
+                        return [];
+                    }
 
-            if (!products) {
-                // 2. Cache Miss - Query DB
-                const dbProducts = await ctx.prisma.product.findMany({
-                    where: { outletId },
-                    include: { supplier: true, category: true },
-                    orderBy: { name: 'asc' }
-                });
+                    console.log(`[POS] DB Fetch: ${dbProducts.length} products for ${outletId}`);
+                    return dbProducts;
+                },
+                300 // 5 minute TTL (SWR refreshes in background)
+            );
 
-                // 3. Guard & Write
-                if (dbProducts && dbProducts.length > 0) {
-                    console.log(`[POS] DB Hit: Found ${dbProducts.length} products for ${outletId}`);
-                    // Only cache if we have products
-                    await CacheService.set(cacheKey, dbProducts, 3600); // 1 hour TTL
-                    products = dbProducts;
-                } else {
-                    console.warn(`[POS] Negative Cache Guard: DB returned 0 products for ${outletId}`);
-                    products = dbProducts || [];
-                }
-            } else {
-                console.log(`[POS] Cache Hit: Returned ${products.length} products`);
-            }
-
-            // Get outlet info
-            const outlet = await ctx.prisma.outlet.findUnique({
-                where: { id: outletId },
-                select: { id: true, name: true, address: true, phone: true, isPosEnabled: true }
-            });
+            // Get outlet info (also cached)
+            const outlet = await CacheService.getWithSWR(
+                CacheService.keys.outletDetails(outletId),
+                async () => {
+                    return ctx.prisma.outlet.findUnique({
+                        where: { id: outletId },
+                        select: { id: true, name: true, address: true, phone: true, isPosEnabled: true }
+                    });
+                },
+                600 // 10 minute TTL
+            );
 
             return {
-                data: products,
+                data: products || [],
                 outlet: outlet || { id: outletId, isPosEnabled: true, name: '', address: null, phone: null }
             };
         }),
@@ -1225,8 +1232,32 @@ export const posRouter = router({
                     }
                 });
 
-                // 4. Create Order Edit History (V2) - Skipped: OrderEditHistory model not in schema yet
-                // TODO: Add OrderEditHistory model to schema for V2
+                // 4. Create Order Edit History (V2)
+                await tx.orderEditHistory.create({
+                    data: {
+                        orderId: order.id,
+                        outletId,
+                        editType: "VOIDED",
+                        previousData: {
+                            status: order.status,
+                            items: order.items.map(i => ({
+                                productId: i.productId,
+                                name: i.name,
+                                qty: i.quantity,
+                                price: Number(i.price),
+                            })),
+                        },
+                        newData: { status: "VOIDED", reason: input.reason },
+                        previousTotal: order.totalAmount,
+                        newTotal: 0,
+                        difference: order.totalAmount,
+                        reason: input.reason,
+                        editedBy: userId,
+                        editedByName: userName,
+                        pinVerified: true,
+                        managerNotified: true,
+                    },
+                });
 
                 // 5. Audit Log
                 await tx.auditLog.create({

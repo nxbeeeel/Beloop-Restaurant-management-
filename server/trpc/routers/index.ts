@@ -26,3 +26,5 @@ export * from './brandApplication';
 export * from './public';
 export * from './security';
 export * from './dailyRegister';
+export * from './creditorLedger';
+export * from './expensesV2';
