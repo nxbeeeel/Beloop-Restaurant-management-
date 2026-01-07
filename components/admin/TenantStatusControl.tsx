@@ -34,9 +34,9 @@ export function TenantStatusControl({
     const [pendingStatus, setPendingStatus] = useState<typeof currentStatus | null>(null);
 
     const utils = trpc.useContext();
-    const updateStatus = trpc.super.updateTenantStatus.useMutation({
+    const updateStatus = trpc.superAdmin.tenants.updateStatus.useMutation({
         onSuccess: () => {
-            utils.super.getTenantDetails.invalidate({ tenantId });
+            utils.superAdmin.tenants.getDetails.invalidate({ tenantId });
             if (onUpdate) onUpdate();
             setShowConfirm(false);
         },
