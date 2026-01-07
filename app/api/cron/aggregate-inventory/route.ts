@@ -62,7 +62,7 @@ export async function GET(req: Request) {
             let totalAdjustment = 0;
 
             for (const move of detailedMoves) {
-                const value = Math.abs(move.qty * Number(move.product.price || 0));
+                const value = Math.abs(move.qty * Number(move.product?.price || 0));
 
                 switch (move.type) {
                     case 'PURCHASE':
