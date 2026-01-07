@@ -594,40 +594,41 @@ interface LogPinActionParams {
 }
 
 async function logPinAction(
-    prisma: {
-        pINActionLog: {
-            create: (args: { data: Record<string, unknown> }) => Promise<unknown>;
-        };
-    },
+    prisma: any,
     params: LogPinActionParams
-) {
-    const actionTypeMap: Record<PinAction, string> = {
-        EDIT_ORDER: "ORDER",
-        VOID_ORDER: "ORDER",
-        WITHDRAWAL: "CASH",
-        PRICE_OVERRIDE: "ORDER",
-        STOCK_ADJUSTMENT: "STOCK",
-        REFUND: "ORDER",
-        MODIFY_CLOSING: "CASH",
-        SUPPLIER_PAYMENT: "CASH",
-        MANUAL_DISCOUNT: "ORDER",
-    };
+): Promise<void> {
+    try {
+        const actionTypeMap: Record<PinAction, string> = {
+            EDIT_ORDER: "ORDER",
+            VOID_ORDER: "ORDER",
+            WITHDRAWAL: "CASH",
+            PRICE_OVERRIDE: "ORDER",
+            STOCK_ADJUSTMENT: "STOCK",
+            REFUND: "ORDER",
+            MODIFY_CLOSING: "CASH",
+            SUPPLIER_PAYMENT: "CASH",
+            MANUAL_DISCOUNT: "ORDER",
+        };
 
-    await prisma.pINActionLog.create({
-        data: {
-            outletId: params.outletId,
-            userId: params.userId,
-            userName: params.userName,
-            action: params.action,
-            actionType: actionTypeMap[params.action],
-            targetId: params.targetId,
-            targetDetails: params.targetDetails,
-            previousValue: params.previousValue,
-            newValue: params.newValue,
-            reason: params.reason,
-            status: params.status,
-        },
-    });
+        await prisma.pINActionLog.create({
+            data: {
+                outletId: params.outletId,
+                userId: params.userId,
+                userName: params.userName,
+                action: params.action,
+                actionType: actionTypeMap[params.action],
+                targetId: params.targetId,
+                targetDetails: params.targetDetails,
+                previousValue: params.previousValue,
+                newValue: params.newValue,
+                reason: params.reason,
+                status: params.status,
+            },
+        });
+    } catch (error) {
+        // V2 model may not exist in production schema
+        console.warn("[logPinAction] Failed to log action:", error);
+    }
 }
 
 interface SendNotificationParams {
@@ -637,81 +638,79 @@ interface SendNotificationParams {
     actionByName: string;
     targetId?: string;
     targetDetails?: Record<string, unknown>;
+    type?: string;
+    priority?: string;
+    title?: string;
+    message?: string;
+    amount?: number;
+    metadata?: Record<string, unknown>;
 }
 
 async function sendManagerNotification(
-    prisma: {
-        securitySettings: {
-            findUnique: (args: { where: { outletId: string } }) => Promise<{
-                notifyOnEdit?: boolean;
-                notifyOnVoid?: boolean;
-                notifyOnWithdrawal?: boolean;
-                managerUserIds?: string[];
-                notificationMethods?: string[];
-            } | null>;
-        };
-        managerNotification: {
-            createMany: (args: { data: Array<Record<string, unknown>> }) => Promise<unknown>;
-        };
-    },
+    prisma: any,
     params: SendNotificationParams
-) {
-    // Get security settings
-    const settings = await prisma.securitySettings.findUnique({
-        where: { outletId: params.outletId },
-    });
+): Promise<void> {
+    try {
+        // Get security settings
+        const settings = await prisma.securitySettings.findUnique({
+            where: { outletId: params.outletId },
+        });
 
-    if (!settings) return;
+        if (!settings) return;
 
-    // Check if notification is enabled for this action
-    const shouldNotify =
-        (params.action === "EDIT_ORDER" && settings.notifyOnEdit) ||
-        (params.action === "VOID_ORDER" && settings.notifyOnVoid) ||
-        (params.action === "WITHDRAWAL" && settings.notifyOnWithdrawal) ||
-        (params.action === "REFUND" && settings.notifyOnVoid);
+        // Check if notification is enabled for this action
+        const shouldNotify =
+            (params.action === "EDIT_ORDER" && settings.notifyOnEdit) ||
+            (params.action === "VOID_ORDER" && settings.notifyOnVoid) ||
+            (params.action === "WITHDRAWAL" && settings.notifyOnWithdrawal) ||
+            (params.action === "REFUND" && settings.notifyOnVoid);
 
-    if (!shouldNotify || !settings.managerUserIds?.length) return;
+        if (!shouldNotify || !settings.managerUserIds?.length) return;
 
-    // Create notification title and message
-    const actionLabels: Record<PinAction, string> = {
-        EDIT_ORDER: "Order Edited",
-        VOID_ORDER: "Order Voided",
-        WITHDRAWAL: "Cash Withdrawal",
-        PRICE_OVERRIDE: "Price Override",
-        STOCK_ADJUSTMENT: "Stock Adjusted",
-        REFUND: "Order Refunded",
-        MODIFY_CLOSING: "Daily Closing Modified",
-        SUPPLIER_PAYMENT: "Supplier Payment",
-        MANUAL_DISCOUNT: "Manual Discount Applied",
-    };
+        // Create notification title and message
+        const actionLabels: Record<PinAction, string> = {
+            EDIT_ORDER: "Order Edited",
+            VOID_ORDER: "Order Voided",
+            WITHDRAWAL: "Cash Withdrawal",
+            PRICE_OVERRIDE: "Price Override",
+            STOCK_ADJUSTMENT: "Stock Adjusted",
+            REFUND: "Order Refunded",
+            MODIFY_CLOSING: "Daily Closing Modified",
+            SUPPLIER_PAYMENT: "Supplier Payment",
+            MANUAL_DISCOUNT: "Manual Discount Applied",
+        };
 
-    const title = actionLabels[params.action];
-    const message = `${params.actionByName} performed: ${title}${
-        params.targetId ? ` (ID: ${params.targetId})` : ""
-    }`;
+        const title = params.title || actionLabels[params.action];
+        const message = params.message || `${params.actionByName} performed: ${title}${params.targetId ? ` (ID: ${params.targetId})` : ""
+            }`;
 
-    // Create notifications for all managers
-    const notifications = settings.managerUserIds.map((managerId) => ({
-        outletId: params.outletId,
-        managerId,
-        type: "PIN_ACTION",
-        priority: params.action === "VOID_ORDER" || params.action === "WITHDRAWAL" ? "HIGH" : "NORMAL",
-        title,
-        message,
-        actionBy: params.actionBy,
-        actionByName: params.actionByName,
-        sentVia: settings.notificationMethods || ["IN_APP"],
-        metadata: {
-            action: params.action,
-            targetId: params.targetId,
-            ...params.targetDetails,
-        },
-    }));
+        // Create notifications for all managers
+        const notifications = settings.managerUserIds.map((managerId: string) => ({
+            outletId: params.outletId,
+            managerId,
+            type: params.type || "PIN_ACTION",
+            priority: params.priority || (params.action === "VOID_ORDER" || params.action === "WITHDRAWAL" ? "HIGH" : "NORMAL"),
+            title,
+            message,
+            actionBy: params.actionBy,
+            actionByName: params.actionByName,
+            amount: params.amount,
+            sentVia: settings.notificationMethods || ["IN_APP"],
+            metadata: params.metadata || {
+                action: params.action,
+                targetId: params.targetId,
+                ...params.targetDetails,
+            },
+        }));
 
-    await prisma.managerNotification.createMany({
-        data: notifications,
-    });
-
-    // TODO: Send WhatsApp notification if enabled
-    // This would integrate with your WhatsApp API
+        await prisma.managerNotification.createMany({
+            data: notifications,
+        });
+    } catch (error) {
+        // V2 model may not exist in production schema
+        console.warn("[sendManagerNotification] Failed:", error);
+    }
 }
+
+// Export for use in pos.ts
+export { logPinAction, sendManagerNotification, type SendNotificationParams };
