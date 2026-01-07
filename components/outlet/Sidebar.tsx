@@ -19,7 +19,16 @@ import {
     FileText,
     Wallet,
     Upload,
-    CreditCard
+    CreditCard,
+    Calendar,
+    History,
+    TrendingUp,
+    BookOpen,
+    Shield,
+    Bell,
+    DollarSign,
+    BarChart3,
+    FileBarChart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -84,7 +93,11 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                 void utils.suppliers.list.prefetch();
                 break;
             case '/outlet/accounts':
-                // Prefetch daily closures for current month
+            case '/outlet/accounts/cash-flow':
+            case '/outlet/accounts/sales-register':
+            case '/outlet/accounts/expenses':
+            case '/outlet/accounts/creditors':
+            case '/outlet/accounts/profit-loss':
                 void utils.dailyClosure.list.prefetch({ outletId });
                 void utils.expenses.list.prefetch({ outletId, startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1), endDate: new Date() });
                 break;
@@ -94,18 +107,37 @@ export function Sidebar({ user, outlet }: SidebarProps) {
             case '/outlet/stock-verification':
                 void utils.inventory.getLowStock.prefetch({ outletId });
                 break;
-            // Sales entry uses previous day's data
             case '/outlet/sales/entry':
                 void utils.sales.getDaily.prefetch({ outletId, date: new Date() });
+                break;
+            case '/outlet/analytics':
+                void utils.analytics.getOverview.prefetch({ outletId, dateRange: '7d' });
+                break;
+            // V2 Routes - will be implemented in upcoming phases
+            case '/outlet/daily-register':
+            case '/outlet/orders/history':
+            case '/outlet/settings/pin':
+            case '/outlet/settings/security':
+            case '/outlet/settings/notifications':
+                // These routes will have their own prefetch logic once routers are created
                 break;
         }
     };
 
-    // ERP-style navigation structure
+    // V2 ERP-style navigation structure with PIN security integration
     const menuItems: NavSection[] = [
+        // PRIORITY FIRST: Dashboard at top
+        {
+            title: "Overview",
+            items: [
+                { name: "Dashboard", href: "/outlet/dashboard", icon: LayoutDashboard, staffAccess: false },
+            ],
+            staffAccess: false
+        },
         {
             title: "Daily Operations",
             items: [
+                { name: "Daily Register", href: "/outlet/daily-register", icon: Calendar, staffAccess: false }, // V2: NEW - Cash management
                 { name: "Sales Entry", href: "/outlet/sales/entry", icon: FileText, staffAccess: true },
                 { name: "Stock Verification", href: "/outlet/stock-verification", icon: ClipboardCheck, staffAccess: true },
                 { name: "Daily Closing", href: "/outlet/close-daily", icon: Receipt, staffAccess: true },
@@ -114,11 +146,11 @@ export function Sidebar({ user, outlet }: SidebarProps) {
         {
             title: "Procurement",
             items: [
-                { name: "Purchase Orders", href: "/outlet/purchase-orders", icon: ShoppingCart, staffAccess: true }, // Staff can receive
+                { name: "Purchase Orders", href: "/outlet/purchase-orders", icon: ShoppingCart, staffAccess: true },
                 { name: "Supplier Payments", href: "/outlet/supplier-payments", icon: CreditCard, staffAccess: false },
                 { name: "Suppliers", href: "/outlet/suppliers", icon: Truck, staffAccess: false },
             ],
-            staffAccess: true // Section visible but some items hidden
+            staffAccess: true
         },
         {
             title: "Inventory",
@@ -129,29 +161,42 @@ export function Sidebar({ user, outlet }: SidebarProps) {
             staffAccess: false
         },
         {
-            title: "Accounts",
+            title: "Accounts", // V2: EXPANDED with 6 sub-items
             items: [
-                { name: "Cash Flow", href: "/outlet/accounts", icon: Wallet, staffAccess: false },
-                { name: "Expenses", href: "/outlet/expenses", icon: IndianRupee, staffAccess: false },
+                { name: "Cash Flow Statement", href: "/outlet/accounts/cash-flow", icon: TrendingUp, staffAccess: false },
+                { name: "Daily Sales Register", href: "/outlet/accounts/sales-register", icon: FileBarChart, staffAccess: false },
+                { name: "Expense Accounts", href: "/outlet/accounts/expenses", icon: IndianRupee, staffAccess: false },
+                { name: "Creditors Account", href: "/outlet/accounts/creditors", icon: BookOpen, staffAccess: false },
                 { name: "Payouts", href: "/outlet/payouts", icon: Upload, staffAccess: false },
+                { name: "Profit & Loss", href: "/outlet/accounts/profit-loss", icon: BarChart3, staffAccess: false },
+            ],
+            staffAccess: false
+        },
+        {
+            title: "Order History", // V2: NEW - With PIN security
+            items: [
+                { name: "All Orders", href: "/outlet/orders/history", icon: History, staffAccess: false },
             ],
             staffAccess: false
         },
         {
             title: "Insights",
             items: [
-                { name: "Dashboard", href: "/outlet/dashboard", icon: LayoutDashboard, staffAccess: false },
-                { name: "Customers", href: "/outlet/customers", icon: Users, staffAccess: false },
+                { name: "Analytics Dashboard", href: "/outlet/analytics", icon: LayoutDashboard, staffAccess: false },
+                { name: "Customer Reports", href: "/outlet/customers", icon: Users, staffAccess: false },
             ],
             staffAccess: false
         },
     ];
 
-    // Add Settings for managers only
+    // Add Settings for managers only - V2: With PIN Management
     if (isManager) {
         menuItems.push({
             title: "Settings",
             items: [
+                { name: "PIN Management", href: "/outlet/settings/pin", icon: Shield, staffAccess: false }, // V2: NEW
+                { name: "Security Permissions", href: "/outlet/settings/security", icon: Shield, staffAccess: false }, // V2: NEW
+                { name: "Notifications", href: "/outlet/settings/notifications", icon: Bell, staffAccess: false }, // V2: NEW
                 { name: "Outlet Settings", href: "/outlet/settings", icon: Settings, staffAccess: false },
             ],
             staffAccess: false
