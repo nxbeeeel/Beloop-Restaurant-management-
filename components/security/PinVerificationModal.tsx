@@ -242,6 +242,7 @@ export function PinVerificationModal({
                                             {warning}
                                         </li>
                                     ))}
+                                </ul>
                                 </AlertDescription>
                         </Alert>
                     )}

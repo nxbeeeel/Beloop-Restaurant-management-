@@ -76,14 +76,14 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                 void utils.dashboard.getOutletStats.prefetch({ outletId });
                 break;
             case '/outlet/inventory':
-                void utils.inventory.list.prefetch({ outletId });
+                void utils.inventory.getUnifiedStock.prefetch({ outletId });
                 void utils.inventory.getLowStock.prefetch({ outletId });
                 break;
             case '/outlet/suppliers':
                 void utils.suppliers.list.prefetch();
                 break;
             case '/outlet/customers':
-                void utils.customers.getAll.prefetch({});
+                void utils.customers.getAll.prefetch({ search: undefined, status: undefined, tag: undefined });
                 void utils.customers.getStats.prefetch();
                 break;
             case '/outlet/purchase-orders':
@@ -102,7 +102,7 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                 void utils.expenses.list.prefetch({ outletId, startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1), endDate: new Date() });
                 break;
             case '/outlet/menu':
-                void utils.products.getAll.prefetch({ outletId });
+                void utils.products.list.prefetch({ outletId });
                 break;
             case '/outlet/stock-verification':
                 void utils.inventory.getLowStock.prefetch({ outletId });
@@ -111,7 +111,7 @@ export function Sidebar({ user, outlet }: SidebarProps) {
                 void utils.sales.getDaily.prefetch({ outletId, date: new Date() });
                 break;
             case '/outlet/analytics':
-                void utils.analytics.getOverview.prefetch({ outletId, dateRange: '7d' });
+                void utils.analytics.getBrandOverview.prefetch({ month: undefined, outletId });
                 break;
             // V2 Routes - will be implemented in upcoming phases
             case '/outlet/daily-register':

@@ -36,18 +36,18 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
     const [inviteLink, setInviteLink] = useState<string | null>(null);
 
     const utils = trpc.useContext();
-    const { data: tenants } = trpc.super.listTenants.useQuery();
+    const { data: tenants } = trpc.superAdmin.tenants.list.useQuery();
 
-    const inviteMutation = trpc.super.inviteUser.useMutation({
-        onSuccess: (data) => {
+    const inviteMutation = trpc.superAdmin.users.invite.useMutation({
+        onSuccess: (data: { token?: string }) => {
             toast.success("Invitation generated successfully");
-            utils.super.listAllUsers.invalidate();
+            utils.superAdmin.users.list.invalidate();
             // Generate Link
             if (data?.token) {
                 setInviteLink(`${window.location.origin}/signup?token=${data.token}`);
             }
         },
-        onError: (err) => toast.error(err.message),
+        onError: (err: { message: string }) => toast.error(err.message),
     });
 
     const handleSubmit = () => {

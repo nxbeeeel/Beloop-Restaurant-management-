@@ -32,38 +32,38 @@ export function UserActions({ user }: UserActionsProps) {
     const [isRoleOpen, setIsRoleOpen] = useState(false);
     const [newRole, setNewRole] = useState(user.role);
 
-    const suspendMutation = trpc.super.suspendUser.useMutation({
+    const suspendMutation = trpc.superAdmin.users.suspend.useMutation({
         onSuccess: () => {
             toast.success("User suspended");
-            utils.super.listAllUsers.invalidate();
+            utils.superAdmin.users.list.invalidate();
         },
     });
 
-    const activateMutation = trpc.super.activateUser.useMutation({
+    const activateMutation = trpc.superAdmin.users.activate.useMutation({
         onSuccess: () => {
             toast.success("User activated");
-            utils.super.listAllUsers.invalidate();
+            utils.superAdmin.users.list.invalidate();
         },
     });
 
-    const deleteMutation = trpc.super.deleteUser.useMutation({
+    const deleteMutation = trpc.superAdmin.users.delete.useMutation({
         onSuccess: () => {
             toast.success("User deleted");
-            utils.super.listAllUsers.invalidate();
+            utils.superAdmin.users.list.invalidate();
         },
-        onError: (err) => {
+        onError: (err: { message: string }) => {
             toast.error(`Failed to delete user: ${err.message}`);
             console.error("[UserActions] Delete error:", err);
         },
     });
 
-    const updateRoleMutation = trpc.super.updateUserRole.useMutation({
+    const updateRoleMutation = trpc.superAdmin.users.updateRole.useMutation({
         onSuccess: () => {
             toast.success("Role updated");
             setIsRoleOpen(false);
-            utils.super.listAllUsers.invalidate();
+            utils.superAdmin.users.list.invalidate();
         },
-        onError: (err) => toast.error(err.message)
+        onError: (err: { message: string }) => toast.error(err.message)
     });
 
     const handleRoleUpdate = () => {
