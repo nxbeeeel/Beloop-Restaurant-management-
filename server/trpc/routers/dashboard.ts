@@ -46,7 +46,7 @@ export const dashboardRouter = router({
                         topItems,
                         lowStockProductsCount,
                         lowStockIngredientsCount,
-                        pendingSupplierPayments,
+                        _supplierPaymentsPlaceholder,
                         todaySales
                     ] = await Promise.all([
                         // Monthly summary
@@ -145,10 +145,10 @@ export const dashboardRouter = router({
                     return {
                         summary,
                         recentSales,
-                        topItems: topItems.map((item: { name: string; _sum: { quantity: number | null; total: number | null } }) => ({
+                        topItems: topItems.map((item) => ({
                             name: item.name,
                             quantity: item._sum.quantity || 0,
-                            revenue: item._sum.total || 0
+                            revenue: Number(item._sum.total) || 0
                         })),
                         alerts: {
                             lowStockProducts,
