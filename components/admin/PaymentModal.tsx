@@ -51,9 +51,8 @@ export function PaymentModal({ tenantId, onSuccess }: PaymentModalProps) {
             tenantId,
             amount: Number(amount),
             method: method as any,
-            reference,
-            notes,
-            status: 'COMPLETED',
+            date: new Date(),
+            notes: reference ? `Ref: ${reference}${notes ? ' | ' + notes : ''}` : notes,
         });
     };
 
