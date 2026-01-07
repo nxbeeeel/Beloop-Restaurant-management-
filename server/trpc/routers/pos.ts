@@ -6,6 +6,146 @@ import { CacheService } from "@/server/services/cache.service";
 import { inngest } from "@/lib/inngest";
 import { signPosToken } from "@/lib/pos-auth";
 import { getAuthRateLimiter, checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import bcrypt from "bcryptjs";
+
+// V2: PIN verification and notification helpers
+async function verifyPinForAction(
+    prisma: any,
+    userId: string,
+    pin: string | undefined,
+    action: string,
+    outletId: string
+): Promise<{ valid: boolean; error?: string }> {
+    // Check if PIN is required for this action
+    const settings = await prisma.securitySettings.findUnique({
+        where: { outletId },
+    });
+
+    const settingKey = `${action.toLowerCase().replace(/_/g, "")}RequiresPIN`;
+    const requiresPIN = settings?.[settingKey as keyof typeof settings] ?? true;
+
+    if (!requiresPIN) {
+        return { valid: true };
+    }
+
+    if (!pin || pin.length !== 4) {
+        return { valid: false, error: "PIN required for this action" };
+    }
+
+    const userPin = await prisma.userPIN.findUnique({
+        where: { userId },
+    });
+
+    if (!userPin) {
+        return { valid: false, error: "PIN not set. Please set your PIN first." };
+    }
+
+    // Check lockout
+    if (userPin.lockedUntil && userPin.lockedUntil > new Date()) {
+        const minutesLeft = Math.ceil((userPin.lockedUntil.getTime() - Date.now()) / 60000);
+        return { valid: false, error: `Account locked. Try again in ${minutesLeft} minutes.` };
+    }
+
+    const isValid = await bcrypt.compare(pin, userPin.pinHash);
+
+    if (!isValid) {
+        const newFailedAttempts = userPin.failedAttempts + 1;
+        const shouldLock = newFailedAttempts >= 5;
+
+        await prisma.userPIN.update({
+            where: { userId },
+            data: {
+                failedAttempts: newFailedAttempts,
+                lockedUntil: shouldLock ? new Date(Date.now() + 15 * 60000) : null,
+            },
+        });
+
+        const attemptsLeft = 5 - newFailedAttempts;
+        return {
+            valid: false,
+            error: shouldLock
+                ? "Too many failed attempts. Account locked for 15 minutes."
+                : `Invalid PIN. ${attemptsLeft} attempts remaining.`,
+        };
+    }
+
+    // Success - reset attempts
+    await prisma.userPIN.update({
+        where: { userId },
+        data: { failedAttempts: 0, lockedUntil: null, lastUsedAt: new Date() },
+    });
+
+    return { valid: true };
+}
+
+async function logPinAction(
+    prisma: any,
+    data: {
+        outletId: string;
+        userId: string;
+        userName: string;
+        action: string;
+        status: "SUCCESS" | "FAILED" | "DENIED";
+        targetId?: string;
+        targetDetails?: any;
+        reason?: string;
+    }
+) {
+    await prisma.pINActionLog.create({
+        data: {
+            outletId: data.outletId,
+            userId: data.userId,
+            userName: data.userName,
+            action: data.action,
+            actionType: data.action.includes("ORDER") ? "ORDER" : data.action.includes("WITHDRAWAL") ? "CASH" : "OTHER",
+            targetId: data.targetId,
+            targetDetails: data.targetDetails,
+            status: data.status,
+            reason: data.reason,
+        },
+    });
+}
+
+async function sendManagerNotification(
+    prisma: any,
+    data: {
+        outletId: string;
+        type: string;
+        priority: "LOW" | "NORMAL" | "HIGH" | "CRITICAL";
+        title: string;
+        message: string;
+        actionBy?: string;
+        actionByName?: string;
+        amount?: number;
+        metadata?: any;
+    }
+) {
+    // Get security settings to find managers and notification preferences
+    const settings = await prisma.securitySettings.findUnique({
+        where: { outletId: data.outletId },
+    });
+
+    if (!settings?.managerUserIds?.length) return;
+
+    // Create notifications for all managers
+    for (const managerId of settings.managerUserIds) {
+        await prisma.managerNotification.create({
+            data: {
+                outletId: data.outletId,
+                managerId,
+                type: data.type,
+                priority: data.priority,
+                title: data.title,
+                message: data.message,
+                actionBy: data.actionBy,
+                actionByName: data.actionByName,
+                amount: data.amount,
+                metadata: data.metadata,
+                sentVia: ["IN_APP"], // TODO: Add WhatsApp integration
+            },
+        });
+    }
+}
 
 /**
  * POS Router - Secure Endpoints for Point-of-Sale Application
@@ -990,7 +1130,7 @@ export const posRouter = router({
         .input(z.object({
             orderId: z.string(),
             reason: z.string(),
-            pin: z.string().optional() // Can be used for supervisor authorization in future
+            pin: z.string().optional() // V2: Required based on SecuritySettings
         }))
         .mutation(async ({ ctx, input }) => {
             const { tenantId, outletId, userId } = ctx.posCredentials;
@@ -1001,6 +1141,33 @@ export const posRouter = router({
                 select: { name: true }
             });
             const userName = user?.name || 'Unknown Staff';
+
+            // V2: Verify PIN before allowing void
+            const pinResult = await verifyPinForAction(
+                ctx.prisma,
+                userId,
+                input.pin,
+                "voidorder",
+                outletId
+            );
+
+            if (!pinResult.valid) {
+                // Log failed attempt
+                await logPinAction(ctx.prisma, {
+                    outletId,
+                    userId,
+                    userName,
+                    action: "VOID_ORDER",
+                    status: "DENIED",
+                    targetId: input.orderId,
+                    reason: pinResult.error,
+                });
+
+                throw new TRPCError({
+                    code: "UNAUTHORIZED",
+                    message: pinResult.error || "PIN verification failed",
+                });
+            }
 
             return ctx.prisma.$transaction(async (tx) => {
                 // 1. Verify Order
@@ -1049,7 +1216,26 @@ export const posRouter = router({
                     }
                 });
 
-                // 4. Audit Log
+                // 4. Create Order Edit History (V2)
+                await tx.orderEditHistory.create({
+                    data: {
+                        orderId: order.id,
+                        outletId,
+                        editType: "VOIDED",
+                        previousData: { status: order.status, items: order.items },
+                        newData: { status: "VOIDED" },
+                        previousTotal: order.total,
+                        newTotal: 0,
+                        difference: order.total.negated(),
+                        reason: input.reason,
+                        editedBy: userId,
+                        editedByName: userName,
+                        pinVerified: true,
+                        managerNotified: true,
+                    },
+                });
+
+                // 5. Audit Log
                 await tx.auditLog.create({
                     data: {
                         tenantId,
@@ -1063,6 +1249,31 @@ export const posRouter = router({
                         newValue: { status: 'VOIDED', reason: input.reason },
                         timestamp: new Date()
                     }
+                });
+
+                // 6. V2: Log PIN action
+                await logPinAction(ctx.prisma, {
+                    outletId,
+                    userId,
+                    userName,
+                    action: "VOID_ORDER",
+                    status: "SUCCESS",
+                    targetId: order.id,
+                    targetDetails: { orderNumber: order.id.slice(-6), total: order.total },
+                    reason: input.reason,
+                });
+
+                // 7. V2: Send manager notification
+                await sendManagerNotification(ctx.prisma, {
+                    outletId,
+                    type: "VOID_ORDER",
+                    priority: "HIGH",
+                    title: "Order Voided",
+                    message: `${userName} voided Order #${order.id.slice(-6)} (₹${order.total}). Reason: ${input.reason}`,
+                    actionBy: userId,
+                    actionByName: userName,
+                    amount: Number(order.total),
+                    metadata: { orderId: order.id, reason: input.reason },
                 });
 
                 // Invalidate Cache
