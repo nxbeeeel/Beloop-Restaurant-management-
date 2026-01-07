@@ -51,12 +51,12 @@ export default function TransfersPage() {
 
     // Queries
     const { data: transfers, isLoading } = api.transfers.list.useQuery({
-        outletId,
+        outletId: outletId || "",
         direction: "all"
-    });
+    }, { enabled: !!outletId });
 
-    const { data: outlets } = api.outlets.list.useQuery({ tenantId });
-    const { data: products } = api.products.list.useQuery({ outletId });
+    const { data: outlets } = api.outlets.list.useQuery({ tenantId }, { enabled: !!tenantId });
+    const { data: products } = api.products.list.useQuery({ outletId: outletId || "" }, { enabled: !!outletId });
 
     // Mutations
     const createTransfer = api.transfers.create.useMutation({
@@ -121,7 +121,7 @@ export default function TransfersPage() {
 
         createTransfer.mutate({
             fromOutletId: selectedOutlet,
-            toOutletId: outletId,
+            toOutletId: outletId || "",
             items,
             notes: notes || undefined
         });
@@ -269,7 +269,7 @@ export default function TransfersPage() {
                                 key={transfer.id}
                                 transfer={transfer}
                                 isIncoming={true}
-                                currentOutletId={outletId}
+                                currentOutletId={outletId || ""}
                                 onReceive={() => handleReceive(transfer)}
                                 isReceiving={confirmReceipt.isPending}
                             />
@@ -291,7 +291,7 @@ export default function TransfersPage() {
                                 key={transfer.id}
                                 transfer={transfer}
                                 isIncoming={false}
-                                currentOutletId={outletId}
+                                currentOutletId={outletId || ""}
                                 onApprove={() => handleApprove(transfer)}
                                 onReject={() => {
                                     const reason = prompt("Rejection reason:");
