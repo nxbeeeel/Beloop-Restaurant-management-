@@ -22,17 +22,17 @@ export function UserActionMenu({ userId, isActive, onUpdate }: UserActionMenuPro
     const [open, setOpen] = useState(false);
     const utils = trpc.useContext();
 
-    const suspend = trpc.super.suspendUser.useMutation({
+    const suspend = trpc.superAdmin.users.suspend.useMutation({
         onSuccess: () => {
-            utils.super.getTenantDetails.invalidate();
+            utils.superAdmin.tenants.getDetails.invalidate();
             if (onUpdate) onUpdate();
             setOpen(false);
         },
     });
 
-    const activate = trpc.super.activateUser.useMutation({
+    const activate = trpc.superAdmin.users.activate.useMutation({
         onSuccess: () => {
-            utils.super.getTenantDetails.invalidate();
+            utils.superAdmin.tenants.getDetails.invalidate();
             if (onUpdate) onUpdate();
             setOpen(false);
         },
