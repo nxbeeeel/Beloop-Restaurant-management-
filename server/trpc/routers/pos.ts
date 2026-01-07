@@ -1348,7 +1348,168 @@ export const posRouter = router({
             return stats;
         }),
 
+    /**
+     * Get Order History - View past orders with edit trail
+     * V2: Includes edit history and void information
+     */
+    getOrderHistory: posProcedure
+        .input(z.object({
+            date: z.string().optional(), // YYYY-MM-DD, defaults to today
+            status: z.enum(["ALL", "COMPLETED", "VOIDED", "PENDING"]).default("ALL"),
+            limit: z.number().min(1).max(100).default(50),
+            offset: z.number().min(0).default(0),
+        }))
+        .query(async ({ ctx, input }) => {
+            const { outletId } = ctx.posCredentials;
 
+            // Date range
+            const targetDate = input.date ? new Date(input.date) : new Date();
+            const startOfDay = new Date(targetDate);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(targetDate);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            // Build status filter
+            const statusFilter = input.status === "ALL"
+                ? {}
+                : { status: input.status };
+
+            const [orders, total] = await Promise.all([
+                ctx.prisma.order.findMany({
+                    where: {
+                        outletId,
+                        createdAt: { gte: startOfDay, lte: endOfDay },
+                        ...statusFilter,
+                    },
+                    include: {
+                        items: {
+                            select: { id: true, name: true, quantity: true, price: true },
+                        },
+                        editHistory: {
+                            orderBy: { createdAt: "desc" },
+                            take: 5,
+                        },
+                    },
+                    orderBy: { createdAt: "desc" },
+                    take: input.limit,
+                    skip: input.offset,
+                }),
+                ctx.prisma.order.count({
+                    where: {
+                        outletId,
+                        createdAt: { gte: startOfDay, lte: endOfDay },
+                        ...statusFilter,
+                    },
+                }),
+            ]);
+
+            return {
+                orders: orders.map(o => ({
+                    id: o.id,
+                    orderNumber: o.id.slice(-6).toUpperCase(),
+                    status: o.status,
+                    paymentMethod: o.paymentMethod,
+                    paymentStatus: o.paymentStatus,
+                    totalAmount: Number(o.totalAmount),
+                    itemCount: o.items.length,
+                    items: o.items.map(i => ({
+                        name: i.name,
+                        qty: i.quantity,
+                        price: Number(i.price),
+                    })),
+                    createdAt: o.createdAt,
+                    // Void info
+                    isVoided: o.status === "VOIDED",
+                    voidReason: o.voidReason,
+                    voidedAt: o.voidedAt,
+                    voidedBy: o.voidedBy,
+                    // Edit history
+                    hasEdits: o.editHistory.length > 0,
+                    editCount: o.editHistory.length,
+                    lastEdit: o.editHistory[0] ? {
+                        type: o.editHistory[0].editType,
+                        reason: o.editHistory[0].reason,
+                        editedBy: o.editHistory[0].editedByName,
+                        at: o.editHistory[0].createdAt,
+                    } : null,
+                })),
+                total,
+                hasMore: input.offset + orders.length < total,
+            };
+        }),
+
+    /**
+     * Get Single Order with Full History
+     */
+    getOrderDetails: posProcedure
+        .input(z.object({
+            orderId: z.string(),
+        }))
+        .query(async ({ ctx, input }) => {
+            const { outletId } = ctx.posCredentials;
+
+            const order = await ctx.prisma.order.findFirst({
+                where: { id: input.orderId, outletId },
+                include: {
+                    items: true,
+                    payments: true,
+                    editHistory: {
+                        orderBy: { createdAt: "desc" },
+                    },
+                },
+            });
+
+            if (!order) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
+            }
+
+            return {
+                id: order.id,
+                orderNumber: order.id.slice(-6).toUpperCase(),
+                status: order.status,
+                paymentMethod: order.paymentMethod,
+                paymentStatus: order.paymentStatus,
+                totalAmount: Number(order.totalAmount),
+                tableNumber: order.tableNumber,
+                customerName: order.customerName,
+                notes: order.notes,
+                createdAt: order.createdAt,
+                // Items
+                items: order.items.map(i => ({
+                    id: i.id,
+                    name: i.name,
+                    quantity: i.quantity,
+                    price: Number(i.price),
+                    total: Number(i.total),
+                    notes: i.notes,
+                })),
+                // Payments
+                payments: order.payments.map(p => ({
+                    id: p.id,
+                    method: p.method,
+                    amount: Number(p.amount),
+                    reference: p.reference,
+                    createdAt: p.createdAt,
+                })),
+                // Void info
+                isVoided: order.status === "VOIDED",
+                voidReason: order.voidReason,
+                voidedAt: order.voidedAt,
+                voidedBy: order.voidedBy,
+                // Full edit history
+                editHistory: order.editHistory.map(h => ({
+                    id: h.id,
+                    type: h.editType,
+                    reason: h.reason,
+                    previousTotal: Number(h.previousTotal),
+                    newTotal: Number(h.newTotal),
+                    difference: Number(h.difference),
+                    editedBy: h.editedByName,
+                    pinVerified: h.pinVerified,
+                    createdAt: h.createdAt,
+                })),
+            };
+        }),
 
     // ============================================
     // PAYMENTS (Split Bill)
