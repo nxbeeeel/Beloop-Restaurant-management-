@@ -34,9 +34,9 @@ export function PaymentModal({ tenantId, onSuccess }: PaymentModalProps) {
     const [notes, setNotes] = useState('');
 
     const utils = trpc.useContext();
-    const recordPayment = trpc.payment.recordPayment.useMutation({
+    const recordPayment = trpc.superAdmin.billing.recordPayment.useMutation({
         onSuccess: () => {
-            utils.super.getTenantDetails.invalidate({ tenantId });
+            utils.superAdmin.tenants.getDetails.invalidate({ tenantId });
             setOpen(false);
             setAmount('');
             setReference('');
