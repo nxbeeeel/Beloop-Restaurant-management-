@@ -24,7 +24,7 @@ export default function SalesLoading() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <TableSkeleton colCount={5} rowCount={10} />
+                    <TableSkeleton rows={10} />
                 </CardContent>
             </Card>
         </div>

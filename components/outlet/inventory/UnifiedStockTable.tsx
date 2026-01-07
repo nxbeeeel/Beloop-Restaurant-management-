@@ -160,7 +160,7 @@ export function UnifiedStockTable({ outletId }: UnifiedStockTableProps) {
     ], [handleAdjust, isPending]);
 
     if (isLoading) {
-        return <TableSkeleton colCount={5} rowCount={10} />;
+        return <TableSkeleton rows={10} />;
     }
 
     return (
