@@ -55,7 +55,7 @@ export default function TransfersPage() {
         direction: "all"
     }, { enabled: !!outletId });
 
-    const { data: outlets } = api.outlets.list.useQuery({ tenantId }, { enabled: !!tenantId });
+    const { data: outlets } = api.outlets.list.useQuery();
     const { data: products } = api.products.list.useQuery({ outletId: outletId || "" }, { enabled: !!outletId });
 
     // Mutations
