@@ -113,13 +113,20 @@ export function Sidebar({ user, outlet }: SidebarProps) {
             case '/outlet/analytics':
                 void utils.analytics.getBrandOverview.prefetch({ month: undefined, outletId });
                 break;
-            // V2 Routes - will be implemented in upcoming phases
-            case '/outlet/daily-register':
+            // V2 Routes - prefetch security and register data
+            case '/outlet/register':
+                void utils.dailyClosure?.list?.prefetch?.({ outletId });
+                break;
             case '/outlet/orders/history':
+                void utils.pos?.getOrderHistory?.prefetch?.({ limit: 50 });
+                break;
             case '/outlet/settings/pin':
             case '/outlet/settings/security':
             case '/outlet/settings/notifications':
-                // These routes will have their own prefetch logic once routers are created
+                void utils.security?.getSettings?.prefetch?.({});
+                break;
+            case '/outlet/creditors':
+                void utils.creditorLedger?.getBalanceSummary?.prefetch?.();
                 break;
         }
     };
@@ -137,7 +144,7 @@ export function Sidebar({ user, outlet }: SidebarProps) {
         {
             title: "Daily Operations",
             items: [
-                { name: "Daily Register", href: "/outlet/daily-register", icon: Calendar, staffAccess: false }, // V2: NEW - Cash management
+                { name: "Daily Register", href: "/outlet/register", icon: Calendar, staffAccess: false }, // V2: Cash management
                 { name: "Sales Entry", href: "/outlet/sales/entry", icon: FileText, staffAccess: true },
                 { name: "Stock Verification", href: "/outlet/stock-verification", icon: ClipboardCheck, staffAccess: true },
                 { name: "Daily Closing", href: "/outlet/close-daily", icon: Receipt, staffAccess: true },
