@@ -111,20 +111,9 @@ export const dashboardRouter = router({
                     AND "stock" <= "minStock"
                 `,
 
-                        // Pending supplier payments (suppliers with balance > 0)
-                        ctx.prisma.supplier.findMany({
-                            where: {
-                                outletId: input.outletId,
-                                balance: { gt: 0 }
-                            },
-                            select: {
-                                id: true,
-                                name: true,
-                                balance: true
-                            },
-                            orderBy: { balance: 'desc' },
-                            take: 5
-                        }),
+                        // V2 TODO: Pending supplier payments - Supplier model needs balance field
+                        // For now, return empty array
+                        Promise.resolve([]),
 
                         // Today's sales total
                         ctx.prisma.sale.aggregate({
@@ -142,10 +131,9 @@ export const dashboardRouter = router({
                     const lowStockProducts = Number(lowStockProductsCount[0]?.count || 0);
                     const lowStockIngredients = Number(lowStockIngredientsCount[0]?.count || 0);
 
-                    // Calculate total pending to suppliers
-                    const totalPendingToSuppliers = pendingSupplierPayments.reduce(
-                        (sum, s) => sum + Number(s.balance), 0
-                    );
+                    // V2 TODO: Calculate pending to suppliers once balance field exists
+                    const pendingSupplierPayments: { id: string; name: string; balance: number }[] = [];
+                    const totalPendingToSuppliers = 0;
 
                     // Today's sales
                     const todaySalesTotal = Number(todaySales._sum.totalSale || 0);
@@ -166,11 +154,7 @@ export const dashboardRouter = router({
                             lowStockProducts,
                             lowStockIngredients,
                             totalPendingToSuppliers,
-                            pendingSupplierPayments: pendingSupplierPayments.map(s => ({
-                                id: s.id,
-                                name: s.name,
-                                balance: Number(s.balance)
-                            })),
+                            pendingSupplierPayments,
                             todaySales: todaySalesTotal,
                             isLowSales,
                             avgDailySales
