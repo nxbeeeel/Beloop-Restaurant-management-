@@ -375,7 +375,7 @@ export const securityRouter = router({
             const outlet = await ctx.prisma.outlet.findFirst({
                 where: {
                     id: outletId,
-                    tenantId: ctx.tenantId,
+                    tenantId: ctx.tenantId!,
                 },
             });
 
