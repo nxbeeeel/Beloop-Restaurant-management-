@@ -158,10 +158,13 @@ export const securityRouter = router({
                     reason: `Account locked for ${minutesLeft} more minutes`,
                 });
 
-                throw new TRPCError({
-                    code: "FORBIDDEN",
-                    message: `Account locked. Try again in ${minutesLeft} minutes.`,
-                });
+                return {
+                    success: false,
+                    locked: true,
+                    lockedUntil: userPin.lockedUntil,
+                    remainingMinutes: minutesLeft,
+                    error: `Account locked. Try again in ${minutesLeft} minutes.`,
+                };
             }
 
             // Verify PIN
@@ -170,15 +173,16 @@ export const securityRouter = router({
             if (!isValid) {
                 const newFailedAttempts = userPin.failedAttempts + 1;
                 const shouldLock = newFailedAttempts >= MAX_FAILED_ATTEMPTS;
+                const lockoutTime = shouldLock
+                    ? new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60000)
+                    : null;
 
                 // Update failed attempts
                 await ctx.prisma.userPIN.update({
                     where: { userId: ctx.user.id },
                     data: {
                         failedAttempts: newFailedAttempts,
-                        lockedUntil: shouldLock
-                            ? new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60000)
-                            : null,
+                        lockedUntil: lockoutTime,
                     },
                 });
 
@@ -195,12 +199,16 @@ export const securityRouter = router({
 
                 const attemptsLeft = MAX_FAILED_ATTEMPTS - newFailedAttempts;
 
-                throw new TRPCError({
-                    code: "UNAUTHORIZED",
-                    message: shouldLock
-                        ? `Too many failed attempts. Account locked for ${LOCKOUT_DURATION_MINUTES} minutes.`
-                        : `Invalid PIN. ${attemptsLeft} attempts remaining.`,
-                });
+                return {
+                    success: false,
+                    locked: shouldLock,
+                    lockedUntil: lockoutTime,
+                    remainingMinutes: shouldLock ? LOCKOUT_DURATION_MINUTES : 0,
+                    remainingAttempts: attemptsLeft,
+                    error: shouldLock
+                        ? `Account locked for ${LOCKOUT_DURATION_MINUTES} minutes due to too many failed attempts.`
+                        : `Invalid PIN. ${attemptsLeft} attempt${attemptsLeft !== 1 ? "s" : ""} remaining.`,
+                };
             }
 
             // Success! Reset failed attempts
