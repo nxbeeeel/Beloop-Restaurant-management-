@@ -70,6 +70,10 @@ export const customersRouter = router({
         .query(async ({ ctx }) => {
             const tenantId = ctx.tenantId;
 
+            if (!tenantId) {
+                throw new TRPCError({ code: 'BAD_REQUEST', message: 'No tenant context' });
+            }
+
             return CacheService.getOrSet(
                 CacheService.keys.customersStats(tenantId),
                 async () => {
