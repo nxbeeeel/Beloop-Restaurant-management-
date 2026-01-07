@@ -80,6 +80,20 @@ export const dailyRegisterRouter = router({
     // ============================================
 
     /**
+     * Get last closed register for opening balance
+     */
+    getLastClosing: protectedProcedure
+        .use(enforceTenant)
+        .input(z.object({ outletId: z.string() }))
+        .query(async ({ ctx, input }) => {
+            return ctx.prisma.dailyRegister.findFirst({
+                where: { outletId: input.outletId, status: "CLOSED" },
+                orderBy: { date: "desc" },
+                select: { physicalCash: true, date: true }
+            });
+        }),
+
+    /**
      * Open daily register for the day
      */
     openRegister: protectedProcedure

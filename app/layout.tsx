@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { TRPCProvider } from "@/components/ui/TRPCProvider";
 import { Toaster } from 'sonner'
+import { Toaster as ShadcnToaster } from "@/components/ui/toaster"
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -61,6 +62,7 @@ export default function RootLayout({
             <CommandK />
             {children}
             <Toaster position="top-right" richColors />
+            <ShadcnToaster />
           </TRPCProvider>
         </body>
       </html>
