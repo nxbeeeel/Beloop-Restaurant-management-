@@ -662,12 +662,16 @@ export const posRouter = router({
                             totalAmount,
                             idempotencyKey: input.idempotencyKey,
                             items: {
-                                create: input.items.map(item => ({
-                                    productId: item.productId,
-                                    quantity: item.quantity,
-                                    price: item.price,
-                                    total: item.price * item.quantity
-                                }))
+                                create: input.items.map(item => {
+                                    const reservation = reservations.find(r => r.productId === item.productId);
+                                    return {
+                                        productId: item.productId,
+                                        name: reservation?.name || 'Unknown Product',
+                                        quantity: item.quantity,
+                                        price: item.price,
+                                        total: item.price * item.quantity
+                                    };
+                                })
                             },
                             payments: input.payments?.length ? {
                                 create: input.payments.map(p => ({
@@ -692,7 +696,12 @@ export const posRouter = router({
 
                         if (loyaltyRule && totalAmount >= Number(loyaltyRule.minSpendPerVisit || 0)) {
                             await tx.loyaltyProgress.upsert({
-                                where: { customerId: input.customerId },
+                                where: {
+                                    customerId_outletId: {
+                                        customerId: input.customerId,
+                                        outletId
+                                    }
+                                },
                                 create: {
                                     customerId: input.customerId,
                                     outletId,
@@ -1216,24 +1225,8 @@ export const posRouter = router({
                     }
                 });
 
-                // 4. Create Order Edit History (V2)
-                await tx.orderEditHistory.create({
-                    data: {
-                        orderId: order.id,
-                        outletId,
-                        editType: "VOIDED",
-                        previousData: { status: order.status, items: order.items },
-                        newData: { status: "VOIDED" },
-                        previousTotal: order.total,
-                        newTotal: 0,
-                        difference: order.total.negated(),
-                        reason: input.reason,
-                        editedBy: userId,
-                        editedByName: userName,
-                        pinVerified: true,
-                        managerNotified: true,
-                    },
-                });
+                // 4. Create Order Edit History (V2) - Skipped: OrderEditHistory model not in schema yet
+                // TODO: Add OrderEditHistory model to schema for V2
 
                 // 5. Audit Log
                 await tx.auditLog.create({
@@ -1259,7 +1252,7 @@ export const posRouter = router({
                     action: "VOID_ORDER",
                     status: "SUCCESS",
                     targetId: order.id,
-                    targetDetails: { orderNumber: order.id.slice(-6), total: order.total },
+                    targetDetails: { orderNumber: order.id.slice(-6), total: Number(order.totalAmount) },
                     reason: input.reason,
                 });
 
@@ -1269,10 +1262,10 @@ export const posRouter = router({
                     type: "VOID_ORDER",
                     priority: "HIGH",
                     title: "Order Voided",
-                    message: `${userName} voided Order #${order.id.slice(-6)} (₹${order.total}). Reason: ${input.reason}`,
+                    message: `${userName} voided Order #${order.id.slice(-6)} (₹${order.totalAmount}). Reason: ${input.reason}`,
                     actionBy: userId,
                     actionByName: userName,
-                    amount: Number(order.total),
+                    amount: Number(order.totalAmount),
                     metadata: { orderId: order.id, reason: input.reason },
                 });
 
