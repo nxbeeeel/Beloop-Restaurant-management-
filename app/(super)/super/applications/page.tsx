@@ -34,7 +34,7 @@ export default function ApplicationsPage() {
         onSuccess: (data: any) => {
             toast.success('Application approved! Tenant created.');
             utils.brandApplication.list.invalidate();
-            utils.super.listTenants.invalidate();
+            utils.super.tenants.list.invalidate();
             setApprovedData({ tenant: data.tenant, invite: data.invite, actionTaken: data.actionTaken });
             setIsDialogOpen(true);
         },
