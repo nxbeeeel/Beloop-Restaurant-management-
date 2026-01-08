@@ -4,11 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Receipt, CreditCard, Banknote, Smartphone } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useOutlet } from "@/hooks/use-outlet";
 
 export default function SalesRegisterPage() {
-    const { data: closures, isLoading } = trpc.dailyClosure.list.useQuery({
-        outletId: "",
-    });
+    const { outletId, isLoading: outletLoading } = useOutlet();
+
+    const { data: closures, isLoading: dataLoading } = trpc.dailyClosure.list.useQuery(
+        { outletId: outletId || "" },
+        { enabled: !!outletId }
+    );
+
+    const isLoading = outletLoading || dataLoading;
 
     if (isLoading) {
         return (

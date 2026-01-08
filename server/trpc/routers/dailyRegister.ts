@@ -580,4 +580,59 @@ export const dailyRegisterRouter = router({
                 orderBy: { createdAt: "desc" },
             });
         }),
+
+    /**
+     * Get order history for tracker (non-POS authenticated)
+     */
+    getOrderHistory: protectedProcedure
+        .use(enforceTenant)
+        .input(z.object({
+            outletId: z.string(),
+            status: z.enum(["ALL", "COMPLETED", "VOIDED", "PENDING"]).default("ALL"),
+            limit: z.number().min(1).max(100).default(50),
+            offset: z.number().min(0).default(0),
+        }))
+        .query(async ({ ctx, input }) => {
+            const { outletId, status, limit, offset } = input;
+
+            // Authorization check
+            if (ctx.role !== "SUPER" && ctx.role !== "BRAND_ADMIN" && ctx.outletId !== outletId) {
+                throw new TRPCError({ code: "FORBIDDEN" });
+            }
+
+            const statusFilter = status === "ALL" ? {} : { status };
+
+            const [orders, total] = await Promise.all([
+                ctx.prisma.order.findMany({
+                    where: { outletId, ...statusFilter },
+                    include: {
+                        items: {
+                            select: { id: true, name: true, quantity: true, price: true },
+                        },
+                    },
+                    orderBy: { createdAt: "desc" },
+                    take: limit,
+                    skip: offset,
+                }),
+                ctx.prisma.order.count({
+                    where: { outletId, ...statusFilter },
+                }),
+            ]);
+
+            return {
+                orders: orders.map(o => ({
+                    id: o.id,
+                    orderNumber: o.id.slice(-6).toUpperCase(),
+                    status: o.status,
+                    paymentMethod: o.paymentMethod,
+                    totalAmount: Number(o.totalAmount),
+                    itemCount: o.items.length,
+                    createdAt: o.createdAt,
+                    isVoided: o.status === "VOIDED",
+                    voidReason: o.voidReason,
+                })),
+                total,
+                hasMore: offset + orders.length < total,
+            };
+        }),
 });

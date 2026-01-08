@@ -6,18 +6,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Receipt } from "lucide-react";
+import { Search, Receipt, AlertTriangle, History } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useOutlet } from "@/hooks/use-outlet";
 import { format } from "date-fns";
 
 export default function OrderHistoryPage() {
+    const { outletId, isLoading: outletLoading } = useOutlet();
     const [search, setSearch] = useState("");
-    const [statusFilter, setStatusFilter] = useState<string>("ALL");
+    const [statusFilter, setStatusFilter] = useState<"ALL" | "COMPLETED" | "VOIDED" | "PENDING">("ALL");
 
-    const { data, isLoading } = trpc.pos.getOrderHistory.useQuery({
-        status: statusFilter as "ALL" | "COMPLETED" | "VOIDED" | "PENDING",
-        limit: 100,
-    });
+    const { data, isLoading: dataLoading } = trpc.dailyRegister.getOrderHistory.useQuery(
+        {
+            outletId: outletId || "",
+            status: statusFilter,
+            limit: 100,
+        },
+        { enabled: !!outletId }
+    );
+
+    const isLoading = outletLoading || dataLoading;
 
     if (isLoading) {
         return (
@@ -67,7 +75,10 @@ export default function OrderHistoryPage() {
     return (
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold">Order History</h1>
+                <div className="flex items-center gap-3">
+                    <History className="h-8 w-8 text-primary" />
+                    <h1 className="text-2xl font-bold">Order History</h1>
+                </div>
                 <div className="relative w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -80,7 +91,7 @@ export default function OrderHistoryPage() {
             </div>
 
             <div className="flex gap-2">
-                {["ALL", "COMPLETED", "VOIDED", "PENDING"].map((status) => (
+                {(["ALL", "COMPLETED", "VOIDED", "PENDING"] as const).map((status) => (
                     <Button
                         key={status}
                         variant={statusFilter === status ? "default" : "outline"}
@@ -101,8 +112,14 @@ export default function OrderHistoryPage() {
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <Receipt className="h-4 w-4 text-muted-foreground" />
-                                            <span className="font-mono font-medium">#{order.orderNumber || order.id.slice(-6).toUpperCase()}</span>
+                                            <span className="font-mono font-medium">#{order.orderNumber}</span>
                                             <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
+                                            {order.isVoided && order.voidReason && (
+                                                <span className="text-xs text-red-600 flex items-center gap-1">
+                                                    <AlertTriangle className="h-3 w-3" />
+                                                    {order.voidReason}
+                                                </span>
+                                            )}
                                         </div>
                                         <p className="text-sm text-muted-foreground mt-1">
                                             {format(new Date(order.createdAt), "MMM d, yyyy h:mm a")} &bull; {order.paymentMethod || "N/A"}
@@ -123,6 +140,12 @@ export default function OrderHistoryPage() {
                     )}
                 </CardContent>
             </Card>
+
+            {data?.total && data.total > 0 && (
+                <p className="text-sm text-muted-foreground text-center">
+                    Showing {filteredOrders.length} of {data.total} orders
+                </p>
+            )}
         </div>
     );
 }

@@ -4,21 +4,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, TrendingDown, DollarSign, Percent } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useOutlet } from "@/hooks/use-outlet";
 
 export default function ProfitLossPage() {
+    const { outletId, isLoading: outletLoading } = useOutlet();
     const today = new Date();
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    const { data: closures, isLoading: closuresLoading } = trpc.dailyClosure.list.useQuery({
-        outletId: "",
-    });
+    const { data: closures, isLoading: closuresLoading } = trpc.dailyClosure.list.useQuery(
+        { outletId: outletId || "" },
+        { enabled: !!outletId }
+    );
 
-    const { data: expenseData, isLoading: expenseLoading } = trpc.expensesV2.getSummaryByCategory.useQuery({
-        startDate: startOfMonth.toISOString().split('T')[0],
-        endDate: today.toISOString().split('T')[0],
-    });
+    const { data: expenseData, isLoading: expenseLoading } = trpc.expensesV2.getSummaryByCategory.useQuery(
+        {
+            startDate: startOfMonth.toISOString().split('T')[0],
+            endDate: today.toISOString().split('T')[0],
+        },
+        { enabled: !!outletId }
+    );
 
-    const isLoading = closuresLoading || expenseLoading;
+    const isLoading = outletLoading || closuresLoading || expenseLoading;
 
     if (isLoading) {
         return (
