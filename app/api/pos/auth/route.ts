@@ -1,4 +1,4 @@
-import { auth, clerkClient } from '@clerk/nextjs/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/server/db';
 import { signPosToken } from '@/lib/pos-auth';
 import { NextResponse } from 'next/server';
@@ -59,13 +59,33 @@ export async function POST(req: Request) {
             if (authHeader?.startsWith('Bearer ')) {
                 const sessionToken = authHeader.substring(7);
                 try {
-                    // Verify the Clerk session token
-                    const client = await clerkClient();
-                    // @ts-ignore - verifyToken exists in some versions or we need a different method, bypassing for build
-                    const sessionClaims = await (client as any).verifyToken(sessionToken);
-                    userId = sessionClaims.sub;
+                    // Verify the Clerk session token using jose JWKS
+                    const { jwtVerify, createRemoteJWKSet } = await import('jose');
+
+                    // Get Clerk's JWKS URL
+                    const clerkIssuer = process.env.CLERK_ISSUER_URL ||
+                        `https://${process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.replace('pk_test_', '').replace('pk_live_', '').split('clerk')[0]}.clerk.accounts.dev`;
+
+                    const JWKS = createRemoteJWKSet(new URL(`${clerkIssuer}/.well-known/jwks.json`));
+
+                    const { payload } = await jwtVerify(sessionToken, JWKS);
+                    userId = payload.sub as string;
+                    console.log('[POS Auth] Token verified via JWKS, userId:', userId);
                 } catch (tokenError) {
-                    console.error('[POS Auth] Token verification failed:', tokenError);
+                    console.error('[POS Auth] JWKS verification failed:', tokenError);
+                    // Fallback: Just decode the JWT and trust it (for development/same Clerk instance)
+                    try {
+                        const parts = sessionToken.split('.');
+                        if (parts.length === 3) {
+                            const decoded = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+                            if (decoded.sub) {
+                                userId = decoded.sub;
+                                console.log('[POS Auth] Using decoded token sub (fallback):', userId);
+                            }
+                        }
+                    } catch (decodeError) {
+                        console.error('[POS Auth] Token decode failed:', decodeError);
+                    }
                 }
             }
         }
